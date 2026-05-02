@@ -4,6 +4,7 @@ name: Fetch MOPH Data Daily
 on:
   schedule:
     - cron: '0 1 * * *'  # ทุกวัน 08:00 น. ไทย (UTC+7 = 01:00 UTC)
+    workflow_dispatch:
 
 jobs:
   fetch:
