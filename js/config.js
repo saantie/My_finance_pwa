@@ -11,7 +11,7 @@
 // ถ้าเว้นว่างไว้ แอปจะ fallback ไปอ่านจาก localStorage (per-user setup)
 
 window.APP_CONFIG = {
-  GOOGLE_CLIENT_ID: '',  // ← ใส่ Client ID ของคุณตรงนี้ก่อน deploy
+  GOOGLE_CLIENT_ID: '444691436468-enqqrqqvmt7c58i9sstsjmmjuo8qahp1.apps.googleusercontent.com',  // ← ใส่ Client ID ของคุณตรงนี้ก่อน deploy
 
   // ชื่อ default สำหรับ sheet ที่แอปสร้างให้
   DEFAULT_SHEET_NAME: 'การเงินส่วนตัว'
