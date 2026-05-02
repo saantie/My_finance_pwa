@@ -1,23 +1,25 @@
-# .github/workflows/fetch-moph.yml
 name: Fetch MOPH Data Daily
 
 on:
   schedule:
-    - cron: '0 1 * * *'  # ทุกวัน 08:00 น. ไทย (UTC+7 = 01:00 UTC)
-    workflow_dispatch:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch MOPH and Save to Sheet
+      - name: Fetch MOPH API
         run: |
           curl -s -X POST https://opendata.moph.go.th/api/report_data \
             -H "Content-Type: application/json" \
             -d '{"tableName":"s_childdev_specialpp","year":"2568","province":"42","type":"json"}' \
             -o response.json
-          
-          # ส่งไปให้ Apps Script
-          curl -s -L -X POST "https://script.google.com/macros/s/AKfycbxYJTqOxb8Ff69LXftjZX5wkaNXiGLHrFXZdAbyp76HpzdfhetdUJ3TUybtoHzk_ttq/exec" \
+          echo "=== Preview ==="
+          head -c 500 response.json
+
+      - name: Send to Apps Script
+        run: |
+          curl -s -L -X POST "${{ secrets.APPS_SCRIPT_URL }}" \
             -H "Content-Type: application/json" \
             -d @response.json
