@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" fill="#1a3a5c"/>
-  <text x="256" y="368" text-anchor="middle"
-        font-family="Georgia, 'IBM Plex Serif', serif"
-        font-size="372" font-weight="600" fill="#f6f3ec"
-        letter-spacing="-8">฿</text>
-  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#f6f3ec" stroke-width="3" stroke-opacity="0.25"/>
-</svg>
