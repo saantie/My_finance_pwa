@@ -464,12 +464,13 @@ html, body {
 
 
 /* Daily balance chart card */
-.chart-card { padding: 18px; }
+.chart-card { padding: 18px; overflow: hidden; }
 .chart-svg {
   width: 100%;
   height: 80px;
   margin-top: 4px;
-  overflow: visible;
+  overflow: hidden;
+  display: block;
 }
 .chart-foot {
   display: flex;
