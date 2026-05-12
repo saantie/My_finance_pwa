@@ -36,6 +36,7 @@ const modal = () => document.getElementById('add-modal');
 
 /* === Draft state ================================================ */
 let draft = null;
+let editingTxId = null;   // ถ้าไม่ null = edit mode
 
 function freshDraft() {
   return {
@@ -64,6 +65,7 @@ function freshDraft() {
 /* === Public API ================================================= */
 
 export function openAddModal(prefill = null) {
+  editingTxId = null;
   draft = freshDraft();
 
   // Default category = หมวดแรกของ type
@@ -87,9 +89,31 @@ export function openAddModal(prefill = null) {
   haptic(8);
 }
 
+/** เปิด modal โดย pre-fill จาก transaction ที่มีอยู่ (edit mode) */
+export function openEditModal(tx) {
+  editingTxId = tx.id;
+  draft = {
+    type:              tx.type,
+    expression:        String(tx.amount / 100),
+    amount:            tx.amount,
+    group:             tx.group,
+    account_id:        tx.account_from || tx.account_to || 'cash:default',
+    note:              tx.description || '',
+    date:              tx.date,
+    frequency:         'today',
+    first_due:         tx.date,
+    installment_total: 12
+  };
+
+  render();
+  modal().classList.remove('hidden');
+  haptic(8);
+}
+
 export function closeAddModal() {
   modal().classList.add('hidden');
   draft = null;
+  editingTxId = null;
 }
 
 
@@ -114,16 +138,18 @@ function render() {
     : '0';
 
   const titleByType = {
-    expense:  'บันทึกรายจ่าย',
-    income:   'บันทึกรายรับ',
-    transfer: 'โอนระหว่างบัญชี'
+    expense:  editingTxId ? 'แก้ไขรายจ่าย' : 'บันทึกรายจ่าย',
+    income:   editingTxId ? 'แก้ไขรายรับ'  : 'บันทึกรายรับ',
+    transfer: editingTxId ? 'แก้ไขการโอน'  : 'โอนระหว่างบัญชี'
   };
 
-  // Title prefix ถ้าเป็น recurring
+  // Title prefix ถ้าเป็น recurring (ไม่แสดงใน edit mode)
   let titlePrefix = '';
-  if (draft.frequency === 'scheduled') titlePrefix = 'ล่วงหน้า · ';
-  else if (draft.frequency === 'monthly' || draft.frequency === 'weekly' || draft.frequency === 'yearly') titlePrefix = 'ประจำ · ';
-  else if (draft.frequency === 'installment') titlePrefix = 'ผ่อน · ';
+  if (!editingTxId) {
+    if (draft.frequency === 'scheduled') titlePrefix = 'ล่วงหน้า · ';
+    else if (draft.frequency === 'monthly' || draft.frequency === 'weekly' || draft.frequency === 'yearly') titlePrefix = 'ประจำ · ';
+    else if (draft.frequency === 'installment') titlePrefix = 'ผ่อน · ';
+  }
 
   el.innerHTML = `
     <div class="add-topbar">
@@ -176,7 +202,8 @@ function render() {
         </div>
       </div>
 
-      <!-- Frequency / scheduling -->
+      <!-- Frequency / scheduling (ซ่อนใน edit mode) -->
+      ${editingTxId ? '' : `
       <div class="meta-block">
         <div class="meta-label">เกิดเมื่อไหร่</div>
         <div class="freq-grid">
@@ -188,6 +215,7 @@ function render() {
         </div>
         ${renderFreqDetails()}
       </div>
+      `}
 
       <!-- Account -->
       <div class="meta-block">
@@ -512,6 +540,24 @@ function save() {
 
   const description = draft.note || getCategory(draft.group).label;
   const category = getCategory(draft.group).label;
+
+  // === Edit mode: อัปเดตรายการที่มีอยู่ ===
+  if (editingTxId) {
+    State.updateTransaction(editingTxId, {
+      type:             draft.type,
+      amount:           draft.amount,
+      group:            draft.group,
+      category,
+      description,
+      account_from:     draft.type !== 'income' ? draft.account_id : null,
+      account_to:       draft.type === 'income' ? draft.account_id : null,
+      user_classified:  true    // user แก้แล้ว → parser ไม่ override
+    });
+    haptic([5, 30, 50]);
+    showToast('แก้ไขแล้ว');
+    closeAddModal();
+    return;
+  }
 
   // === Case 1: บันทึกธรรมดา (วันนี้) ===
   if (draft.frequency === 'today') {

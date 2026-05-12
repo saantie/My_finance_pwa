@@ -45,6 +45,12 @@ input, textarea {
    Diary mode = warm cream paper + earthy-but-fresh accent colors.
    ตัวเลขใช้ ink เข้มเพื่อ legibility, accent ใช้กับ semantic เท่านั้น
 ================================================================ */
+
+/* Base font size — ปรับผ่าน [data-text-size] บน <html> */
+html { font-size: 16px; }
+html[data-text-size="large"]  { font-size: 18px; }
+html[data-text-size="xlarge"] { font-size: 20px; }
+
 :root {
   /* Paper & ink (เน้น cream ไม่ใช่ขาวบริสุทธิ์) */
   --paper:        #fdf9f0;
@@ -1803,4 +1809,121 @@ html, body {
   background: var(--terracotta);
   color: white;
   box-shadow: 0 4px 12px -4px rgba(232, 133, 99, 0.55);
+}
+
+
+/* ===================================================================
+   Pro theme — Bloomberg/editorial, navy, sharp
+   สลับได้ใน Settings → data-theme="pro" บน <html>
+   =================================================================== */
+html[data-theme="pro"] {
+  --paper:             #f6f3ec;
+  --paper-deep:        #ece8dc;
+  --card:              #ffffff;
+  --ink:               #0e1a26;
+  --ink-soft:          #3d5166;
+  --ink-faint:         #6b8099;
+  --rule:              #d4cebb;
+  --rule-soft:         #e0d9cc;
+
+  --terracotta:        #1a3a5c;
+  --terracotta-soft:   #d4e2f0;
+  --sage:              #4a7c4f;
+  --sage-soft:         #d0e6d2;
+  --clay:              #b03a2e;
+  --clay-soft:         #f0d4d0;
+  --mocha:             #5a7a5a;
+  --dust-blue:         #2e6699;
+  --dust-blue-soft:    #d0e4f4;
+  --plum:              #6a4a8a;
+  --honey:             #b8860b;
+
+  --r-card:            2px;
+}
+
+html[data-theme="pro"] .fab {
+  background: linear-gradient(135deg, #1a3a5c 0%, #0e2540 100%);
+  box-shadow: 0 6px 18px -4px rgba(26, 58, 92, 0.45), 0 2px 4px rgba(0,0,0,0.12);
+}
+
+html[data-theme="pro"] .hero::before {
+  background: var(--ink-soft);
+}
+
+html[data-theme="pro"] .add-save {
+  background: var(--terracotta);
+  box-shadow: 0 4px 12px -4px rgba(26, 58, 92, 0.4);
+}
+
+
+/* ===================================================================
+   Entry row — action buttons (edit / delete)
+   =================================================================== */
+.entry-body {
+  min-width: 0;
+}
+
+.entry-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.entry-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+.entry:hover .entry-actions,
+.entry:focus-within .entry-actions {
+  opacity: 1;
+}
+
+/* บน mobile — แสดงเสมอ (ไม่มี hover) */
+@media (hover: none) {
+  .entry-actions { opacity: 1; }
+}
+
+.entry-action-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.entry-action-btn:active,
+.entry-action-btn:hover { background: var(--rule-soft); color: var(--ink-soft); }
+.entry-action-btn.del:active,
+.entry-action-btn.del:hover { background: var(--clay-soft); color: var(--clay); }
+
+
+/* ===================================================================
+   Settings — theme + text-size controls
+   =================================================================== */
+.setting-segment {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.setting-seg-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  background: var(--rule-soft);
+  border: 1.5px solid var(--rule);
+  transition: all 0.15s;
+}
+.setting-seg-btn.active {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
 }

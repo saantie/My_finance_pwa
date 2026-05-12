@@ -37,6 +37,7 @@ const DEFAULT_STATE = {
   settings: {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
+    text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
     language: 'th'
   }
 };

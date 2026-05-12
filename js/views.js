@@ -133,6 +133,8 @@ export function renderDashboard(container) {
 
     <div class="signoff">— จบหน้าวันนี้ —</div>
   `;
+
+  bindEntryActions(container);
 }
 
 
@@ -421,13 +423,49 @@ function renderEntryRow(tx) {
       <div class="entry-icon" style="background: ${def.color}">
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
       </div>
-      <div>
+      <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
         <div class="entry-cat">${def.label}</div>
       </div>
-      <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
+      <div class="entry-right">
+        <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
+        <div class="entry-actions">
+          <button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">
+            ${svgIcon('edit', { size: 13, stroke: 2 })}
+          </button>
+          <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="ลบ">
+            ${svgIcon('delete', { size: 13, stroke: 2 })}
+          </button>
+        </div>
+      </div>
     </div>
   `;
+}
+
+/** Bind edit/delete actions บน container ที่มี entry rows */
+export function bindEntryActions(container) {
+  container.addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('[data-action="edit-tx"]');
+    const delBtn  = e.target.closest('[data-action="delete-tx"]');
+
+    if (editBtn) {
+      const id = editBtn.dataset.txId;
+      const tx = State.getTransactions().find(t => t.id === id);
+      if (!tx) return;
+      const { openEditModal } = await import('./add.js');
+      openEditModal(tx);
+    }
+
+    if (delBtn) {
+      const id = delBtn.dataset.txId;
+      const tx = State.getTransactions().find(t => t.id === id);
+      if (!tx) return;
+      const desc = tx.description || getCategory(tx.group).label;
+      if (!confirm(`ลบ "${desc}"?`)) return;
+      State.deleteTransaction(id);
+      showToast('ลบรายการแล้ว');
+    }
+  });
 }
 
 
@@ -490,6 +528,8 @@ export function renderList(container) {
       renderList(container);
     });
   });
+
+  bindEntryActions(container);
 }
 
 
@@ -916,10 +956,42 @@ export function renderSettings(container) {
   const settings = State.getSettings();
   const txCount = State.getTransactions().length;
   const acctCount = State.getAccounts().length;
+  const theme    = settings.theme || 'diary';
+  const textSize = settings.text_size || 'normal';
 
   container.innerHTML = `
     <div class="app-bar">
       <h1 class="title">ตั้งค่า</h1>
+    </div>
+
+    <!-- Appearance -->
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">รูปแบบการแสดงผล</h2>
+      </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">ธีม</div>
+            <div class="setting-sub">Diary = อบอุ่น · Pro = เข้มกระชับ</div>
+          </div>
+          <div class="setting-segment">
+            <button class="setting-seg-btn ${theme === 'diary' ? 'active' : ''}" data-action="set-theme" data-val="diary">Diary</button>
+            <button class="setting-seg-btn ${theme === 'pro'   ? 'active' : ''}" data-action="set-theme" data-val="pro">Pro</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">ขนาดตัวอักษร</div>
+            <div class="setting-sub">Normal 16px · Large 18px · XL 20px</div>
+          </div>
+          <div class="setting-segment">
+            <button class="setting-seg-btn ${textSize === 'normal'  ? 'active' : ''}" data-action="set-text-size" data-val="normal">ปกติ</button>
+            <button class="setting-seg-btn ${textSize === 'large'   ? 'active' : ''}" data-action="set-text-size" data-val="large">ใหญ่</button>
+            <button class="setting-seg-btn ${textSize === 'xlarge'  ? 'active' : ''}" data-action="set-text-size" data-val="xlarge">ใหญ่มาก</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Threshold -->
@@ -1032,6 +1104,26 @@ export function renderSettings(container) {
       State.resetAll();
       showToast('ลบข้อมูลทั้งหมดแล้ว');
     }
+  });
+
+  // Theme toggle
+  container.querySelectorAll('[data-action="set-theme"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.val;
+      State.setSetting('theme', val);
+      applyTheme(val);
+      renderSettings(container);
+    });
+  });
+
+  // Text size
+  container.querySelectorAll('[data-action="set-text-size"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.val;
+      State.setSetting('text_size', val);
+      applyTextSize(val);
+      renderSettings(container);
+    });
   });
 
   container.querySelector('[data-action="edit-threshold"]')?.addEventListener('click', () => {
@@ -1162,6 +1254,16 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/** Apply theme ลง <html> element */
+export function applyTheme(theme) {
+  document.documentElement.dataset.theme = (theme === 'pro') ? 'pro' : '';
+}
+
+/** Apply text size ลง <html> element */
+export function applyTextSize(size) {
+  document.documentElement.dataset.textSize = (size === 'normal' || !size) ? '' : size;
 }
 
 /** แสดง toast — ใช้ across views */

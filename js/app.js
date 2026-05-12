@@ -12,7 +12,7 @@
 
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
-import { renderDashboard, renderList, renderImport, renderSettings, showToast } from './views.js';
+import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize } from './views.js';
 import { openAddModal, closeAddModal } from './add.js';
 
 
@@ -160,26 +160,31 @@ function seedSampleDataIfEmpty() {
 /* === Init ======================================================= */
 
 function init() {
-  // 1. Seed (ถ้าจำเป็น) — เห็น demo data ทันทีเมื่อเปิดครั้งแรก
+  // 1. Apply saved appearance settings (ก่อน render ใดๆ)
+  const settings = State.getSettings();
+  applyTheme(settings.theme || 'diary');
+  applyTextSize(settings.text_size || 'normal');
+
+  // 2. Seed (ถ้าจำเป็น) — เห็น demo data ทันทีเมื่อเปิดครั้งแรก
   seedSampleDataIfEmpty();
 
-  // 2. Run scheduler — สร้าง transaction จาก template ที่ครบกำหนดแล้ว
+  // 3. Run scheduler — สร้าง transaction จาก template ที่ครบกำหนดแล้ว
   const sched = Recurring.runScheduler();
   if (sched.executed > 0) {
     setTimeout(() => showToast(`สร้างรายการประจำ ${sched.executed} รายการ`), 800);
   }
 
-  // 3. Setup navigation handlers
+  // 4. Setup navigation handlers
   setupNav();
 
-  // 4. Subscribe state changes → re-render เมื่อข้อมูลเปลี่ยน
+  // 5. Subscribe state changes → re-render เมื่อข้อมูลเปลี่ยน
   State.subscribe(() => renderCurrentView());
   Recurring.subscribe(() => renderCurrentView());
 
-  // 5. Initial render
+  // 6. Initial render
   switchView('dashboard');
 
-  // 6. PWA service worker
+  // 7. PWA service worker
   registerSW();
 
   console.log('[diary] app ready', {
