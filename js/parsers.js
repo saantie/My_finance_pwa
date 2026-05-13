@@ -114,7 +114,7 @@ export async function parsePDF(file, password = null, onProgress = null) {
    PDF.js คืน items แบบไม่เรียงตาม visual order — ต้อง group เอง
    ทุก item มี transform[5] = Y position ใน PDF coords (origin = bottom-left)
 ================================================================ */
-function groupRowsByY(items, tolerance = 2) {
+export function groupRowsByY(items, tolerance = 2) {
   const groups = new Map();
 
   for (const item of items) {
@@ -139,7 +139,7 @@ function groupRowsByY(items, tolerance = 2) {
 
 
 /* === Bank detection ============================================ */
-function detectBank(text) {
+export function detectBank(text) {
   const lower = text.toLowerCase();
   if (/กสิกร|kasikorn|k-bank|k\.bank|kbank/i.test(text)) return 'kbank';
   if (/กรุงไทย|krungthai|ktb/i.test(text)) return 'ktb';
@@ -159,7 +159,7 @@ function detectBank(text) {
 
 
 /* === Account number detection ================================== */
-function detectAccountInfo(text, bank) {
+export function detectAccountInfo(text, bank) {
   // Common Thai bank account formats:
   // - 10 digits: 1234567890
   // - With dashes: 123-4-56789-0, 123-456789-0
@@ -224,7 +224,7 @@ const EN_MONTHS = {
   'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
 };
 
-function parseTransactions(rows, bank) {
+export function parseTransactions(rows, bank) {
   const transactions = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -328,7 +328,7 @@ function parseTransactions(rows, bank) {
 
 /* === Auto-classification ======================================= */
 
-function autoClassifyType(tx) {
+export function autoClassifyType(tx) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
   // Income signals
@@ -350,7 +350,7 @@ function autoClassifyType(tx) {
   return 'expense';
 }
 
-function autoClassifyGroup(tx) {
+export function autoClassifyGroup(tx) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
   if (/(?:เงินเดือน|salary|payroll)/i.test(t)) return 'salary';

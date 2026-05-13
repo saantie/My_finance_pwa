@@ -193,8 +193,8 @@ function parseThaiNumber(text) {
     foundAny = true;
   }
 
-  // หา tens (ยี่สิบ, สามสิบ, ...)
-  for (const [word, val] of Object.entries(tens)) {
+  // หา tens — เรียงยาวก่อน เพื่อไม่ให้ 'สิบ' match ก่อน 'ห้าสิบ'
+  for (const [word, val] of Object.entries(tens).sort(([a], [b]) => b.length - a.length)) {
     if (text.includes(word)) {
       total += val;
       foundAny = true;

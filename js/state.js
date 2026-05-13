@@ -31,7 +31,10 @@ const DEFAULT_STATE = {
       current_balance: 0,
       threshold: 0,
       detected_at: new Date().toISOString(),
-      user_renamed: false
+      user_renamed: false,
+      owner: null,
+      storage: 'local',
+      shared_with: []
     }
   ],
   settings: {
@@ -103,12 +106,14 @@ export function getState() {
   return _state;
 }
 
-/** Get all transactions (เรียงจากใหม่ → เก่า) */
+/** Get all transactions (เรียงจากใหม่ → เก่า, ซ่อน soft-deleted) */
 export function getTransactions() {
-  return [..._state.transactions].sort((a, b) => {
-    if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return (b.createdAt || '').localeCompare(a.createdAt || '');
-  });
+  return [..._state.transactions]
+    .filter(t => t.deleted_by == null)
+    .sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
 }
 
 /** Get all accounts */
@@ -150,6 +155,8 @@ export function addTransaction(tx) {
     bank: tx.bank || null,
     source: tx.source || 'manual',
     user_classified: tx.user_classified ?? true,
+    created_by: tx.created_by || null,
+    deleted_by: null,
     createdAt: now,
     updatedAt: now
   };
@@ -168,7 +175,9 @@ export function addTransactionsBatch(txs) {
     user_classified: false,
     source: 'import',
     ...tx,
-    amount: Math.abs(tx.amount || 0)
+    amount: Math.abs(tx.amount || 0),
+    created_by: tx.created_by || null,
+    deleted_by: null
   }));
   _state.transactions.push(...added);
   notify();
@@ -186,6 +195,16 @@ export function updateTransaction(id, patch) {
   };
   notify();
   return _state.transactions[idx];
+}
+
+/** Soft delete — ตั้ง deleted_by แทนการลบจริง (ใช้กับ shared accounts) */
+export function softDeleteTransaction(id, deletedByEmail) {
+  const tx = _state.transactions.find(t => t.id === id);
+  if (!tx) return null;
+  tx.deleted_by = deletedByEmail;
+  tx.updatedAt = new Date().toISOString();
+  notify();
+  return tx;
 }
 
 /** ลบรายการ */
@@ -208,7 +227,10 @@ export function addAccount(account) {
     current_balance: account.current_balance ?? 0,
     threshold: account.threshold ?? _state.settings.threshold_satang,
     detected_at: new Date().toISOString(),
-    user_renamed: false
+    user_renamed: false,
+    owner: account.owner || null,
+    storage: account.storage || 'local',
+    shared_with: account.shared_with || []
   };
   _state.accounts.push(newAcct);
   notify();
