@@ -112,10 +112,13 @@ export async function parsePDF(file, password = null, onProgress = null) {
   step('แยกรายการ...');
   const rawTransactions = parseTransactions(allRows, bank);
 
-  // Auto-classify
+  // Auto-classify — ส่ง ownMasks เพื่อ detect โอนระหว่างบัญชีตัวเอง
+  const ownMasks = State.getAccounts()
+    .map(a => a.account_number_masked)
+    .filter(Boolean);
   const transactions = rawTransactions.map(tx => ({
     ...tx,
-    type: autoClassifyType(tx),
+    type: autoClassifyType(tx, ownMasks),
     group: autoClassifyGroup(tx)
   }));
 
@@ -350,7 +353,7 @@ export function parseTransactions(rows, bank) {
 
 /* === Auto-classification ======================================= */
 
-export function autoClassifyType(tx) {
+export function autoClassifyType(tx, ownAccountMasks = []) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
   // Income signals
@@ -366,6 +369,15 @@ export function autoClassifyType(tx) {
     return 'transfer';
   }
   if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) {
+    return 'transfer';
+  }
+
+  // โอนไปบัญชีตัวเอง — ถ้า description มี 4 หลักสุดท้ายของบัญชีที่รู้จัก
+  // ดึง digits ออกจาก mask ก่อน เพราะ "xxx-x-x7821-x".slice(-4) = "1-x" ไม่ใช่ "7821"
+  if (ownAccountMasks.some(mask => {
+    const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
+    return last4 && t.includes(last4);
+  })) {
     return 'transfer';
   }
 

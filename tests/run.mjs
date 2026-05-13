@@ -344,6 +344,26 @@ test('autoClassify ถอน = transfer',     () => eq(autoClassifyType({ descri
 test('autoClassify credit card = transfer', () => eq(autoClassifyType({ description: 'ชำระบัตรเครดิต' }), 'transfer'));
 test('autoClassify general = expense',  () => eq(autoClassifyType({ description: 'ร้านอาหาร' }), 'expense'));
 
+// ownAccountMasks — โอนระหว่างบัญชีตัวเอง
+test('autoClassify own account mask → transfer', () => {
+  // mask ลงท้ายด้วย "7821" → description มี "7821" → transfer
+  eq(autoClassifyType({ description: 'โอนไปบัญชี xxx-x-x7821-x' }, ['xxx-x-x7821-x']), 'transfer');
+});
+test('autoClassify other account → no match', () => {
+  // mask ไม่ match → ยัง expense
+  eq(autoClassifyType({ description: 'โอนไปบัญชี xxx-x-x9999-x' }, ['xxx-x-x7821-x']), 'expense');
+});
+test('autoClassify empty masks → no transfer', () => {
+  // ไม่ส่ง masks → default = [] → ไม่ match
+  eq(autoClassifyType({ description: 'โอน 7821 บาท' }), 'expense');
+});
+test('autoClassify multiple masks, one matches', () => {
+  eq(autoClassifyType(
+    { description: 'to account 5678' },
+    ['xxx-x-x1234-x', 'xxx-x-x5678-x']
+  ), 'transfer');
+});
+
 // autoClassifyGroup
 test('autoClassifyGroup salary',        () => eq(autoClassifyGroup({ description: 'เงินเดือน salary' }), 'salary'));
 test('autoClassifyGroup ATM = transfer',() => eq(autoClassifyGroup({ description: 'ATM ถอน' }), 'transfer'));
