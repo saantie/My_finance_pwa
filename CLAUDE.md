@@ -300,7 +300,36 @@ Stage: Pre-launch (mockup approval phase)
 }
 ```
 
-### 6.5 Wallet model decision: Auto-detect, ไม่บังคับ user
+### 6.5 UserProgress (Gamification)
+
+```typescript
+{
+  xp: number,                    // XP สะสมทั้งหมด
+  level: number,                 // 1-8 (คำนวณจาก xp threshold)
+  streak_days: number,           // วันที่บันทึกติดต่อกัน
+  last_coin_date: "YYYY-MM-DD",  // ป้องกัน claim ซ้ำวันเดียวกัน
+  last_streak_date: "YYYY-MM-DD",
+  coins: {
+    bronze: number,              // สะสมตลอดชีพ (ไม่ใช้จ่าย)
+    silver: number,
+    gold: number
+  }
+}
+```
+
+**XP thresholds per level:**
+| Level | ชื่อ | XP เริ่มต้น |
+|---|---|---|
+| 1 | มือใหม่หัดจด | 0 |
+| 2 | นักจดรายรับรายจ่ายฝึกหัด | 200 |
+| 3 | ผู้รู้จักตัวเองทางการเงิน | 500 |
+| 4 | นักบัญชีครัวเรือน | 1,000 |
+| 5 | นักวางแผนชำนาญ | 2,000 |
+| 6 | นักออมมีวินัย | 3,500 |
+| 7 | นักบริหารเงินเริ่มต้น | 5,000 |
+| 8 | นักบริหารเงินฝีมือฉกาจ | 8,000 |
+
+### 6.6 Wallet model decision: Auto-detect, ไม่บังคับ user
 
 **ตัดสินใจ:** ไม่ให้ user ตั้ง wallet เอง — ระบบรู้จาก PDF อัตโนมัติ
 
@@ -349,8 +378,16 @@ Stage: Pre-launch (mockup approval phase)
 - Auto-detect bank, parse transactions
 - **5 ธนาคารหลัก at launch:** KTB, KBank, SCB, BBL, Krungsri/BAY (ครอบคลุม 80%+)
 - ธนาคารอื่น → universal parser (อาจไม่สมบูรณ์ + bug report)
-- Password-protected PDF support
+- **Password-protected PDF** — flow ที่ถูกต้อง:
+  1. pdf.js โหลด PDF → ถ้าเข้ารหัส → throw `PasswordException`
+  2. แอปถาม user "PDF นี้มีรหัสผ่าน กรุณาใส่รหัส:"
+  3. user กด Cancel → หยุด | ใส่รหัสผิด → toast แจ้ง | ถูก → parse ต่อ
+  4. `parsePDF()` return `{ transactions, bank, pageCount, accountInfo, extractedText }`
+     — `extractedText` คือ text ที่ decrypt แล้ว ใช้ส่ง Gemini แทนไฟล์เข้ารหัส
 - Auto-classify ATM/transfer/credit-card-payment เป็น `transfer`
+- **Confidence scoring** หลัง parse: score < 60 → dialog "ให้ AI ช่วยไหม?"
+  - PDF มีรหัส: ส่ง `extractedText` ให้ Gemini (ไม่ส่งไฟล์เข้ารหัส)
+  - PDF ไม่มีรหัส: ส่งไฟล์เป็น base64
 - Review screen ก่อน import เสร็จ
 
 #### F1.2 — Auto-Detect Account [NEW]
@@ -436,6 +473,27 @@ Stage: Pre-launch (mockup approval phase)
 - Migration: เมื่อ toggle share → push transactions เดิมขึ้น Firestore ครั้งเดียว
 - Soft delete: shared account ไม่ลบจริง → ตั้ง `deleted_by` แทน
 - Firestore security rules: อ่าน-เขียนได้เฉพาะ owner + shared_with เท่านั้น
+
+#### F1.13 — Gamification: เหรียญรางวัล + Level System [NEW]
+
+**เหรียญรายวัน (claim ได้ 1 ครั้ง/วัน):**
+- 🥉 ทองแดง (+10 XP): บันทึก ≥ 1 รายการวันนี้
+- 🥈 เงิน (+25 XP): บันทึก ≥ 1 รายการ + ยอดไม่ต่ำกว่า threshold
+- 🥇 ทอง (+50 XP): บันทึก ≥ 3 รายการ + ยอด ok + มีรายรับบันทึกสัปดาห์นี้
+- Streak bonus: 7 วันติดกัน +70 XP | 30 วันติดกัน +300 XP
+
+**XP จากกิจกรรมอื่น:**
+- import PDF ครั้งแรก: +100 XP
+- ตั้ง recurring template: +30 XP
+- share account: +20 XP
+- backup ไป Drive: +15 XP
+- บันทึกด้วย voice: +5 XP
+
+**UX หลักการ — subtle ไม่ intrusive:**
+- แสดงผลเป็น toast เล็กๆ หรือ badge มุมหน้าจอ ห้าม popup บัง
+- Level up → animation เบาๆ + haptic 1 ครั้ง ไม่มีเสียง
+- เหรียญและ level แสดงใน profile/settings ไม่ใช่ dashboard หลัก
+- กลุ่มเป้าหมาย 25-40 ปี — ต้องรู้สึก "โตขึ้น" ไม่ใช่ "กำลังเล่นเกม"
 
 ### 7.2 v1.1 Features (เดือน 2-3 หลัง launch)
 
@@ -687,17 +745,28 @@ Font:        IBM Plex Serif headings + Sans Thai body
 ### 10.4 Data flow
 
 ```
-PDF file → pdf.js → text items → groupRowsByY → universal parser
+PDF file → pdf.js → ถ้ามีรหัส → prompt password → ใส่ถูก → decrypt
    ↓
-   detectBank → parseStatement → transactions[] + auto-detected accounts[]
+   text items → groupRowsByY → detectBank → parseStatement
    ↓
-   Review screen (user confirms/edits transfers)
+   { transactions[], accounts[], extractedText }
+   ↓
+   scoreParseResult() — confidence score 0-100
+   ├─ score ≥ 60 → Review screen (user confirms/edits)
+   └─ score < 60 → dialog "ให้ AI ช่วยไหม?" (user consent)
+                   ├─ ปฏิเสธ → Review screen ด้วยผลเดิม
+                   └─ ยอม → Gemini API
+                            ├─ PDF ไม่มีรหัส → ส่ง base64 file
+                            └─ PDF มีรหัส   → ส่ง extractedText (text เท่านั้น)
+                            ↓
+                            JSON → merge กับผล parser → Review screen
    ↓
    Store.addMany() → localStorage → emit('change')
    ↓
    Dashboard.render() → analytics → charts
    ↓
    (Optional) Drive backup auto-upload daily
+   (Shared accounts) → Firestore real-time sync
 ```
 
 ### 10.5 Security & Privacy
@@ -705,7 +774,11 @@ PDF file → pdf.js → text items → groupRowsByY → universal parser
 **v1.0:**
 - ทุกอย่างใน browser localStorage
 - ไม่มี server call
-- PDF ไม่ส่งออกจาก device
+- **PDF ไม่ส่งออกจาก device** (กรณีปกติ — parsers.js ทำงาน local)
+- **กรณี Gemini fallback** (user กด consent เองทุกครั้ง):
+  - PDF ไม่มีรหัส → ส่ง base64 ไปยัง Gemini API (Google's servers)
+  - PDF มีรหัส → ส่งเฉพาะ extractedText (text ที่ decrypt แล้ว) ไม่ส่งไฟล์
+  - Privacy Story Page ต้องระบุชัดเจนว่า fallback ส่งข้อมูลออก
 - Account number masking (เก็บ 4 หลักท้าย)
 
 **v1.0 Drive backup:**
@@ -944,6 +1017,9 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | ไม่ใส่ user-scalable=no ใน viewport + เพิ่ม in-app text size 3 ระดับ | ตาไม่ดี/หน้าจอเล็ก = real user pain, rem cascade ทำได้ง่าย |
 | 2026-05 | Gemini เป็น fallback เท่านั้น (ไม่แทน parsers.js) | รักษา privacy USP + ออฟไลน์; trigger เมื่อ confidence < 60 + user consent; ใช้ user OAuth token (generative-language scope) — ไม่มีค่าใช้จ่าย dev |
 | 2026-05 | Gemini OAuth: user ต้องเปิด AI Studio ก่อน | chat gemini.google.com ไม่นับ; ถ้า 403 terms_not_accepted → แนะนำเปิด aistudio.google.com |
+| 2026-05 | PDF มีรหัส + Gemini fallback → ส่ง extractedText ไม่ส่งไฟล์ | Gemini ถอดรหัส PDF ไม่ได้; pdf.js decrypt ก่อนแล้วส่ง text; parsePDF() ต้อง return extractedText เสมอ |
+| 2026-05 | Gamification: 8 levels + เหรียญรายวัน (ทองแดง/เงิน/ทอง) | habit formation; subtle UX ไม่ popup บัง; level ชื่อไทย เน้นการบริหารเงินไม่ใช่การลงทุน |
+| 2026-05 | Level 7-8 ชื่อ "นักบริหารเงิน" ไม่ใช่ "นักลงทุน" | "นักลงทุน" แคบเกิน ไม่ครอบคลุม user ที่ไม่ได้ลงทุน |
 | 2026-05 | GitHub Secrets + Actions สร้าง config.js ตอน deploy | API keys ไม่เคย commit ใน repo; ทดสอบเหมือน production ได้ |
 | 2026-05 | Firebase: Web app, Auth Google + Firestore เท่านั้น, region asia-southeast1 | ไม่ต้องการ Storage/Functions/Hosting; Drive backup ใช้ drive.file scope แยก |
 | 2026-05 | Play Store: GitHub Pages ฟรีก่อน → ซื้อ domain ตอน submit | ยังไม่เคย submit = เปลี่ยน domain ก่อน submit ไม่มีผลเสีย |
