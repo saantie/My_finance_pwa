@@ -730,51 +730,72 @@ async function handleSlipScan(file) {
 
 
 /* === PDF import handler ========================================
-   Flow: show progress → parse → show review modal → confirm import
+   Flow: parse (handle password) → confidence check → review / AI
 ================================================================ */
 async function handlePdfImport(file) {
-  // 1. Progress modal
-  const progress = createProgressModal('กำลังประมวลผล PDF');
-  document.body.appendChild(progress.el);
+  const { parsePDF, scoreParseResult } = await import('./parsers.js');
+  let result;
 
+  // ── first attempt ──────────────────────────────────────────────
+  const prog1 = createProgressModal('กำลังประมวลผล PDF');
+  document.body.appendChild(prog1.el);
   try {
-    const { parsePDF } = await import('./parsers.js');
-
-    // Try open without password first; if locked, prompt
-    let result;
-    try {
-      result = await parsePDF(file, null, (step) => progress.update(step));
-    } catch (err) {
-      if (err.message === 'password_required') {
-        progress.el.remove();
-        const pw = prompt('PDF ล็อกด้วยรหัสผ่าน — กรอกรหัส:');
-        if (!pw) return;
-        const progress2 = createProgressModal('กำลังประมวลผล PDF');
-        document.body.appendChild(progress2.el);
-        try {
-          result = await parsePDF(file, pw, (step) => progress2.update(step));
-        } finally {
-          progress2.el.remove();
-        }
-      } else {
-        throw err;
-      }
-    } finally {
-      if (progress.el.parentNode) progress.el.remove();
-    }
-
-    if (!result || result.transactions.length === 0) {
-      showToast('ไม่เจอรายการใน PDF — รองรับ format อื่นยังไม่ครบ');
+    result = await parsePDF(file, null, step => prog1.update(step));
+    prog1.el.remove();
+  } catch (err) {
+    prog1.el.remove();
+    if (err.name !== 'PasswordException') {
+      console.error('PDF parse failed', err);
+      showToast('อ่าน PDF ไม่สำเร็จ: ' + (err.message || 'unknown'));
       return;
     }
 
-    // 2. Show review modal
-    showReviewModal(result, file.name);
-  } catch (err) {
-    console.error('PDF parse failed', err);
-    if (progress.el.parentNode) progress.el.remove();
-    showToast('อ่าน PDF ไม่สำเร็จ: ' + (err.message || 'unknown'));
+    // ── password prompt ──────────────────────────────────────────
+    const password = prompt('PDF นี้มีรหัสผ่าน กรุณาใส่รหัส:');
+    if (!password) return;
+
+    // ── retry with password ──────────────────────────────────────
+    const prog2 = createProgressModal('กำลังประมวลผล PDF');
+    document.body.appendChild(prog2.el);
+    try {
+      result = await parsePDF(file, password, step => prog2.update(step));
+      prog2.el.remove();
+    } catch (err2) {
+      prog2.el.remove();
+      if (err2.name === 'PasswordException') {
+        showToast('รหัสผ่านไม่ถูกต้อง ลองใหม่อีกครั้ง');
+      } else {
+        console.error('PDF parse failed', err2);
+        showToast('อ่าน PDF ไม่สำเร็จ: ' + (err2.message || 'unknown'));
+      }
+      return;
+    }
   }
+
+  // ── confidence scoring ─────────────────────────────────────────
+  const score = scoreParseResult(result);
+  if (score < 60) {
+    const useAI = confirm(
+      `อ่านได้ ${result.transactions.length} รายการ (ความแม่นยำต่ำ)\n` +
+      `ต้องการให้ AI ช่วยวิเคราะห์ไหม?\n` +
+      `(ข้อความจาก PDF จะถูกส่งไปยัง Google AI)`
+    );
+    if (useAI) {
+      await handleGeminiFallback(result.extractedText);
+      return;
+    }
+  }
+
+  showReviewModal(result, file.name);
+}
+
+
+/* === Gemini AI fallback =========================================
+   ส่ง extractedText (plain text จาก PDF) แทนไฟล์ PDF โดยตรง
+   เพราะ PDF เข้ารหัสส่ง Gemini ไม่ได้
+================================================================ */
+async function handleGeminiFallback(extractedText) {
+  showToast('Gemini AI fallback — จะพัฒนาในเวอร์ชันต่อไป');
 }
 
 

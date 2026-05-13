@@ -19,6 +19,9 @@
    เอามาแทนที่ไฟล์นี้ตอน integrate
    =================================================================== */
 
+import { getCurrentUser } from './firebase.js';
+import * as State from './state.js';
+
 let _pdfjs = null;
 
 
@@ -64,7 +67,9 @@ export async function parsePDF(file, password = null, onProgress = null) {
     }).promise;
   } catch (err) {
     if (err.name === 'PasswordException') {
-      throw new Error('password_required');
+      const e = new Error('password_required');
+      e.name = 'PasswordException';
+      throw e;
     }
     throw new Error('pdf_open_failed: ' + (err.message || err));
   }
@@ -88,6 +93,22 @@ export async function parsePDF(file, password = null, onProgress = null) {
   step('ตรวจหาเลขบัญชี...');
   const accountInfo = detectAccountInfo(fullText, bank);
 
+  // Auto-detect + upsert account เข้า state
+  if (accountInfo.last4 && bank !== 'unknown') {
+    const accountId = `bank:${bank}:${accountInfo.last4}`;
+    if (!State.getAccount(accountId)) {
+      State.addAccount({
+        id:                    accountId,
+        bank,
+        account_number_masked: accountInfo.account_number_masked,
+        display_name:          `${bank.toUpperCase()} ...${accountInfo.last4}`,
+        type:                  'bank',
+        current_balance:       null,
+        owner:                 getCurrentUser()?.email || null
+      });
+    }
+  }
+
   step('แยกรายการ...');
   const rawTransactions = parseTransactions(allRows, bank);
 
@@ -104,8 +125,9 @@ export async function parsePDF(file, password = null, onProgress = null) {
     bank,
     accountInfo,
     transactions,
-    pageCount: pdfDoc.numPages,
-    errors: []
+    pageCount:     pdfDoc.numPages,
+    extractedText: fullText,
+    errors:        []
   };
 }
 
@@ -349,6 +371,23 @@ export function autoClassifyType(tx) {
 
   return 'expense';
 }
+
+/* === Confidence scoring ======================================== */
+
+/**
+ * คะแนนความแม่นยำของ parse result (0-100)
+ * ถ้า < 60 → แนะนำ Gemini fallback
+ */
+export function scoreParseResult(result) {
+  if (result.transactions.length === 0) return 0;
+  let score = 100;
+  if (result.bank === 'unknown') score -= 30;
+  const zeroCount = result.transactions.filter(t => t.amount === 0).length;
+  if (zeroCount / result.transactions.length > 0.3) score -= 20;
+  if (result.pageCount > 2 && result.transactions.length < 5) score -= 25;
+  return Math.max(0, score);
+}
+
 
 export function autoClassifyGroup(tx) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
