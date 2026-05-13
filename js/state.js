@@ -14,6 +14,10 @@
    =================================================================== */
 
 import { uuid, todayISO } from './utils.js';
+import {
+  pushTransaction, softDeleteTransaction as fbSoftDelete,
+  subscribeSharedAccount, getCurrentUser
+} from './firebase.js';
 
 const STORAGE_KEY = 'diary_finance_v1';
 
@@ -48,7 +52,8 @@ const DEFAULT_STATE = {
 
 /* === Internal state ============================================= */
 let _state = loadFromStorage();
-const _listeners = new Set();
+const _listeners      = new Set();
+const _sharedListeners = new Map();
 
 
 /* === Persistence ================================================ */
@@ -155,13 +160,18 @@ export function addTransaction(tx) {
     bank: tx.bank || null,
     source: tx.source || 'manual',
     user_classified: tx.user_classified ?? true,
-    created_by: tx.created_by || null,
+    created_by: getCurrentUser()?.email || tx.created_by || null,
     deleted_by: null,
     createdAt: now,
     updatedAt: now
   };
   _state.transactions.push(newTx);
   notify();
+  const acctId = tx.account_from || tx.account_to;
+  const acct = acctId ? getAccount(acctId) : null;
+  if (acct?.storage === 'cloud') {
+    pushTransaction(acct.id, newTx).catch(console.error);
+  }
   return newTx;
 }
 
@@ -207,11 +217,20 @@ export function softDeleteTransaction(id, deletedByEmail) {
   return tx;
 }
 
-/** ลบรายการ */
+/** ลบรายการ — cloud accounts ใช้ soft delete, local accounts ลบออก array */
 export function deleteTransaction(id) {
-  const before = _state.transactions.length;
-  _state.transactions = _state.transactions.filter(t => t.id !== id);
-  if (_state.transactions.length !== before) notify();
+  const tx = _state.transactions.find(t => t.id === id);
+  if (!tx) return;
+  const acctId = tx.account_from || tx.account_to;
+  const acct = acctId ? getAccount(acctId) : null;
+  if (acct?.storage === 'cloud') {
+    const email = getCurrentUser()?.email || null;
+    softDeleteTransaction(id, email);
+    fbSoftDelete(acct.id, id, email).catch(console.error);
+  } else {
+    _state.transactions = _state.transactions.filter(t => t.id !== id);
+    notify();
+  }
 }
 
 
@@ -421,4 +440,36 @@ export function importJSON(json) {
     console.error('Import failed', e);
     return false;
   }
+}
+
+
+/* === Hybrid cloud sync ========================================== */
+
+/**
+ * เปิด realtime listeners สำหรับทุก account ที่ storage === 'cloud'
+ * remote transactions จะ merge เข้า _state.transactions อัตโนมัติ
+ */
+export function subscribeSharedAccounts() {
+  // ปิด listeners เก่าก่อน
+  _sharedListeners.forEach(unsub => unsub());
+  _sharedListeners.clear();
+
+  for (const acct of _state.accounts) {
+    if (acct.storage !== 'cloud') continue;
+    const unsub = subscribeSharedAccount(acct.id, remoteTxs => {
+      remoteTxs.forEach(rtx => {
+        const idx = _state.transactions.findIndex(t => t.id === rtx.id);
+        if (idx === -1) _state.transactions.push(rtx);
+        else _state.transactions[idx] = rtx;
+      });
+      notify();
+    });
+    _sharedListeners.set(acct.id, unsub);
+  }
+}
+
+/** ปิด realtime listeners ทั้งหมด — เรียกตอน sign out หรือ unmount */
+export function unsubscribeAll() {
+  _sharedListeners.forEach(unsub => unsub());
+  _sharedListeners.clear();
 }
