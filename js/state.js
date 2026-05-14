@@ -469,13 +469,15 @@ export function importJSON(json) {
  */
 export function mergeSharedAccounts(remoteAccounts) {
   const myEmail = getCurrentUser()?.email;
+  if (!myEmail) return; // ยังไม่ sign in — ไม่สามารถแยก "ของฉัน" vs "ของคนอื่น" ได้
   const remoteIds = new Set(remoteAccounts.map(a => a.id));
   let changed = false;
 
-  // หา account IDs ที่ถูกยกเลิกการแชร์ (เคยอยู่ใน local แต่ไม่อยู่ใน remote แล้ว)
+  // ลบบัญชีที่ไม่ใช่ของเราและไม่อยู่ใน remote list อีกต่อไป (แชร์ถูกยกเลิก)
+  // เงื่อนไข: cloud + owner ไม่ใช่เรา (รวมกรณี owner = null ซึ่งเป็น orphan)
   const revokedIds = new Set();
   _state.accounts = _state.accounts.filter(a => {
-    if (a.storage === 'cloud' && a.owner && a.owner !== myEmail && !remoteIds.has(a.id)) {
+    if (a.storage === 'cloud' && a.owner !== myEmail && !remoteIds.has(a.id)) {
       revokedIds.add(a.id);
       changed = true;
       return false;
@@ -535,6 +537,17 @@ export function subscribeSharedAccounts() {
       }
 
       notify();
+    }, e => {
+      // permission-denied = บัญชีนี้ถูกยกเลิกการแชร์แล้ว ลบออกจาก local state
+      if (e?.code === 'permission-denied') {
+        _state.accounts = _state.accounts.filter(a => a.id !== accountId);
+        _state.transactions = _state.transactions.filter(t =>
+          t.account_from !== accountId && t.account_to !== accountId
+        );
+        const u = _sharedListeners.get(accountId);
+        if (u) { u(); _sharedListeners.delete(accountId); }
+        notify();
+      }
     });
     _sharedListeners.set(accountId, unsub);
   }

@@ -202,7 +202,7 @@ export async function softDeleteTransaction(accountId, txId, deletedByEmail) {
 
 /* === 11. subscribeSharedAccount ================================ */
 
-export function subscribeSharedAccount(accountId, callback) {
+export function subscribeSharedAccount(accountId, callback, onError) {
   try {
     const col = collection(_db, 'shared_accounts', accountId, 'transactions');
     return onSnapshot(col, snapshot => {
@@ -214,6 +214,7 @@ export function subscribeSharedAccount(accountId, callback) {
       callback(txs);
     }, e => {
       console.error('[firebase] subscribeSharedAccount snapshot error', e);
+      if (onError) onError(e);
     });
   } catch (e) {
     console.error('[firebase] subscribeSharedAccount failed', e);
