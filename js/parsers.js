@@ -266,22 +266,38 @@ function detectColumns(rows) {
   return null;
 }
 
-// ดูว่า amount ใน row นี้อยู่ใน column ไหน โดยใช้ X-position
-function getColumnHint(row, columns) {
+// ใช้ X-position แยก withdrawal / deposit / balance และคืนค่าทั้งหมดพร้อมกัน
+// pattern เดียวกับ AMT_RX แต่ anchor ทั้งสอง end เพื่อ match item เดียว
+const AMT_ITEM_RX = /^-?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})$/;
+
+function parseRowAmounts(row, columns) {
   if (!columns) return null;
   const { withdrawalX, depositX, balanceX } = columns;
   const wdMid = (withdrawalX + depositX) / 2;
   const dbMid = balanceX != null ? (depositX + balanceX) / 2 : Infinity;
-  const numRx = /^-?[\d,]+(\.\d+)?$/;
+
+  let withdrawalAmt = null, depositAmt = null, balanceAmt = null;
 
   for (const item of (row.items || [])) {
-    const s = (item.str || '').replace(/,/g, '').trim();
-    if (!numRx.test(s) || isNaN(parseFloat(s)) || parseFloat(s) === 0) continue;
+    const s = (item.str || '').trim();
+    if (!AMT_ITEM_RX.test(s)) continue;
+    const val = parseFloat(s.replace(/,/g, ''));
+    if (isNaN(val)) continue;
+
     const x = item.transform[4];
-    if (x >= dbMid) continue;   // balance column — ข้าม
-    return x < wdMid ? 'withdrawal' : 'deposit';
+    if (x >= dbMid)       balanceAmt    = val;   // balance column
+    else if (x >= wdMid)  depositAmt    = val;   // deposit column
+    else                  withdrawalAmt = val;    // withdrawal column
   }
-  return null;
+
+  const txAmt = withdrawalAmt ?? depositAmt;
+  if (txAmt == null) return null;   // ไม่มี amount ใน withdrawal/deposit column
+
+  return {
+    amount:      Math.abs(txAmt),
+    balance:     balanceAmt,
+    column_hint: depositAmt != null ? 'deposit' : 'withdrawal'
+  };
 }
 
 
