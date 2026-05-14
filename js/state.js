@@ -282,12 +282,17 @@ export function setSetting(key, value) {
 
 /* === Computed / derived ========================================= */
 
+/** รายการที่ยังไม่ถูกลบ — base filter สำหรับ computed functions ทั้งหมด */
+function activeTxs() {
+  return _state.transactions.filter(t => t.deleted_by == null);
+}
+
 /**
  * สรุปยอดเดือนที่ระบุ
  * @param {string} yearMonth "YYYY-MM"; default = เดือนปัจจุบัน
  */
 export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
-  const txs = _state.transactions.filter(t => t.date.startsWith(yearMonth));
+  const txs = activeTxs().filter(t => t.date.startsWith(yearMonth));
   let income = 0, expense = 0;
   for (const t of txs) {
     if (t.type === 'income') income += t.amount;
@@ -307,7 +312,7 @@ export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
  * @returns array ของ { group, total, count, percent }
  */
 export function getTopCategories(yearMonth = todayISO().slice(0, 7), limit = 5) {
-  const txs = _state.transactions.filter(t =>
+  const txs = activeTxs().filter(t =>
     t.date.startsWith(yearMonth) && t.type === 'expense'
   );
   const totals = {};
@@ -330,7 +335,7 @@ export function getTopCategories(yearMonth = todayISO().slice(0, 7), limit = 5) 
  */
 export function getTodayTransactions() {
   const today = todayISO();
-  return _state.transactions
+  return activeTxs()
     .filter(t => t.date === today)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 }
@@ -340,7 +345,7 @@ export function getTodayTransactions() {
  * @returns array ของ { date, transactions, dayTotalIncome, dayTotalExpense }
  */
 export function getTransactionsByDay(filterFn = null) {
-  let txs = _state.transactions;
+  let txs = activeTxs();
   if (filterFn) txs = txs.filter(filterFn);
 
   const groups = {};
@@ -372,11 +377,12 @@ export function getTransactionsByDay(filterFn = null) {
 export function getDailyExpenses(days = 14) {
   const result = [];
   const today = new Date();
+  const active = activeTxs();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const total = _state.transactions
+    const total = active
       .filter(t => t.date === iso && t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0);
     result.push({ date: iso, total });
@@ -392,17 +398,18 @@ export function getDailyExpenses(days = 14) {
 export function getMonthComparison() {
   const today = new Date();
   const dayOfMonth = today.getDate();
+  const active = activeTxs();
 
   // เดือนนี้: วันที่ 1 ถึงวันนี้
   const thisYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonth = _state.transactions
+  const thisMonth = active
     .filter(t => t.date.startsWith(thisYM) && t.type === 'expense')
     .reduce((s, t) => s + t.amount, 0);
 
   // เดือนก่อน: วันที่ 1 ถึงวันที่เดียวกัน เพื่อ apple-to-apple
   const lastDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const lastYM = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}`;
-  const lastMonth = _state.transactions
+  const lastMonth = active
     .filter(t => {
       if (!t.date.startsWith(lastYM) || t.type !== 'expense') return false;
       const dom = parseInt(t.date.slice(8, 10), 10);
@@ -461,13 +468,25 @@ export function importJSON(json) {
  * เรียกหลังได้รับผลจาก subscribeAccountsSharedWithMe
  */
 export function mergeSharedAccounts(remoteAccounts) {
+  const myEmail = getCurrentUser()?.email;
+  const remoteIds = new Set(remoteAccounts.map(a => a.id));
   let changed = false;
+
+  // ลบบัญชีที่คนอื่นเคยแชร์ให้เรา แต่ถูกยกเลิกการแชร์แล้ว
+  _state.accounts = _state.accounts.filter(a => {
+    if (a.storage === 'cloud' && a.owner && a.owner !== myEmail && !remoteIds.has(a.id)) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+
   for (const ra of remoteAccounts) {
     const idx = _state.accounts.findIndex(a => a.id === ra.id);
     if (idx === -1) {
       _state.accounts.push({ ...ra, storage: 'cloud' });
       changed = true;
-    } else if (_state.accounts[idx].storage !== 'cloud') {
+    } else {
       _state.accounts[idx] = { ..._state.accounts[idx], ...ra, storage: 'cloud' };
       changed = true;
     }
@@ -476,21 +495,35 @@ export function mergeSharedAccounts(remoteAccounts) {
 }
 
 export function subscribeSharedAccounts() {
-  // ปิด listeners เก่าก่อน
+  // ปิด listeners เก่าก่อน แล้วเปิดใหม่ทุก cloud account
   _sharedListeners.forEach(unsub => unsub());
   _sharedListeners.clear();
 
   for (const acct of _state.accounts) {
     if (acct.storage !== 'cloud') continue;
-    const unsub = subscribeSharedAccount(acct.id, remoteTxs => {
+    const accountId = acct.id;
+    const unsub = subscribeSharedAccount(accountId, remoteTxs => {
+      // Merge transactions
       remoteTxs.forEach(rtx => {
         const idx = _state.transactions.findIndex(t => t.id === rtx.id);
         if (idx === -1) _state.transactions.push(rtx);
         else _state.transactions[idx] = rtx;
       });
+
+      // อัปเดต current_balance จาก transaction ล่าสุดที่มี balance field
+      const acctIdx = _state.accounts.findIndex(a => a.id === accountId);
+      if (acctIdx !== -1) {
+        const latest = remoteTxs
+          .filter(t => t.deleted_by == null && t.balance != null)
+          .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+        if (latest) {
+          _state.accounts[acctIdx].current_balance = latest.balance;
+        }
+      }
+
       notify();
     });
-    _sharedListeners.set(acct.id, unsub);
+    _sharedListeners.set(accountId, unsub);
   }
 }
 

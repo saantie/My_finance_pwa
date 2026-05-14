@@ -168,12 +168,15 @@ function init() {
     onAuthStateChanged(user => {
       if (_sharedWithMeUnsub) { _sharedWithMeUnsub(); _sharedWithMeUnsub = null; }
       if (user) {
+        // เปิด listeners สำหรับ cloud accounts ของตัวเองทันที
+        State.subscribeSharedAccounts();
+        // Subscribe บัญชีที่คนอื่นแชร์ให้เรา — เมื่อ Firestore ตอบกลับ merge + re-subscribe
         _sharedWithMeUnsub = subscribeAccountsSharedWithMe(user.email, accounts => {
-          if (accounts.length > 0) {
-            State.mergeSharedAccounts(accounts);
-            State.subscribeSharedAccounts();
-          }
+          State.mergeSharedAccounts(accounts);
+          State.subscribeSharedAccounts();
         });
+      } else {
+        State.unsubscribeAll();
       }
     });
   } catch (e) { console.warn('[firebase] init failed', e); }
