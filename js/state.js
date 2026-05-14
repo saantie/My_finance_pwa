@@ -558,3 +558,25 @@ export function unsubscribeAll() {
   _sharedListeners.forEach(unsub => unsub());
   _sharedListeners.clear();
 }
+
+/**
+ * ลบบัญชีที่คนอื่นแชร์ให้เรา + transactions ออกจาก local state
+ * เรียกตอน sign out เพื่อล้าง UI ทันที
+ */
+export function clearReceivedAccounts(myEmail) {
+  if (!myEmail) return;
+  const removedIds = new Set();
+  _state.accounts = _state.accounts.filter(a => {
+    if (a.storage === 'cloud' && a.owner !== myEmail) {
+      removedIds.add(a.id);
+      return false;
+    }
+    return true;
+  });
+  if (removedIds.size > 0) {
+    _state.transactions = _state.transactions.filter(t =>
+      !removedIds.has(t.account_from) && !removedIds.has(t.account_to)
+    );
+    notify();
+  }
+}
