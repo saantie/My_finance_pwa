@@ -359,28 +359,27 @@ export function parseTransactions(rows, bank) {
     if (description.length > 80) description = description.slice(0, 80) + '...';
 
     // Determine amount + balance
+    // Priority: X-position columns (exact) → heuristic fallback (when column detect fails)
     let amount = 0;
     let balance = null;
+    let column_hint = null;
 
-    if (amounts.length === 1) {
-      amount = Math.abs(amounts[0]);
-    } else if (amounts.length === 2) {
-      // ตัวที่ใหญ่กว่ามักเป็น balance
-      const [a, b] = amounts;
-      if (Math.abs(a) > Math.abs(b)) {
-        balance = a;
-        amount = Math.abs(b);
-      } else {
-        balance = b;
-        amount = Math.abs(a);
-      }
+    const colParsed = parseRowAmounts(row, columns);
+    if (colParsed) {
+      ({ amount, balance, column_hint } = colParsed);
     } else {
-      // 3+ amounts: ตัวสุดท้ายมัก balance, ตัวที่มีค่ามาก่อน = amount
-      balance = amounts[amounts.length - 1];
-      for (let j = 0; j < amounts.length - 1; j++) {
-        if (Math.abs(amounts[j]) > 0) {
-          amount = Math.abs(amounts[j]);
-          break;
+      // Fallback heuristic — ใช้เมื่อ detectColumns ไม่สำเร็จ
+      if (amounts.length === 1) {
+        amount = Math.abs(amounts[0]);
+      } else if (amounts.length === 2) {
+        // ตัวสุดท้ายมักเป็น balance (ตามลำดับคอลัมน์: amount | balance)
+        amount  = Math.abs(amounts[0]);
+        balance = amounts[1];
+      } else {
+        // 3+ amounts: ตัวสุดท้ายมัก balance
+        balance = amounts[amounts.length - 1];
+        for (let j = 0; j < amounts.length - 1; j++) {
+          if (Math.abs(amounts[j]) > 0) { amount = Math.abs(amounts[j]); break; }
         }
       }
     }
@@ -395,7 +394,7 @@ export function parseTransactions(rows, bank) {
       description,
       bank,
       raw_text: text,
-      column_hint: getColumnHint(row, columns),         // 'deposit'|'withdrawal'|null
+      column_hint,
       source: 'import',
       user_classified: false
     });
