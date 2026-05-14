@@ -421,8 +421,32 @@ function renderEntryRow(tx) {
   const sign = isIncome ? '+' : (isTransfer ? '↔' : '−');
   const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
 
+  const acctId = tx.account_from || tx.account_to;
+  const acct = acctId ? State.getAccount(acctId) : null;
+  const isCloud = acct?.storage === 'cloud';
+  const isDeleted = tx.deleted_by != null;
+
+  const byName = tx.created_by_name || tx.created_by;
+  const addedNote = isCloud && byName
+    ? `<div class="entry-note">เพิ่มโดย ${escapeHtml(byName)}</div>`
+    : '';
+  const deletedNote = isDeleted
+    ? `<div class="entry-note entry-note--deleted">ลบโดย ${escapeHtml(tx.deleted_by)}</div>`
+    : '';
+
+  const editBtn = isDeleted ? '' : `
+    <button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">
+      ${svgIcon('edit', { size: 13, stroke: 2 })}
+    </button>`;
+
+  const deleteLabel = isDeleted ? 'ลบถาวร' : 'ลบ';
+  const deleteBtn = `
+    <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${deleteLabel}" title="${deleteLabel}">
+      ${svgIcon('delete', { size: 13, stroke: 2 })}
+    </button>`;
+
   return `
-    <div class="entry" data-tx-id="${tx.id}">
+    <div class="entry${isDeleted ? ' entry--deleted' : ''}" data-tx-id="${tx.id}">
       <span class="entry-time">${time}</span>
       <div class="entry-icon" style="background: ${def.color}">
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
@@ -430,16 +454,13 @@ function renderEntryRow(tx) {
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
         <div class="entry-cat">${def.label}</div>
+        ${addedNote}${deletedNote}
       </div>
       <div class="entry-right">
         <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
         <div class="entry-actions">
-          <button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">
-            ${svgIcon('edit', { size: 13, stroke: 2 })}
-          </button>
-          <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="ลบ">
-            ${svgIcon('delete', { size: 13, stroke: 2 })}
-          </button>
+          ${editBtn}
+          ${deleteBtn}
         </div>
       </div>
     </div>
@@ -981,12 +1002,35 @@ export function renderSettings(container) {
   const settings = State.getSettings();
   const txCount = State.getTransactions().length;
   const acctCount = State.getAccounts().length;
-  const theme    = settings.theme || 'diary';
-  const textSize = settings.text_size || 'normal';
+  const theme       = settings.theme || 'diary';
+  const textSize    = settings.text_size || 'normal';
+  const displayName = settings.display_name || '';
 
   container.innerHTML = `
     <div class="app-bar">
       <h1 class="title">ตั้งค่า</h1>
+    </div>
+
+    <!-- ชื่อที่แสดงในบัญชีแชร์ -->
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">บัญชีแชร์</h2>
+      </div>
+      <div class="card">
+        <div class="setting-row">
+          <div style="flex:1;min-width:0">
+            <div class="setting-label">ชื่อที่แสดงในรายการ</div>
+            <div class="setting-sub">แสดงใต้รายการในบัญชีที่แชร์ว่า "เพิ่มโดย ..."</div>
+          </div>
+        </div>
+        <div style="padding: 0 0 10px">
+          <input id="display-name-input" type="text"
+            value="${escapeHtml(displayName)}"
+            placeholder="ชื่อเล่น เช่น แม่, พ่อ, ปอ"
+            maxlength="30"
+            style="width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;font-size:15px;background:var(--surface);color:var(--ink);box-sizing:border-box">
+        </div>
+      </div>
     </div>
 
     <!-- Appearance -->
@@ -1285,6 +1329,17 @@ export function renderSettings(container) {
       }
     });
   });
+
+  // Display name — บันทึกเมื่อ blur หรือ Enter
+  const displayNameInput = container.querySelector('#display-name-input');
+  if (displayNameInput) {
+    const saveName = () => {
+      const val = displayNameInput.value.trim();
+      State.setSetting('display_name', val);
+    };
+    displayNameInput.addEventListener('blur', saveName);
+    displayNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { saveName(); displayNameInput.blur(); } });
+  }
 
   // Google sign-in (สำหรับผู้รับที่ต้องการดูบัญชีที่แชร์)
   container.querySelector('[data-action="google-sign-in"]')?.addEventListener('click', async () => {

@@ -16,6 +16,7 @@
 import { uuid, todayISO } from './utils.js';
 import {
   pushTransaction, softDeleteTransaction as fbSoftDelete,
+  hardDeleteTransaction as fbHardDelete,
   subscribeSharedAccount, getCurrentUser
 } from './firebase.js';
 
@@ -45,7 +46,8 @@ const DEFAULT_STATE = {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
     text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
-    language: 'th'
+    language: 'th',
+    display_name: ''             // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)
   }
 };
 
@@ -161,6 +163,7 @@ export function addTransaction(tx) {
     source: tx.source || 'manual',
     user_classified: tx.user_classified ?? true,
     created_by: getCurrentUser()?.email || tx.created_by || null,
+    created_by_name: _state.settings.display_name || getCurrentUser()?.displayName || getCurrentUser()?.email || tx.created_by_name || null,
     deleted_by: null,
     createdAt: now,
     updatedAt: now
@@ -217,7 +220,7 @@ export function softDeleteTransaction(id, deletedByEmail) {
   return tx;
 }
 
-/** ลบรายการ — cloud accounts ใช้ soft delete, local accounts ลบออก array */
+/** ลบรายการ — cloud: 2 ขั้น (soft → hard), local: ลบทันที */
 export function deleteTransaction(id) {
   const tx = _state.transactions.find(t => t.id === id);
   if (!tx) return;
@@ -225,8 +228,16 @@ export function deleteTransaction(id) {
   const acct = acctId ? getAccount(acctId) : null;
   if (acct?.storage === 'cloud') {
     const email = getCurrentUser()?.email || null;
-    softDeleteTransaction(id, email);
-    fbSoftDelete(acct.id, id, email).catch(console.error);
+    if (tx.deleted_by != null) {
+      // ขั้น 2: คนที่ 2 กดลบ → ลบถาวรจาก Firestore + local
+      _state.transactions = _state.transactions.filter(t => t.id !== id);
+      notify();
+      fbHardDelete(acct.id, id).catch(console.error);
+    } else {
+      // ขั้น 1: soft delete — แสดงสีเทา ไม่นับในการคำนวณ
+      softDeleteTransaction(id, email);
+      fbSoftDelete(acct.id, id, email).catch(console.error);
+    }
   } else {
     _state.transactions = _state.transactions.filter(t => t.id !== id);
     notify();
@@ -345,7 +356,14 @@ export function getTodayTransactions() {
  * @returns array ของ { date, transactions, dayTotalIncome, dayTotalExpense }
  */
 export function getTransactionsByDay(filterFn = null) {
-  let txs = activeTxs();
+  // รวม soft-deleted จาก cloud accounts (แสดงสีเทา) แต่ไม่รวมที่ hard-deleted
+  let txs = _state.transactions.filter(t => {
+    if (t.deleted_by != null) {
+      const acct = getAccount(t.account_from || t.account_to);
+      return acct?.storage === 'cloud';
+    }
+    return true;
+  });
   if (filterFn) txs = txs.filter(filterFn);
 
   const groups = {};
@@ -358,14 +376,14 @@ export function getTransactionsByDay(filterFn = null) {
     .map(([date, transactions]) => {
       let income = 0, expense = 0;
       for (const t of transactions) {
+        if (t.deleted_by != null) continue; // soft-deleted ไม่นับในยอดวัน
         if (t.type === 'income') income += t.amount;
         else if (t.type === 'expense') expense += t.amount;
       }
-      // เรียงในวันเดียวกัน — ใหม่ขึ้นก่อน
       transactions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
       return { date, transactions, dayTotalIncome: income, dayTotalExpense: expense };
     })
-    .sort((a, b) => b.date.localeCompare(a.date));     // วันใหม่ก่อน
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 
@@ -517,18 +535,23 @@ export function subscribeSharedAccounts() {
   for (const acct of _state.accounts) {
     if (acct.storage !== 'cloud') continue;
     const accountId = acct.id;
-    const unsub = subscribeSharedAccount(accountId, remoteTxs => {
-      // Merge transactions
-      remoteTxs.forEach(rtx => {
+    const unsub = subscribeSharedAccount(accountId, (upserted, removedIds) => {
+      // Merge/update transactions (รวม soft-deleted)
+      upserted.forEach(rtx => {
         const idx = _state.transactions.findIndex(t => t.id === rtx.id);
         if (idx === -1) _state.transactions.push(rtx);
         else _state.transactions[idx] = rtx;
       });
 
+      // ลบ hard-deleted transactions ออกจาก local
+      if (removedIds.length > 0) {
+        _state.transactions = _state.transactions.filter(t => !removedIds.includes(t.id));
+      }
+
       // อัปเดต current_balance จาก transaction ล่าสุดที่มี balance field
       const acctIdx = _state.accounts.findIndex(a => a.id === accountId);
       if (acctIdx !== -1) {
-        const latest = remoteTxs
+        const latest = upserted
           .filter(t => t.deleted_by == null && t.balance != null)
           .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
         if (latest) {

@@ -1948,3 +1948,20 @@ html[data-theme="pro"] .add-save {
   cursor: pointer;
   white-space: nowrap;
 }
+
+/* Soft-deleted transaction row (บัญชีแชร์ ขั้นที่ 1) */
+.entry--deleted {
+  opacity: 0.45;
+}
+.entry--deleted .entry-name,
+.entry--deleted .entry-amt {
+  text-decoration: line-through;
+}
+.entry-note {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 1px;
+}
+.entry-note--deleted {
+  color: var(--clay);
+}

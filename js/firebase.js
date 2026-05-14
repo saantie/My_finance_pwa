@@ -28,6 +28,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   onSnapshot,
   writeBatch,
@@ -206,18 +207,34 @@ export function subscribeSharedAccount(accountId, callback, onError) {
   try {
     const col = collection(_db, 'shared_accounts', accountId, 'transactions');
     return onSnapshot(col, snapshot => {
-      const txs = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.deleted_by == null) txs.push(data);
+      const upserted = [];
+      const removedIds = [];
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          removedIds.push(change.doc.id);
+        } else {
+          upserted.push(change.doc.data()); // added | modified — รวม soft-deleted ด้วย
+        }
       });
-      callback(txs);
+      callback(upserted, removedIds);
     }, e => {
       console.error('[firebase] subscribeSharedAccount snapshot error', e);
       if (onError) onError(e);
     });
   } catch (e) {
     console.error('[firebase] subscribeSharedAccount failed', e);
+    throw e;
+  }
+}
+
+
+/* === 14. hardDeleteTransaction ================================= */
+
+export async function hardDeleteTransaction(accountId, txId) {
+  try {
+    await deleteDoc(doc(_db, 'shared_accounts', accountId, 'transactions', txId));
+  } catch (e) {
+    console.error('[firebase] hardDeleteTransaction failed', e);
     throw e;
   }
 }
