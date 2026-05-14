@@ -10,19 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create config.js from secrets
-        run: |
-          cat > js/config.js << EOF
-          export const FIREBASE_CONFIG = {
-            apiKey: "${{ secrets.FIREBASE_API_KEY }}",
-            authDomain: "${{ secrets.FIREBASE_AUTH_DOMAIN }}",
-            projectId: "${{ secrets.FIREBASE_PROJECT_ID }}",
-            storageBucket: "${{ secrets.FIREBASE_STORAGE_BUCKET }}",
-            messagingSenderId: "${{ secrets.FIREBASE_MESSAGING_ID }}",
-            appId: "${{ secrets.FIREBASE_APP_ID }}"
-          };
-          EOF
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

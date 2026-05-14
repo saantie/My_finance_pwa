@@ -2,9 +2,10 @@
    firebase.js — Google Sign-in + Selective Account Sharing
    ===================================================================
    - initFirebase()             : boot ครั้งเดียวตอน app start
-   - signInWithGoogle()         : Google popup → { email, displayName, uid }
+   - signInWithGoogle()         : Google popup → { email, displayName, uid, accessToken }
    - signOut()                  : Firebase signOut
    - getCurrentUser()           : sync getter, คืน null ถ้ายังไม่ sign in
+   - getAccessToken()           : คืน OAuth access token หรือ null
    - onAuthStateChanged()       : listener เมื่อ auth state เปลี่ยน
    - pushSharedAccount()        : เขียน account doc ลง Firestore
    - updateSharedWith()         : อัปเดต shared_with array
@@ -14,50 +15,54 @@
    - migrateAccountToCloud()    : batch write account + transactions
    =================================================================== */
 
-import { FIREBASE_CONFIG } from './config.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as fbSignOut,
+  onAuthStateChanged as fbOnAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  updateDoc,
+  collection,
+  onSnapshot,
+  writeBatch,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const FB_CDN = 'https://www.gstatic.com/firebasejs/10.12.0';
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDoW_TmdkFbby9gHJTVye7pumuKsj3StxY",
+  authDomain: "finance-diary-d9d5d.firebaseapp.com",
+  projectId: "finance-diary-d9d5d",
+  storageBucket: "finance-diary-d9d5d.firebasestorage.app",
+  messagingSenderId: "1025954168396",
+  appId: "1:1025954168396:web:1092fadb48530db6337ee9"
+};
 
-let _app      = null;
-let _auth     = null;
-let _db       = null;
-let _fbMod    = null;   // firebase-app exports
-let _authMod  = null;   // firebase-auth exports
-let _fsMod    = null;   // firebase-firestore exports
+let _app         = null;
+let _auth        = null;
+let _db          = null;
 let _currentUser = null;
-
-
-/* === Lazy-load Firebase SDK ==================================== */
-
-async function loadSDK() {
-  if (_fbMod && _authMod && _fsMod) return;
-  try {
-    [_fbMod, _authMod, _fsMod] = await Promise.all([
-      import(`${FB_CDN}/firebase-app.js`),
-      import(`${FB_CDN}/firebase-auth.js`),
-      import(`${FB_CDN}/firebase-firestore.js`)
-    ]);
-  } catch (e) {
-    console.error('[firebase] SDK load failed', e);
-    throw e;
-  }
-}
+let _accessToken = null;
 
 
 /* === 1. initFirebase =========================================== */
 
-export async function initFirebase() {
+export function initFirebase() {
   try {
-    await loadSDK();
-    _app  = _fbMod.initializeApp(FIREBASE_CONFIG);
-    _auth = _authMod.getAuth(_app);
-    _db   = _fsMod.getFirestore(_app);
+    _app  = initializeApp(FIREBASE_CONFIG);
+    _auth = getAuth(_app);
+    _db   = getFirestore(_app);
 
-    // keep _currentUser in sync from the start
-    _authMod.onAuthStateChanged(_auth, user => {
+    fbOnAuthStateChanged(_auth, user => {
       _currentUser = user
         ? { email: user.email, displayName: user.displayName, uid: user.uid }
         : null;
+      if (!user) _accessToken = null;
     });
   } catch (e) {
     console.error('[firebase] initFirebase failed', e);
@@ -70,11 +75,15 @@ export async function initFirebase() {
 
 export async function signInWithGoogle() {
   try {
-    const provider = new _authMod.GoogleAuthProvider();
-    const result   = await _authMod.signInWithPopup(_auth, provider);
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/generative-language');
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+
+    const result = await signInWithPopup(_auth, provider);
     const { email, displayName, uid } = result.user;
+    _accessToken = result._tokenResponse?.oauthAccessToken ?? null;
     _currentUser = { email, displayName, uid };
-    return _currentUser;
+    return { email, displayName, uid, accessToken: _accessToken };
   } catch (e) {
     console.error('[firebase] signInWithGoogle failed', e);
     throw e;
@@ -86,8 +95,9 @@ export async function signInWithGoogle() {
 
 export async function signOut() {
   try {
-    await _authMod.signOut(_auth);
+    await fbSignOut(_auth);
     _currentUser = null;
+    _accessToken = null;
   } catch (e) {
     console.error('[firebase] signOut failed', e);
     throw e;
@@ -102,11 +112,18 @@ export function getCurrentUser() {
 }
 
 
-/* === 5. onAuthStateChanged ===================================== */
+/* === 5. getAccessToken ========================================= */
+
+export function getAccessToken() {
+  return _accessToken;
+}
+
+
+/* === 6. onAuthStateChanged ===================================== */
 
 export function onAuthStateChanged(callback) {
   try {
-    return _authMod.onAuthStateChanged(_auth, user => {
+    return fbOnAuthStateChanged(_auth, user => {
       callback(user
         ? { email: user.email, displayName: user.displayName, uid: user.uid }
         : null
@@ -119,12 +136,12 @@ export function onAuthStateChanged(callback) {
 }
 
 
-/* === 6. pushSharedAccount ====================================== */
+/* === 7. pushSharedAccount ====================================== */
 
 export async function pushSharedAccount(account) {
   try {
-    const ref = _fsMod.doc(_db, 'shared_accounts', account.id);
-    await _fsMod.setDoc(ref, {
+    const ref = doc(_db, 'shared_accounts', account.id);
+    await setDoc(ref, {
       id:           account.id,
       owner:        account.owner,
       shared_with:  account.shared_with ?? [],
@@ -132,7 +149,7 @@ export async function pushSharedAccount(account) {
       bank:         account.bank ?? null,
       type:         account.type ?? 'bank',
       threshold:    account.threshold ?? 0,
-      created_at:   _fsMod.serverTimestamp()
+      created_at:   serverTimestamp()
     });
   } catch (e) {
     console.error('[firebase] pushSharedAccount failed', e);
@@ -141,12 +158,12 @@ export async function pushSharedAccount(account) {
 }
 
 
-/* === 7. updateSharedWith ======================================= */
+/* === 8. updateSharedWith ======================================= */
 
 export async function updateSharedWith(accountId, emailsArray) {
   try {
-    const ref = _fsMod.doc(_db, 'shared_accounts', accountId);
-    await _fsMod.updateDoc(ref, { shared_with: emailsArray });
+    const ref = doc(_db, 'shared_accounts', accountId);
+    await updateDoc(ref, { shared_with: emailsArray });
   } catch (e) {
     console.error('[firebase] updateSharedWith failed', e);
     throw e;
@@ -154,14 +171,12 @@ export async function updateSharedWith(accountId, emailsArray) {
 }
 
 
-/* === 8. pushTransaction ======================================== */
+/* === 9. pushTransaction ======================================== */
 
 export async function pushTransaction(accountId, tx) {
   try {
-    const ref = _fsMod.doc(
-      _db, 'shared_accounts', accountId, 'transactions', tx.id
-    );
-    await _fsMod.setDoc(ref, tx);
+    const ref = doc(_db, 'shared_accounts', accountId, 'transactions', tx.id);
+    await setDoc(ref, tx);
   } catch (e) {
     console.error('[firebase] pushTransaction failed', e);
     throw e;
@@ -169,16 +184,14 @@ export async function pushTransaction(accountId, tx) {
 }
 
 
-/* === 9. softDeleteTransaction ================================== */
+/* === 10. softDeleteTransaction ================================= */
 
 export async function softDeleteTransaction(accountId, txId, deletedByEmail) {
   try {
-    const ref = _fsMod.doc(
-      _db, 'shared_accounts', accountId, 'transactions', txId
-    );
-    await _fsMod.updateDoc(ref, {
+    const ref = doc(_db, 'shared_accounts', accountId, 'transactions', txId);
+    await updateDoc(ref, {
       deleted_by: deletedByEmail,
-      updatedAt:  _fsMod.serverTimestamp()
+      updatedAt:  serverTimestamp()
     });
   } catch (e) {
     console.error('[firebase] softDeleteTransaction failed', e);
@@ -187,14 +200,12 @@ export async function softDeleteTransaction(accountId, txId, deletedByEmail) {
 }
 
 
-/* === 10. subscribeSharedAccount ================================ */
+/* === 11. subscribeSharedAccount ================================ */
 
 export function subscribeSharedAccount(accountId, callback) {
   try {
-    const col = _fsMod.collection(
-      _db, 'shared_accounts', accountId, 'transactions'
-    );
-    return _fsMod.onSnapshot(col, snapshot => {
+    const col = collection(_db, 'shared_accounts', accountId, 'transactions');
+    return onSnapshot(col, snapshot => {
       const txs = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
@@ -211,14 +222,13 @@ export function subscribeSharedAccount(accountId, callback) {
 }
 
 
-/* === 11. migrateAccountToCloud ================================= */
+/* === 12. migrateAccountToCloud ================================= */
 
 export async function migrateAccountToCloud(account, transactions) {
   try {
-    const batch = _fsMod.writeBatch(_db);
+    const batch = writeBatch(_db);
 
-    // account document
-    const accountRef = _fsMod.doc(_db, 'shared_accounts', account.id);
+    const accountRef = doc(_db, 'shared_accounts', account.id);
     batch.set(accountRef, {
       id:           account.id,
       owner:        account.owner,
@@ -227,14 +237,11 @@ export async function migrateAccountToCloud(account, transactions) {
       bank:         account.bank ?? null,
       type:         account.type ?? 'bank',
       threshold:    account.threshold ?? 0,
-      created_at:   _fsMod.serverTimestamp()
+      created_at:   serverTimestamp()
     });
 
-    // transactions subcollection
     for (const tx of transactions) {
-      const txRef = _fsMod.doc(
-        _db, 'shared_accounts', account.id, 'transactions', tx.id
-      );
+      const txRef = doc(_db, 'shared_accounts', account.id, 'transactions', tx.id);
       batch.set(txRef, tx);
     }
 
