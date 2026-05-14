@@ -1219,25 +1219,26 @@ export function renderSettings(container) {
       }
       const account = State.getAccounts().find(a => a.id === accountId);
       if (!account) return;
+      const ownerEmail = getCurrentUser()?.email;
+      if (!ownerEmail) { showToast('ต้องลงชื่อเข้าใช้ก่อน'); return; }
       const newList = [...(account.shared_with || []), email];
       try {
         State.updateAccount(accountId, { shared_with: newList });
         if (account.storage === 'local') {
+          const cloudAccount = { ...account, shared_with: newList, owner: ownerEmail };
           const txs = State.getTransactions()
             .filter(t => t.account_from === accountId || t.account_to === accountId);
-          await migrateAccountToCloud(account, txs);
-          State.updateAccount(accountId, {
-            storage: 'cloud',
-            owner: getCurrentUser().email
-          });
+          await migrateAccountToCloud(cloudAccount, txs);
+          State.updateAccount(accountId, { storage: 'cloud', owner: ownerEmail });
           State.subscribeSharedAccounts();
+        } else {
+          await updateSharedWith(accountId, newList);
         }
-        await updateSharedWith(accountId, newList);
         showToast(`แชร์บัญชีกับ ${email} แล้ว`);
         renderSettings(container);
       } catch (e) {
         console.error('[share] add failed', e);
-        showToast('เกิดข้อผิดพลาด — ลองใหม่อีกครั้ง');
+        showToast(`เกิดข้อผิดพลาด: ${e?.code || e?.message || 'unknown'}`);
       }
     });
   });
