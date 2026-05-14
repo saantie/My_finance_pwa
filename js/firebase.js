@@ -226,10 +226,10 @@ export function subscribeSharedAccount(accountId, callback) {
 
 export async function migrateAccountToCloud(account, transactions) {
   try {
-    const batch = writeBatch(_db);
-
+    // Write account first — transaction rules do get() on parent doc,
+    // so account must be committed before transactions are validated
     const accountRef = doc(_db, 'shared_accounts', account.id);
-    batch.set(accountRef, {
+    await setDoc(accountRef, {
       id:           account.id,
       owner:        account.owner,
       shared_with:  account.shared_with ?? [],
@@ -240,12 +240,14 @@ export async function migrateAccountToCloud(account, transactions) {
       created_at:   serverTimestamp()
     });
 
-    for (const tx of transactions) {
-      const txRef = doc(_db, 'shared_accounts', account.id, 'transactions', tx.id);
-      batch.set(txRef, tx);
+    if (transactions.length > 0) {
+      const batch = writeBatch(_db);
+      for (const tx of transactions) {
+        const txRef = doc(_db, 'shared_accounts', account.id, 'transactions', tx.id);
+        batch.set(txRef, tx);
+      }
+      await batch.commit();
     }
-
-    await batch.commit();
   } catch (e) {
     console.error('[firebase] migrateAccountToCloud failed', e);
     throw e;
