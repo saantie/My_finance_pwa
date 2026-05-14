@@ -29,8 +29,8 @@ const SHELL_FILES = [
   './js/chart.js',
   './js/recurring.js',
   './js/parsers.js',
-  // หมายเหตุ: jsqr + pdfjs ไม่ pre-cache (lazy-loaded ตอนใช้)
-  // SW จะ cache ตอน fetch ครั้งแรกผ่าน cache-first ด้านล่าง
+  './js/lib/pdf.min.mjs',
+  './js/lib/pdf.worker.min.mjs',
   './icons/icon.svg'
 ];
 

@@ -1,7 +1,7 @@
 /* ===================================================================
    parsers.js — PDF e-Statement parser (universal + bank-specific hints)
    ===================================================================
-   ใช้ pdfjs-dist จาก CDN (lazy-load, ~500KB gzipped)
+   ใช้ pdfjs-dist v4.4.168 จาก local (js/lib/) — offline-ready
 
    Flow:
    1. parsePDF(file, password?) → ดึง text จาก PDF
@@ -25,14 +25,12 @@ import * as State from './state.js';
 let _pdfjs = null;
 
 
-/* === Lazy-load pdf.js =========================================== */
+/* === Lazy-load pdf.js (local) ==================================== */
 async function loadPdfJs() {
   if (_pdfjs) return _pdfjs;
   try {
-    // pdfjs-dist v3.11.x = ESM + reliable
-    const VERSION = '3.11.174';
-    const mod = await import(`https://cdn.jsdelivr.net/npm/pdfjs-dist@${VERSION}/build/pdf.min.mjs`);
-    mod.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${VERSION}/build/pdf.worker.min.mjs`;
+    const mod = await import('./js/lib/pdf.min.mjs');
+    mod.GlobalWorkerOptions.workerSrc = new URL('./js/lib/pdf.worker.min.mjs', import.meta.url).href;
     _pdfjs = mod;
     return mod;
   } catch (e) {
