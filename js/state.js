@@ -264,6 +264,13 @@ export function updateAccount(id, patch) {
   return _state.accounts[idx];
 }
 
+export function removeAccount(id) {
+  const idx = _state.accounts.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  _state.accounts.splice(idx, 1);
+  notify();
+}
+
 
 /* === Mutations: Settings ======================================== */
 

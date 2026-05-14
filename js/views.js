@@ -1268,6 +1268,28 @@ export function renderSettings(container) {
     });
   });
 
+  // ปฏิเสธบัญชีที่แชร์ให้ — ลบตัวเองออกจาก shared_with
+  container.querySelectorAll('[data-action="reject-shared-account"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const accountId = btn.dataset.accountId;
+      const account = State.getAccounts().find(a => a.id === accountId);
+      if (!account) return;
+      const myEmail = getCurrentUser()?.email;
+      if (!myEmail) { showToast('ต้องลงชื่อเข้าใช้ก่อน'); return; }
+      if (!confirm(`ปฏิเสธบัญชี "${account.display_name}"?\nบัญชีนี้จะไม่แสดงในแอปของคุณอีก`)) return;
+      try {
+        const newList = (account.shared_with || []).filter(e => e !== myEmail);
+        await updateSharedWith(accountId, newList);
+        State.removeAccount(accountId);
+        showToast('ปฏิเสธบัญชีแล้ว');
+        renderSettings(container);
+      } catch (e) {
+        console.error('[reject-share]', e);
+        showToast(`เกิดข้อผิดพลาด: ${e?.code || e?.message || 'unknown'}`);
+      }
+    });
+  });
+
   // Google sign-in (สำหรับผู้รับที่ต้องการดูบัญชีที่แชร์)
   container.querySelector('[data-action="google-sign-in"]')?.addEventListener('click', async () => {
     try {
@@ -1348,9 +1370,30 @@ function renderAccountsSection() {
       </div>`;
   }
 
+  const myEmail = currentUser?.email ?? null;
+
   const cards = accounts.map(acct => {
-    const isShared = (acct.shared_with || []).length > 0;
     const typeLabel = TYPE_LABEL[acct.type] || acct.type;
+    const isRecipient = acct.storage === 'cloud' && acct.owner && acct.owner !== myEmail;
+
+    // บัญชีที่คนอื่นแชร์ให้ → แสดงเฉพาะปุ่ม "ปฏิเสธ"
+    if (isRecipient) {
+      return `
+        <div class="card" style="margin-bottom:8px">
+          <div class="setting-row">
+            <div style="flex:1;min-width:0">
+              <div class="setting-label">${escapeHtml(acct.display_name)}</div>
+              <div class="setting-sub">${typeLabel} · แชร์โดย ${escapeHtml(acct.owner)}</div>
+            </div>
+            <button class="setting-action-btn"
+                    data-action="reject-shared-account"
+                    data-account-id="${escapeHtml(acct.id)}">ปฏิเสธ</button>
+          </div>
+        </div>`;
+    }
+
+    // บัญชีของตัวเอง → แสดง share controls ตามเดิม
+    const isShared = (acct.shared_with || []).length > 0;
 
     const emailRows = (acct.shared_with || []).map(em => `
       <div class="setting-row" style="padding:6px 0">
