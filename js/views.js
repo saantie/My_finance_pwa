@@ -1252,14 +1252,10 @@ export function renderSettings(container) {
       if (!account) return;
       const newList = (account.shared_with || []).filter(e => e !== email);
       try {
-        if (newList.length === 0) {
-          State.updateAccount(accountId, { storage: 'local', shared_with: [] });
-          showToast('หยุดแชร์แล้ว — ข้อมูลยังอยู่บน cloud');
-        } else {
-          State.updateAccount(accountId, { shared_with: newList });
-          await updateSharedWith(accountId, newList);
-          showToast(`ลบ ${email} ออกแล้ว`);
-        }
+        // อัปเดต Firestore ก่อนเสมอ — ผู้รับ query array-contains จะหมดสิทธิ์ทันที
+        await updateSharedWith(accountId, newList);
+        State.updateAccount(accountId, { shared_with: newList });
+        showToast(newList.length === 0 ? 'หยุดแชร์แล้ว' : `ลบ ${email} ออกแล้ว`);
         renderSettings(container);
       } catch (e) {
         console.error('[share] remove failed', e);
