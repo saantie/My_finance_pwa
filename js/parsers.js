@@ -315,7 +315,7 @@ export function parseTransactions(rows, bank) {
     }
 
     let year = parseInt(dateMatch[3], 10);
-    if (year < 100) year += 2000;
+    if (year < 100) year += (year > 43 ? 2500 : 2000); // 2-digit BE (67/68/69) vs CE (24/25/26)
     if (year > 2500) year -= 543;          // Buddhist Era → CE
 
     // Sanity check
