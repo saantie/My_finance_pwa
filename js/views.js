@@ -18,6 +18,10 @@ import {
   todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce
 } from './utils.js';
 import { cashflowForecast } from './chart.js';
+import {
+  signInWithGoogle, getCurrentUser,
+  updateSharedWith, migrateAccountToCloud
+} from './firebase.js';
 
 
 /* === Squiggle SVG (decorative divider) ========================== */
@@ -1076,6 +1080,9 @@ export function renderSettings(container) {
       </div>
     </div>
 
+    <!-- บัญชีของฉัน -->
+    ${renderAccountsSection()}
+
     <!-- Privacy info -->
     <div class="privacy-footer" style="margin-top: 22px;">
       ${svgIcon('shield', { size: 18, stroke: 2 })}
@@ -1165,8 +1172,88 @@ export function renderSettings(container) {
       if (!tmpl) return;
       if (confirm(`ลบ "${tmpl.description || 'รายการนี้'}"?\nรายการที่สร้างไปแล้วจะไม่ถูกลบ`)) {
         Recurring.deleteTemplate(id);
-        renderSettings(container);   // re-render
+        renderSettings(container);
         showToast('ลบรายการประจำแล้ว');
+      }
+    });
+  });
+
+  // Toggle share — แสดง email input (sign in ก่อนถ้ายังไม่ได้ login)
+  container.querySelectorAll('[data-action="toggle-share"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const accountId = btn.dataset.accountId;
+      const emailSection = container.querySelector(`.share-email-input[data-account-id="${accountId}"]`);
+      if (!emailSection) return;
+      if (!getCurrentUser()) {
+        try {
+          await signInWithGoogle();
+        } catch (e) {
+          showToast('ลงชื่อเข้าใช้ไม่สำเร็จ');
+          return;
+        }
+      }
+      const isHidden = emailSection.style.display === 'none';
+      emailSection.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) emailSection.querySelector('.share-email-field')?.focus();
+    });
+  });
+
+  // Add share email
+  container.querySelectorAll('[data-action="add-share-email"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const accountId = btn.dataset.accountId;
+      const input = container.querySelector(`.share-email-field[data-account-id="${accountId}"]`);
+      const email = (input?.value || '').trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('รูปแบบอีเมลไม่ถูกต้อง');
+        return;
+      }
+      const account = State.getAccounts().find(a => a.id === accountId);
+      if (!account) return;
+      const newList = [...(account.shared_with || []), email];
+      try {
+        State.updateAccount(accountId, { shared_with: newList });
+        if (account.storage === 'local') {
+          const txs = State.getTransactions()
+            .filter(t => t.account_from === accountId || t.account_to === accountId);
+          await migrateAccountToCloud(account, txs);
+          State.updateAccount(accountId, {
+            storage: 'cloud',
+            owner: getCurrentUser().email
+          });
+          State.subscribeSharedAccounts();
+        }
+        await updateSharedWith(accountId, newList);
+        showToast(`แชร์บัญชีกับ ${email} แล้ว`);
+        renderSettings(container);
+      } catch (e) {
+        console.error('[share] add failed', e);
+        showToast('เกิดข้อผิดพลาด — ลองใหม่อีกครั้ง');
+      }
+    });
+  });
+
+  // Remove share email
+  container.querySelectorAll('[data-action="remove-share-email"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { accountId, email } = btn.dataset;
+      if (!confirm(`หยุดแชร์กับ ${email}?`)) return;
+      const account = State.getAccounts().find(a => a.id === accountId);
+      if (!account) return;
+      const newList = (account.shared_with || []).filter(e => e !== email);
+      try {
+        if (newList.length === 0) {
+          State.updateAccount(accountId, { storage: 'local', shared_with: [] });
+          showToast('หยุดแชร์แล้ว — ข้อมูลยังอยู่บน cloud');
+        } else {
+          State.updateAccount(accountId, { shared_with: newList });
+          await updateSharedWith(accountId, newList);
+          showToast(`ลบ ${email} ออกแล้ว`);
+        }
+        renderSettings(container);
+      } catch (e) {
+        console.error('[share] remove failed', e);
+        showToast('เกิดข้อผิดพลาด — ลองใหม่อีกครั้ง');
       }
     });
   });
@@ -1176,6 +1263,73 @@ export function renderSettings(container) {
 /* ===================================================================
    Helpers
    =================================================================== */
+
+/** Render section บัญชีของฉัน + share controls ใน Settings */
+function renderAccountsSection() {
+  const accounts = State.getAccounts();
+  if (accounts.length === 0) return '';
+
+  const TYPE_LABEL = {
+    bank: 'บัญชีธนาคาร', cash: 'เงินสด',
+    credit_card: 'บัตรเครดิต', ewallet: 'กระเป๋าเงินอิเล็กทรอนิกส์'
+  };
+
+  const cards = accounts.map(acct => {
+    const isShared = (acct.shared_with || []).length > 0;
+    const typeLabel = TYPE_LABEL[acct.type] || acct.type;
+
+    const emailRows = (acct.shared_with || []).map(em => `
+      <div class="setting-row" style="padding:6px 0">
+        <div class="setting-sub" style="flex:1">${escapeHtml(em)}</div>
+        <button class="setting-action-btn"
+                data-action="remove-share-email"
+                data-account-id="${escapeHtml(acct.id)}"
+                data-email="${escapeHtml(em)}">ลบ</button>
+      </div>`).join('');
+
+    return `
+      <div class="card" style="margin-bottom:8px">
+        <div class="setting-row">
+          <div style="flex:1;min-width:0">
+            <div class="setting-label">
+              ${escapeHtml(acct.display_name)}
+              ${isShared ? '<span class="badge-shared">แชร์แล้ว</span>' : ''}
+            </div>
+            <div class="setting-sub">${typeLabel}</div>
+          </div>
+          <button class="setting-seg-btn ${isShared ? 'active' : ''}"
+                  data-action="toggle-share"
+                  data-account-id="${escapeHtml(acct.id)}">
+            แชร์บัญชีนี้
+          </button>
+        </div>
+        ${emailRows}
+        <div class="share-email-input"
+             data-account-id="${escapeHtml(acct.id)}"
+             style="display:none;padding:8px 0 4px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="email"
+                   class="share-email-field"
+                   data-account-id="${escapeHtml(acct.id)}"
+                   placeholder="Gmail ของอีกคน"
+                   style="flex:1;padding:8px 12px;border:1px solid var(--rule);border-radius:8px;font-size:14px;background:var(--surface)">
+            <button class="setting-seg-btn active"
+                    data-action="add-share-email"
+                    data-account-id="${escapeHtml(acct.id)}">เพิ่ม</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">บัญชีของฉัน</h2>
+      </div>
+      ${cards}
+    </div>`;
+}
+
 
 /** Render section รายการประจำ + ผ่อน + ล่วงหน้า ใน Settings */
 function renderRecurringSection() {

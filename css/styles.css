@@ -1927,3 +1927,24 @@ html[data-theme="pro"] .add-save {
   color: white;
   border-color: var(--ink);
 }
+.badge-shared {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--income);
+  color: white;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.setting-action-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--clay);
+  color: var(--clay);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
