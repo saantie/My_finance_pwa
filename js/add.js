@@ -146,10 +146,12 @@ function render() {
   // Title prefix ถ้าเป็น recurring (ไม่แสดงใน edit mode)
   let titlePrefix = '';
   if (!editingTxId) {
-    if (draft.frequency === 'scheduled') titlePrefix = 'ล่วงหน้า · ';
+    if (draft.frequency === 'past') titlePrefix = 'ย้อนหลัง · ';
+    else if (draft.frequency === 'scheduled') titlePrefix = 'ล่วงหน้า · ';
     else if (draft.frequency === 'monthly' || draft.frequency === 'weekly' || draft.frequency === 'yearly') titlePrefix = 'ประจำ · ';
     else if (draft.frequency === 'installment') titlePrefix = 'ผ่อน · ';
   }
+  const displayDate = draft.frequency === 'past' ? draft.first_due : draft.date;
 
   el.innerHTML = `
     <div class="add-topbar">
@@ -162,7 +164,7 @@ function render() {
       </button>
     </div>
 
-    <div class="add-date">— ${formatLongDate(draft.date)} —</div>
+    <div class="add-date">— ${formatLongDate(displayDate)} —</div>
 
     <div class="add-segmented">
       <div class="seg-item ${draft.type === 'expense' ? 'active' : ''}" data-type="expense">รายจ่าย</div>
@@ -207,11 +209,12 @@ function render() {
       <div class="meta-block">
         <div class="meta-label">เกิดเมื่อไหร่</div>
         <div class="freq-grid">
-          ${renderFreqOption('today',       'วันนี้',     'check')}
+          ${renderFreqOption('today',       'วันนี้',      'check')}
+          ${renderFreqOption('past',        'ย้อนหลัง',   'clock')}
           ${renderFreqOption('scheduled',   'ล่วงหน้า',   'plus')}
           ${renderFreqOption('monthly',     'ทุกเดือน',   'transfer')}
           ${renderFreqOption('weekly',      'ทุกสัปดาห์', 'transfer')}
-          ${renderFreqOption('installment', 'ผ่อน',       'gamepad')}
+          ${renderFreqOption('installment', 'ผ่อน',        'gamepad')}
         </div>
         ${renderFreqDetails()}
       </div>
@@ -221,7 +224,7 @@ function render() {
       <div class="meta-block">
         <div class="meta-label">บัญชี</div>
         <button class="acct-pill" data-action="pick-account">
-          <div class="ic" style="background: linear-gradient(135deg, ${acct?.bank ? '#6cc16c' : 'var(--mocha)'}, ${acct?.bank ? '#45984a' : '#a07246'})">
+          <div class="ic" style="background: ${bankGradient(acct?.bank, acct?.type)}">
             ${(acct?.bank || '$').toUpperCase().slice(0, 2)}
           </div>
           <div style="flex: 1; min-width: 0;">
@@ -264,6 +267,18 @@ function renderFreqOption(key, label, icon) {
 /** Render รายละเอียดเพิ่มของ frequency (date picker, จำนวนงวด) */
 function renderFreqDetails() {
   if (draft.frequency === 'today') return '';
+
+  if (draft.frequency === 'past') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxDate = yesterday.toISOString().slice(0, 10);
+    return `
+      <div class="freq-detail">
+        <label>วันที่เกิดขึ้น</label>
+        <input type="date" data-field="first_due" value="${draft.first_due}" max="${maxDate}">
+      </div>
+    `;
+  }
 
   if (draft.frequency === 'scheduled') {
     return `
@@ -356,8 +371,11 @@ function bindEvents() {
   el.querySelectorAll('.freq-opt').forEach(opt => {
     opt.addEventListener('click', () => {
       draft.frequency = opt.dataset.freq;
-      // ถ้าเปลี่ยนเป็น scheduled และ first_due เป็นอดีต → ตั้งเป็นพรุ่งนี้
-      if (draft.frequency === 'scheduled') {
+      if (draft.frequency === 'past') {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        draft.first_due = yesterday.toISOString().slice(0, 10);
+      } else if (draft.frequency === 'scheduled') {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         draft.first_due = tomorrow.toISOString().slice(0, 10);
@@ -530,7 +548,7 @@ function pickAccount() {
       <div class="acct-picker-head">เลือกบัญชี</div>
       ${accts.map(a => `
         <button class="acct-picker-item ${a.id === draft.account_id ? 'active' : ''}" data-id="${escapeHtml(a.id)}">
-          <div class="ic" style="background: linear-gradient(135deg, ${a.bank ? '#6cc16c' : 'var(--mocha)'}, ${a.bank ? '#45984a' : '#a07246'})">
+          <div class="ic" style="background: ${bankGradient(a.bank, a.type)}">
             ${(a.bank || '$').toUpperCase().slice(0, 2)}
           </div>
           <div class="info">
@@ -587,8 +605,8 @@ function save() {
     return;
   }
 
-  // === Case 1: บันทึกธรรมดา (วันนี้) ===
-  if (draft.frequency === 'today') {
+  // === Case 1: บันทึกธรรมดา (วันนี้ หรือ ย้อนหลัง) ===
+  if (draft.frequency === 'today' || draft.frequency === 'past') {
     State.addTransaction({
       type: draft.type,
       amount: draft.amount,
@@ -597,7 +615,7 @@ function save() {
       description,
       account_from: draft.type !== 'income' ? draft.account_id : null,
       account_to: draft.type === 'income' ? draft.account_id : null,
-      date: draft.date,
+      date: draft.frequency === 'past' ? draft.first_due : draft.date,
       source: 'manual',
       user_classified: true
     });
@@ -648,7 +666,19 @@ function save() {
 }
 
 
-/* === Helper ===================================================== */
+/* === Helpers ==================================================== */
+
+function bankGradient(bank, type) {
+  const MAP = {
+    ktb:   'linear-gradient(135deg, #5fb0e0, #3787c5)',
+    kbank: 'linear-gradient(135deg, #6cc16c, #45984a)',
+    scb:   'linear-gradient(135deg, #b378c0, #8a59a0)',
+    bbl:   'linear-gradient(135deg, #4f7eb8, #2a5a94)',
+    bay:   'linear-gradient(135deg, #e8b649, #c79939)',
+  };
+  return MAP[bank] || 'linear-gradient(135deg, #c89368, #a07246)';
+}
+
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s)
