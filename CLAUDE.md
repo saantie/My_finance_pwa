@@ -2,9 +2,9 @@
 
 **เอกสารฉบับเดียวที่รวมทุกการตัดสินใจ, research, design choices และ state ของ project**
 
-Version: 1.0 — May 2026
+Version: 1.2 — May 2026
 Owner: Solo developer
-Stage: Pre-launch (mockup approval phase)
+Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish remaining)
 
 ---
 
@@ -107,7 +107,7 @@ Stage: Pre-launch (mockup approval phase)
 | # | Pain | ความถี่ | แอปนี้แก้ไหม |
 |---|---|---|---|
 | 1 | บันทึกเองทีละรายการ ขี้เกียจ ลืมจด | 🔥🔥🔥🔥🔥 | ✅ PDF import |
-| 2 | ไม่มี cloud sync ฟรี เปลี่ยนเครื่องข้อมูลหาย | 🔥🔥🔥🔥🔥 | ⚠️ Drive backup v1.0, Firestore v2.0 |
+| 2 | ไม่มี cloud sync ฟรี เปลี่ยนเครื่องข้อมูลหาย | 🔥🔥🔥🔥🔥 | ⚠️ Drive backup v1.0, Firestore shared accounts done |
 | 3 | ไม่มี PC version ใช้ลำบาก | 🔥🔥🔥🔥 | ✅ PWA |
 | 4 | App crash บ่อย | 🔥🔥🔥🔥 | ⚠️ test ดี + Sentry |
 | 5 | การโอนข้ามบัญชีนับเป็นรายจ่าย (model ผิด) | 🔥🔥🔥 | ✅ transfer type |
@@ -238,6 +238,7 @@ Stage: Pre-launch (mockup approval phase)
   source: "import" | "manual" | "voice" | "sheet",
   user_classified: boolean,      // true = user แก้แล้ว (อย่า override)
   created_by: string | null,     // Gmail ผู้บันทึก; null = local (ไม่ได้ sign in)
+  created_by_name: string | null,// ชื่อที่ user ตั้งเอง (settings.display_name) ตอน save — ใช้แสดง "เพิ่มโดย X" ใน shared account
   deleted_by: string | null,     // Soft delete — Gmail ผู้ลบ; null = ยังไม่ถูกลบ
   createdAt: ISO timestamp,
   updatedAt: ISO timestamp
@@ -294,6 +295,7 @@ Stage: Pre-launch (mockup approval phase)
   theme: "friendly" | "pro",     // Default = friendly
   language: "th",
   text_size: "normal" | "large" | "xlarge", // Default = normal, ปรับ font-size root
+  display_name: string,          // ชื่อที่ใช้แสดงใน shared account "เพิ่มโดย X" (ไม่ใช่ account name)
   privacy_mode: "local" | "sync",// future
   notification_enabled: boolean,
   affiliate_disabled: boolean
@@ -344,7 +346,7 @@ Stage: Pre-launch (mockup approval phase)
 - User บันทึก expense จาก cash → ลด
 - ถ้า user ไม่บันทึก cash expenses → ระบบเห็น *"ถอน ATM 18,000 แต่บันทึกแค่ 2,000 — อาจลืม"*
 
-### 6.6 Transfer / duplicate detection (Layer 1+2)
+### 6.7 Transfer / duplicate detection (Layer 1+2)
 
 **Layer 1 (v1.0):** Smart classify
 - ATM → transfer (bank → cash)
@@ -358,7 +360,7 @@ Stage: Pre-launch (mockup approval phase)
 - Popup *"คล้ายรายการก่อนหน้า — เป็นเดียวกันไหม?"*
 - User เลือก keep/merge/skip — ไม่ auto-merge
 
-### 6.7 Edge cases ใน data model
+### 6.8 Edge cases ใน data model
 
 1. **ATM withdraw** → transfer (bank→cash), ไม่ใช่ expense
 2. **บัตรเครดิต payment** → transfer (bank→cc), ไม่ใช่ expense
@@ -368,13 +370,20 @@ Stage: Pre-launch (mockup approval phase)
 6. **Split transaction** (จ่ายแทนเพื่อน) → split feature ระบุส่วนตัวเอง
 7. **Fee ฝัง** (โอนต่างธนาคาร 5,000 หัก 5,025) → parser แยก fee column
 
+### 6.9 Soft delete pattern (shared accounts)
+
+- ทุก transaction ใน shared account ใช้ soft delete (`deleted_by = email`) แทนการลบจริง
+- **Two-stage delete:** คนแรกลบ → soft delete (สีเทา, ขีดทับ, ไม่คำนวณ); คนที่สองลบ → hard delete (หายจาก Firestore, ทั้งสองฝ่ายไม่เห็น)
+- `activeTxs()` helper ใน state.js กรอง `deleted_by == null` ก่อนคำนวณทุกครั้ง
+- `getTransactionsByDay()` แสดง soft-deleted ด้วย (สีเทา) แต่ไม่นับใน day totals
+
 ---
 
 ## 7. Feature Specification
 
 ### 7.1 v1.0 Launch features (must-have)
 
-#### F1.1 — PDF e-Statement Import [HAVE]
+#### F1.1 — PDF e-Statement Import [✅ DONE]
 - Auto-detect bank, parse transactions
 - **5 ธนาคารหลัก at launch:** KTB, KBank, SCB, BBL, Krungsri/BAY (ครอบคลุม 80%+)
 - ธนาคารอื่น → universal parser (อาจไม่สมบูรณ์ + bug report)
@@ -390,19 +399,19 @@ Stage: Pre-launch (mockup approval phase)
   - PDF ไม่มีรหัส: ส่งไฟล์เป็น base64
 - Review screen ก่อน import เสร็จ
 
-#### F1.2 — Auto-Detect Account [NEW]
+#### F1.2 — Auto-Detect Account [✅ DONE]
 - Parser อ่านเลขบัญชีจาก header → create Account record
 - Mask: เก็บแค่ 4 หลักท้าย "xxx-x-x7821-x"
 - User rename ได้ ("กรุงไทย ...7821" → "บัญชีเงินเดือน")
 - Manual entry default = "ไม่ระบุ" (ไม่บังคับ)
 
-#### F1.3 — Min Balance Alert + Days Below Threshold [HAVE]
+#### F1.3 — Min Balance Alert + Days Below Threshold [✅ DONE]
 - Per-account view (ไม่ใช่ยอดรวม)
 - Default threshold = 2,000 ฿ (override per account)
 - Trend: เปรียบเทียบเดือนก่อน
 - Visual: red row + ⚠️ icon (ไม่ scary)
 
-#### F1.4 — Manual Entry [HAVE — needs polish]
+#### F1.4 — Manual Entry [✅ DONE]
 - Quick add fields: amount + category + account + date + note
 - **Calculator built-in** (1500+200, 1500*0.93)
 - Smart defaults: today, expense, recent category
@@ -410,71 +419,105 @@ Stage: Pre-launch (mockup approval phase)
 - **Edit existing transaction** — pencil icon บน row หรือ swipe-left → edit
   - Edit modal = quick-add modal แต่ pre-fill ข้อมูลเดิม
   - หลัง save → `user_classified = true` → parser จะไม่ override ค่านี้อีก
+- **Account picker** — bottom-sheet overlay (ไม่ใช่ `prompt()`) แสดง icon สีถูกต้องตาม bank
+- **Backdate ("ย้อนหลัง")** — frequency option ใหม่ เลือก date picker ที่จำกัด max = เมื่อวาน บันทึกเป็น transaction ปกติแต่ใช้วันที่เลือก
+- **Frequency options (6 ตัว):** วันนี้ | ย้อนหลัง | ล่วงหน้า | ทุกเดือน | ทุกสัปดาห์ | ผ่อน (3×2 grid)
 
-#### F1.5 — Voice Input (Thai NLP) [HAVE]
+#### F1.5 — Voice Input (Thai NLP) [✅ DONE]
 - "จ่ายค่าไฟ 450 บาท" → expense, 450, ค่าสาธารณูปโภค
 - รองรับ Thai number words (ห้าสิบ, สองพัน)
 - Web Speech API + custom NLP
 
-#### F1.6 — Dashboard [HAVE — needs UX overhaul]
-- **Hero insight card** "เดือนนี้คุณเหลือ +12,550 ฿" (จาก mockup)
+#### F1.6 — Dashboard [✅ DONE]
+- **Hero insight card** "เดือนนี้คุณเหลือ +12,550 ฿"
 - Income/Expense pair (secondary)
 - Account list (auto-detect, with min-balance warning)
 - Top categories (3-5)
-- Daily balance line chart (with threshold)
+- **14-day expense chart** — SVG inline (responsive, `width: 100%`) จาก `dailyExpenseBars()` ใน chart.js
+  - สี: วันนี้ = terracotta, เสาร์-อาทิตย์ = mocha, ปกติ = rule
+  - เส้น avg ประ (dashed)
+  - data source ใช้ `activeTxs()` — ไม่นับ soft-deleted
 - Recent transactions
+- Cashflow forecast chart (30 วันข้างหน้า)
 
-#### F1.7 — Onboarding 3-screen [NEW]
+#### F1.7 — Onboarding 3-screen [⏳ PENDING]
 - Screen 1: Privacy promise (3 sec)
 - Screen 2: Import PDF / skip (5 sec)
 - Screen 3: Aha-moment insights (after PDF processed)
 
-#### F1.8 — Privacy Story Page [NEW]
+#### F1.8 — Privacy Story Page [⏳ PENDING]
 - "Data ของฉันอยู่ที่ไหน" — marketing material in-app
 - ✅ Transactions: localStorage
 - ✅ PDF: process ใน browser
 - ❌ ไม่มี analytics, ad network, server
 - "0 KB sent to server today"
 
-#### F1.9 — Backup Multi-layer [NEW]
+#### F1.9 — Backup Multi-layer [⏳ PENDING]
 - **Layer 1:** Manual JSON export/import (resilient parser)
 - **Layer 2:** Auto Google Drive backup (`drive.file` scope, no OAuth verification needed)
 - Sign in Google ครั้งเดียว → upload .json daily
 - New device: sign in → auto-restore
 
-#### F1.10 — 2 Themes [DONE in code]
+#### F1.10 — 2 Themes [✅ DONE]
 - **Friendly mode (default)** — warm orange, cream, rounded, soft shadows
 - **Pro mode** — Bloomberg/editorial, navy, dense
 - Toggle ใน Settings (ไม่ใช่ topbar)
 
-#### F1.10b — Text Size / Zoom [NEW]
+#### F1.10b — Text Size / Zoom [✅ DONE]
 - **Pinch-to-zoom:** ไม่ block native browser zoom — `viewport` meta ห้ามใส่ `user-scalable=no`
 - **In-app text size:** Settings → ขนาดตัวอักษร → Normal / ใหญ่ / ใหญ่มาก
   - ใช้ `font-size` บน `:root` (rem cascade ทั้งแอป)
   - Normal = 16px, Large = 18px, XLarge = 20px
-- เหตุผล: กลุ่มเป้าหมาย 25-40 ปี บางคนตาไม่ดี, ใช้บน mobile หน้าจอเล็ก
 
-#### F1.11 — UX Overhaul [PLANNED — mockups approved]
+#### F1.11 — UX Overhaul [✅ DONE]
 - Bottom nav 4 tabs + center FAB
 - Hero insight card
 - Full-screen quick-add modal + in-app keypad
-- Microinteractions (haptic, scale, tally)
+- Microinteractions (haptic)
 - Swipe actions on list
-- Skeleton loading + empty states with 2-path
+- Empty states
 
-#### F1.12 — Selective Account Sharing [v1.0 — Real-time]
-- **Real-time sync ผ่าน Firebase Firestore** — อีกคนเห็นรายการใหม่ทันที
-- Sign in ด้วย Google account เท่านั้น (ไม่มี setup ยุ่งยาก)
+#### F1.12 — Selective Account Sharing [✅ DONE — Real-time Firestore]
+
+**Architecture:**
+- Real-time sync ผ่าน Firebase Firestore — อีกคนเห็นรายการใหม่ทันที
+- Sign in ด้วย Google account เท่านั้น
 - เจ้าของบัญชีกรอก Gmail ผู้รับใน Settings → toggle "แชร์บัญชีนี้"
-- แต่ละรายการแสดง "เพิ่มโดย X" / "ลบโดย X" (created_by / deleted_by)
-- **Hybrid storage:**
-  - บัญชีส่วนตัว (ไม่แชร์) → localStorage เท่านั้น (privacy USP ยังสมบูรณ์)
-  - บัญชีที่แชร์ → Firestore + localStorage เป็น cache (offline queue)
-- Migration: เมื่อ toggle share → push transactions เดิมขึ้น Firestore ครั้งเดียว
-- Soft delete: shared account ไม่ลบจริง → ตั้ง `deleted_by` แทน
-- Firestore security rules: อ่าน-เขียนได้เฉพาะ owner + shared_with เท่านั้น
+- **Hybrid storage:** บัญชีส่วนตัว → localStorage เท่านั้น; บัญชีที่แชร์ → Firestore + localStorage cache
 
-#### F1.13 — Gamification: เหรียญรางวัล + Level System [NEW]
+**Permissions:**
+- เจ้าของ: เพิ่ม/แก้ไข/ลบรายการ, แชร์/ยกเลิกแชร์, ลบบัญชี
+- ผู้รับแชร์: เพิ่มรายการ, soft-delete รายการ, "ปฏิเสธ" (ยกเลิก access ตัวเอง)
+- ผู้รับแชร์ **ไม่มีสิทธิ์** ลบบัญชี หรือแชร์ต่อ
+
+**Display ใน shared transactions:**
+- "เพิ่มโดย X" — จาก `tx.created_by_name` (เก็บตอน save, ไม่ lookup ทีหลัง)
+- "ลบโดย X" — จาก `tx.deleted_by` (Gmail)
+- Soft-deleted: แสดงสีเทา + ขีดทับ `.entry--deleted` ไม่นำมาคำนวณ
+
+**Soft delete / two-stage delete:**
+- คนแรกลบ → `deleted_by = email` (soft delete) — ยังเห็นอยู่ สีเทา
+- คนที่สองลบ → `hardDeleteTransaction()` — ลบออกจาก Firestore จริง, ทั้งสองฝ่ายไม่เห็น
+- ใช้ `snapshot.docChanges()` ใน `subscribeSharedAccount` เพื่อจับ hard-delete (type: 'removed')
+
+**Lifecycle / sync:**
+- `subscribeSharedAccounts()` เรียกทันทีเมื่อ sign in (ไม่รอ shared-with callback)
+- `subscribeAccountsSharedWithMe(email)` — Firestore query `array-contains` หา accounts ที่คนอื่น share ให้
+- `mergeSharedAccounts(remoteAccounts)` — เมื่อ owner revoke → ลบบัญชี + transactions + ปิด listener ทันที
+- `clearReceivedAccounts(myEmail)` เรียกเมื่อ sign out — ล้าง UI ทันที
+- `current_balance` อัปเดตจาก latest Firestore transaction ที่มี `balance` field
+
+**Critical bug patterns (อย่าทำซ้ำ):**
+- `migrateAccountToCloud`: ต้อง `await setDoc(accountRef)` ก่อน แล้วค่อย batch transactions แยก — เพราะ Firestore security rules ของ subcollection ทำ `get()` บน parent doc ที่ต้อง committed แล้ว
+- `remove-share-email`: ต้อง call `updateSharedWith(accountId, newList)` เสมอ แม้ `newList` จะ empty — ถ้าไม่ call Firestore จะไม่ revoke access
+- `mergeSharedAccounts`: condition ต้องเป็น `a.owner !== myEmail` (ไม่ใช่ `a.owner && a.owner !== myEmail`) — มิฉะนั้น accounts ที่ `owner: null` จะไม่ถูก revoke
+
+**Display name:**
+- ตั้งได้ใน Settings → "ชื่อที่แสดงในบัญชีที่แชร์"
+- เก็บใน `settings.display_name`
+- ใส่ลงใน `tx.created_by_name` ตอน `addTransaction()` — ไม่ lookup ตอน render
+
+#### F1.13 — Gamification: เหรียญรางวัล + Level System [⏳ PENDING]
 
 **เหรียญรายวัน (claim ได้ 1 ครั้ง/วัน):**
 - 🥉 ทองแดง (+10 XP): บันทึก ≥ 1 รายการวันนี้
@@ -482,48 +525,38 @@ Stage: Pre-launch (mockup approval phase)
 - 🥇 ทอง (+50 XP): บันทึก ≥ 3 รายการ + ยอด ok + มีรายรับบันทึกสัปดาห์นี้
 - Streak bonus: 7 วันติดกัน +70 XP | 30 วันติดกัน +300 XP
 
-**XP จากกิจกรรมอื่น:**
-- import PDF ครั้งแรก: +100 XP
-- ตั้ง recurring template: +30 XP
-- share account: +20 XP
-- backup ไป Drive: +15 XP
-- บันทึกด้วย voice: +5 XP
-
 **UX หลักการ — subtle ไม่ intrusive:**
 - แสดงผลเป็น toast เล็กๆ หรือ badge มุมหน้าจอ ห้าม popup บัง
 - Level up → animation เบาๆ + haptic 1 ครั้ง ไม่มีเสียง
 - เหรียญและ level แสดงใน profile/settings ไม่ใช่ dashboard หลัก
-- กลุ่มเป้าหมาย 25-40 ปี — ต้องรู้สึก "โตขึ้น" ไม่ใช่ "กำลังเล่นเกม"
+
+#### F1.14 — List View [✅ DONE]
+- **Month selector** — ← เดือน → navigation ด้านบน, default = เดือนปัจจุบัน
+- **Filter chips** — ทั้งหมด / รายจ่าย / รายรับ / โอน (ใช้งานได้จริง, filter ภายในเดือนที่เลือก)
+- **Search** — ค้นหา description + category ภายในเดือนที่เลือก
+- right arrow disabled เมื่ออยู่ที่เดือนปัจจุบัน
 
 ### 7.2 v1.1 Features (เดือน 2-3 หลัง launch)
 
-#### F2.1 — Recurring Transactions
-- **Auto-detect from PDF history** (USP — คนอื่นไม่ทำ)
+#### F2.1 — Recurring Transactions [✅ INFRASTRUCTURE DONE, auto-detect pending]
+- Template engine + scheduler ทำงานแล้ว
+- **Auto-detect from PDF history** (USP — คนอื่นไม่ทำ) — ยังไม่ implement
 - ระบบเห็น "ค่าไฟ" ทุกวันที่ 5 จาก PDF 3 เดือน → suggest template
-- User confirm → next month แสดง "ค่าไฟคาดว่า 1,200 ฿ ในอีก 8 วัน"
 - Confidence ≥ 0.8 ถึง suggest
 - ไม่ auto-create — user confirm ทุกครั้ง
 
-#### F2.2 — Forecast Calendar
-- USP ที่ไม่มีในแอปไทยตัวไหน
-- Calendar view 30 วันข้างหน้า
-- ใช้ recurring + scheduled bills
-- Highlight วันที่ยอดจะต่ำกว่า threshold
-- ระบุชัดว่าเป็น "คาดการณ์"
+#### F2.2 — Forecast Calendar [✅ CHART DONE, calendar view pending]
+- Cashflow forecast chart 30 วัน render ใน dashboard แล้ว
+- Calendar view UI ยังไม่ implement
 
-#### F2.3 — Smart reminders (gentle)
-- Weekly digest: "สัปดาห์ที่ผ่านมาคุณบันทึก 12 รายการ"
-- Recurring due: "ค่าไฟครบกำหนดวันนี้"
-- ❌ ไม่ใช่: "คุณไม่ได้บันทึกมา 5 วัน!"
+#### F2.3 — Smart reminders (gentle) [⏳ PENDING]
+- Weekly digest, Recurring due alerts
 
 ### 7.3 v1.2-v2.0 Features (เดือน 3-12)
 
 #### F3.1 — Affiliate Suggestions (Phase 2 monetization)
 - Tier 1: บัตรเครดิต, บัญชีออม, สินเชื่อ (no licensing)
-- Tier 2: ประกัน, กองทุน (via licensed broker)
 - ผ่าน Involve Asia / AccessTrade
-- Insight card ใน dashboard
-- ระบุ "[โฆษณา]" ตาม สคบ.
 - Suggestion engine ฝั่ง client (ไม่ส่ง spending pattern ออก)
 
 #### F3.2 — Bug Report ในแอป
@@ -531,17 +564,16 @@ Stage: Pre-launch (mockup approval phase)
 
 #### F3.3 — Receipt OCR / Slip ภาษาไทย (Gemini fallback)
 - Primary: jsQR (on-device, ออฟไลน์) — สำหรับ slip มี QR PromptPay
-- Fallback: Gemini Vision API — สำหรับ slip ไม่มี QR, ใบเสร็จ, receipt
+- Fallback: Gemini Vision API — สำหรับ slip ไม่มี QR
   - ใช้ `generative-language` OAuth scope (user token — ไม่มีค่าใช้จ่าย dev)
   - ⚠️ user ต้องเคยเปิด aistudio.google.com และ Accept Terms ก่อน
-    ถ้ายังไม่เคย → API return 403 → แอปแนะนำให้ไปเปิดก่อน
   - user กด consent ทุกครั้งก่อนส่งรูป
 
 #### F3.4 — Multi-bank parser expansion
 - 5 → 16 ธนาคาร (ตาม user request)
 
 #### F4.1+ — v2.0 features
-- Full cloud sync (Firebase Firestore, opt-in, ทุก account ไม่ใช่แค่ shared)
+- Full cloud sync (Firebase Firestore, opt-in, ทุก account)
 - Investment / กองทุนรวม tracking
 - Net worth dashboard
 - Goal-based saving
@@ -564,9 +596,9 @@ Stage: Pre-launch (mockup approval phase)
 Bottom nav (4 tabs + FAB):
 ├── Home (Dashboard)
 ├── นำเข้า (Import)
-├── [ + ] FAB center → Add modal
+├── [ + ] FAB center → Add modal (full-screen)
 ├── สถิติ (Stats / Forecast / Reports)
-└── ตั้งค่า (Settings: Account, Privacy, Theme)
+└── ตั้งค่า (Settings: Account, Sharing, Privacy, Theme)
 ```
 
 ### 8.3 Design tokens
@@ -578,14 +610,24 @@ Surface:     #ffffff
 Ink:         #2d3748  (warm dark gray)
 Ink-faint:   #718096
 Rule:        #efe5d4
+Mocha:       #c89368  (neutral accent, cash icon)
+Plum:        #b378c0  (shopping, SCB icon)
+Honey:       #e8b649  (utility, BAY icon)
+Terracotta:  #c0694c  (today bar in chart, delete accent)
 
 Primary:     #e88e3c → #f5a623 gradient (warm orange)
 Accent-soft: #fef3e7  (tinted bg)
 Income:      #5a9d63  (soft green)
 Expense:     #d96b5e  (friendly coral)
 Transfer:    #5e9bd6  (calm blue)
-Investment:  #8b6db5
-Debt:        #b8825e
+
+Account icon gradients (ต้องตรงกันทั้ง CSS และ JS bankGradient()):
+  ktb:   #5fb0e0 → #3787c5  (ฟ้า)
+  kbank: #6cc16c → #45984a  (เขียว)
+  scb:   #b378c0 → #8a59a0  (ม่วง)
+  bbl:   #4f7eb8 → #2a5a94  (น้ำเงิน)
+  bay:   #e8b649 → #c79939  (ทอง)
+  cash/other: #c89368 → #a07246  (น้ำตาล)
 
 Category palette (icons ขาวบน solid bg):
   food:       #ff8a5c
@@ -621,8 +663,9 @@ Font:        IBM Plex Serif headings + Sans Thai body
 
 - **System icons:** Lucide (38 inline SVG, ~3KB)
 - **Category icons:** white stroke on solid color bg (Apple Wallet pattern)
-- **Account icons:** white on linear-gradient bg
+- **Account icons:** `bankGradient(bank, type)` helper ใน add.js — ต้องตรงกับ `.acct-icon.{bank}` CSS เสมอ
 - **Pattern decision:** ห้าม tinted bg เพราะ contrast ไม่พอ — solid color always
+- **ห้าม hardcode สีเดียวสำหรับทุก bank** — ต้องใช้ `bankGradient()` ที่ map ตามธนาคาร
 
 ### 8.5 Microinteractions checklist
 
@@ -638,6 +681,7 @@ Font:        IBM Plex Serif headings + Sans Thai body
 | Loading | Skeleton shapes (ไม่ใช่ spinner) |
 | Edit transaction | Pre-fill modal open + pencil icon scale |
 | Swipe-left (edit) | Slide reveal → edit button สี primary |
+| Account picker open | Bottom-sheet slide up |
 
 ### 8.6 12 หลักการ UX (full list)
 
@@ -691,20 +735,10 @@ Font:        IBM Plex Serif headings + Sans Thai body
 - บัญชีออมดอกสูง (100-500 ฿/บัญชี)
 - สินเชื่อ (500-3,000 ฿/อนุมัติ)
 
-**Revenue projection:**
-- MAU 10,000: ~50,000 ฿/เดือน
-- MAU 50,000: ~250,000 ฿/เดือน
-
 **Compliance:**
 - Disclosure "[โฆษณา]" ตาม สคบ.
 - ไม่ส่ง spending data ออก (suggestion engine ฝั่ง client)
 - จดทะเบียนพาณิชย์อิเล็กทรอนิกส์
-
-### 9.4 ทำไมไม่ใช้ banner ads
-
-- AdMob CPM ในไทย: 5-15 ฿ → MAU 10,000 = ~15,000 ฿/เดือน (vs affiliate 50,000)
-- Banner ในแอปการเงิน = trust พัง = retention ตก
-- AdMob restriction กับ financial apps
 
 ---
 
@@ -718,7 +752,7 @@ Font:        IBM Plex Serif headings + Sans Thai body
 | PDF parsing | pdf.js + parsers.js (primary) | Local-first, ออฟไลน์ได้, 183 tests |
 | PDF fallback | Gemini API via user OAuth token | scope: `generative-language`; user consent ก่อนส่ง PDF; เมื่อ confidence < 60 |
 | Voice | Web Speech API + custom Thai NLP | Free, on-device |
-| Charts | Chart.js | Mature, fast |
+| Charts | Inline SVG (chart.js helper) | ไม่ต้องโหลด library, responsive ผ่าน viewBox |
 | Storage v1.0 | localStorage (private) + Firestore (shared accounts) | Hybrid: privacy USP ยังสมบูรณ์สำหรับ non-shared |
 | Storage v2.0 | Firebase Firestore full sync (opt-in) | Free tier, no OAuth verification needed |
 | Hosting | GitHub Pages | Free, fast CDN |
@@ -736,7 +770,7 @@ Font:        IBM Plex Serif headings + Sans Thai body
 - Trade-off ที่ยอม: ไม่มี home screen widget, share-to-app จำกัด
 - Migrate native ตอน MAU > 50,000 + revenue stable
 
-### 10.3 ทำไม Firebase ไม่ Sheets (สำหรับ cloud sync v2.0)
+### 10.3 ทำไม Firebase ไม่ Sheets
 
 - Google Sheets API = ต้องผ่าน OAuth verification (4-8 สัปดาห์, อาจต้อง security assessment $15K-75K)
 - Firebase Auth = verified อยู่แล้ว, ไม่มีหน้า "unverified app"
@@ -761,7 +795,7 @@ PDF file → pdf.js → ถ้ามีรหัส → prompt password → ใ�
                             ↓
                             JSON → merge กับผล parser → Review screen
    ↓
-   Store.addMany() → localStorage → emit('change')
+   State.addMany() → localStorage → emit('change')
    ↓
    Dashboard.render() → analytics → charts
    ↓
@@ -769,77 +803,110 @@ PDF file → pdf.js → ถ้ามีรหัส → prompt password → ใ�
    (Shared accounts) → Firestore real-time sync
 ```
 
-### 10.5 Security & Privacy
+### 10.5 Firestore shared account flow
+
+```
+Sign in → subscribeSharedAccounts() [ทันที — own accounts]
+        → subscribeAccountsSharedWithMe(email)
+              ↓ callback
+          mergeSharedAccounts(remoteAccounts)
+              ├─ revoked accounts → ลบ transactions + ปิด listener
+              └─ new/updated accounts → เพิ่ม/อัปเดต
+          subscribeSharedAccounts() [อีกครั้ง — รวม received accounts]
+
+Sign out → unsubscribeAll() + clearReceivedAccounts(myEmail)
+
+Add tx → State.addTransaction() → Firestore pushTransaction() [ถ้า cloud account]
+Delete tx → soft delete (deleted_by = email) → ถ้า already soft-deleted → hard delete
+Revoke share → updateSharedWith(accountId, []) → Firestore → onSnapshot → mergeSharedAccounts detects → remove
+```
+
+### 10.6 Security & Privacy
 
 **v1.0:**
-- ทุกอย่างใน browser localStorage
-- ไม่มี server call
+- ทุกอย่างใน browser localStorage (private accounts)
+- Firestore สำหรับ shared accounts เท่านั้น
 - **PDF ไม่ส่งออกจาก device** (กรณีปกติ — parsers.js ทำงาน local)
 - **กรณี Gemini fallback** (user กด consent เองทุกครั้ง):
   - PDF ไม่มีรหัส → ส่ง base64 ไปยัง Gemini API (Google's servers)
-  - PDF มีรหัส → ส่งเฉพาะ extractedText (text ที่ decrypt แล้ว) ไม่ส่งไฟล์
-  - Privacy Story Page ต้องระบุชัดเจนว่า fallback ส่งข้อมูลออก
+  - PDF มีรหัส → ส่งเฉพาะ extractedText ไม่ส่งไฟล์
 - Account number masking (เก็บ 4 หลักท้าย)
-
-**v1.0 Drive backup:**
-- Scope: `drive.file` (non-sensitive)
-- เห็นเฉพาะไฟล์ที่แอปสร้าง
-- HTTPS encryption in transit
-
-**v2.0 Cloud sync:**
-- Firebase Firestore ของ user
-- Opt-in, default ยัง local
-- User control deletion
+- Firestore security rules: อ่าน-เขียนได้เฉพาะ `owner` + `shared_with` เท่านั้น
 
 ---
 
 ## 11. Codebase State
 
-### 11.1 Repository structure
+### 11.1 Repository structure (actual — May 2026)
 
 ```
 finance-pwa/
-├── index.html              ← shell + 4 views + theme bootstrap
+├── index.html              ← shell + bottom nav + FAB + add-modal placeholder
 ├── manifest.webmanifest    ← PWA manifest
-├── sw.js                   ← Service Worker (v5)
+├── sw.js                   ← Service Worker
 ├── icons/                  ← PWA icons SVG
 ├── css/
-│   └── styles.css          ← dual-theme stylesheet (333+ lines)
+│   └── styles.css          ← dual-theme stylesheet (1700+ lines)
 ├── js/
 │   ├── config.js           ← APP_CONFIG (Google Client ID at deploy)
-│   ├── theme.js            ← ✅ NEW — theme switcher
-│   ├── icons.js            ← ✅ NEW — 38 inline Lucide SVG + group→icon map
-│   ├── utils.js            ← Money/satang, BE↔CE, Thai numwords
-│   ├── store.js            ← Transaction store, classification rules
+│   ├── icons.js            ← 38 inline Lucide SVG + CATEGORIES map + svgIcon()
+│   ├── utils.js            ← formatBaht, satang, BE↔CE, Thai numwords, todayISO, calc()
+│   ├── state.js            ← State management: transactions, accounts, settings
+│   │                          activeTxs(), getTransactionsByDay(), getMonthSummary()
+│   │                          subscribeSharedAccounts(), mergeSharedAccounts()
+│   │                          clearReceivedAccounts(), removeAccount()
 │   ├── parsers.js          ← 16 banks PDF parser (universal+per-bank)
-│   ├── voice.js            ← Web Speech + Thai NLP intent
-│   ├── pdf.js              ← pdf.js wrapper + password support
-│   ├── dashboard.js        ← Chart.js rendering
-│   ├── google.js           ← OAuth PKCE + Sheets (deprecated, use Firebase)
-│   ├── crypto.js           ← E2E encryption (added during compact)
-│   ├── firebase.js         ← Firestore client (added during compact)
-│   ├── ui.js               ← modals/toasts
-│   └── app.js              ← glue + view routing
+│   ├── voice.js            ← Web Speech + Thai NLP intent parser
+│   ├── pdf.js              ← pdf.js wrapper + password prompt support
+│   ├── chart.js            ← Inline SVG charts: dailyExpenseBars(), cashflowForecast()
+│   ├── recurring.js        ← Template engine + scheduler + getForecast()
+│   ├── firebase.js         ← Firebase Auth + Firestore client
+│   │                          pushSharedAccount(), migrateAccountToCloud()
+│   │                          softDeleteTransaction(), hardDeleteTransaction()
+│   │                          subscribeSharedAccount(), subscribeAccountsSharedWithMe()
+│   ├── add.js              ← Add/Edit transaction modal
+│   │                          pickAccount() bottom-sheet, bankGradient() helper
+│   │                          frequency: today|past|scheduled|monthly|weekly|installment
+│   ├── views.js            ← All view renderers: dashboard, list, import, settings
+│   │                          renderList() with month nav + filter chips
+│   │                          renderSpendingChart() using dailyExpenseBars SVG
+│   │                          renderAccountsSection() with share controls + recipient UI
+│   └── app.js              ← Entry point, routing, Firebase init, auth lifecycle
 ├── tests/
 │   └── run.mjs             ← 183 tests passing
-├── PRODUCT_SPEC.md         ← initial spec (898 lines)
-└── UX_RESEARCH.md          ← UX research (502 lines)
+└── CLAUDE.md               ← เอกสารนี้
 ```
 
 ### 11.2 Tests status
 
-- **183 tests passing** (utils, store, parsers, voice, crypto)
+- **183 tests passing** (utils, state/store, parsers, voice, crypto)
 - Test runner: `node tests/run.mjs`
 
-### 11.3 Bug fixes preserved across sessions
+### 11.3 Bug fixes — ทั้งหมดที่แก้แล้ว
 
+**Parser / data:**
 1. Node 22 crypto read-only getter
 2. พร้อมเพย์ vs จ่ายบิล split into separate groups
-3. Time strings (10:30) polluting numbers → maskNonAmounts()
+3. Time strings (10:30) polluting numbers → `maskNonAmounts()`
 4. Phone numbers regex fix `0\d{1,2}[\s-]\d{3}[\s-]\d{4}`
-5. Invalid amount=0 transactions → _isValid() rejects
+5. Invalid amount=0 transactions → `_isValid()` rejects
 6. Bad date format polluting monthlyStats → regex validation
-7. extractAmount truncated 30000→300 (greedy regex) → split patterns
+7. `extractAmount` truncated 30000→300 (greedy regex) → split patterns
+
+**Firebase / Firestore:**
+8. `migrateAccountToCloud` permission-denied: batch write account+transactions failed เพราะ tx security rules ทำ `get()` บน parent — แก้: `await setDoc(accountRef)` ก่อน แล้ว batch transactions แยก
+9. Shared account not revoked: `remove-share-email` handler ไม่เรียก `updateSharedWith()` เมื่อ list empty — แก้: เรียก Firestore เสมอก่อน update local state
+10. `mergeSharedAccounts` missed `owner: null` accounts: condition `a.owner &&` ทำให้ accounts ที่ไม่มี owner ไม่ถูก revoke — แก้: เปลี่ยนเป็น `a.owner !== myEmail`
+
+**State / calculations:**
+11. Soft-deleted transactions ถูกนับในการคำนวณ — แก้: เพิ่ม `activeTxs()` helper, ใช้ใน `getMonthSummary`, `getTopCategories`, `getTodayTransactions`, `getDailyExpenses`, `getMonthComparison`
+12. Received accounts ค้างหลัง sign out — แก้: `clearReceivedAccounts(myEmail)` ใน `onAuthStateChanged(null)`
+
+**UI:**
+13. Account icon สีผิด (hardcode สีเขียว KBank ให้ทุก bank) — แก้: `bankGradient(bank, type)` helper
+14. Bar chart ไม่ responsive (CSS div) — แก้: ใช้ SVG จาก `dailyExpenseBars()` + `width: 100%`
+15. Filter chips ใน list view ไม่ทำงาน — แก้: `makeFilterFn` + event binding ครบ
+16. Account picker ใช้ `prompt()` — แก้: bottom-sheet overlay UI
 
 ### 11.4 Banks supported (parsers)
 
@@ -847,30 +914,41 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 
 **Launch with 5:** KTB, KBank, SCB, BBL, Krungsri (covers 80%+)
 
+**Account icon colors (CSS `.acct-icon.{bank}` + JS `bankGradient()` ต้องตรงกัน):**
+- ktb → #5fb0e0→#3787c5, kbank → #6cc16c→#45984a, scb → #b378c0→#8a59a0
+- bbl → #4f7eb8→#2a5a94, bay → #e8b649→#c79939, cash/other → #c89368→#a07246
+
 ### 11.5 What's done vs pending
 
 ✅ **Done:**
-- 16 banks PDF parser
+- 16 banks PDF parser + confidence scoring
 - Voice NLP Thai
 - Min balance + days-below alert
-- Daily/monthly stats
-- 2 themes (Friendly default + Pro toggle)
+- Daily/monthly stats + month comparison
+- 2 themes (Friendly default + Pro toggle) + text size 3 ระดับ
 - Lucide icons inline
-- Theme switcher in Settings
+- Bottom nav + FAB + full-screen add modal + in-app keypad
+- Recurring template engine + scheduler + forecast
+- Dashboard: hero card + accounts + categories + 14-day SVG chart + cashflow forecast
+- List view: month selector + filter chips + search
+- Add modal: account picker (bottom-sheet) + backdate option + 6 frequency options
+- Selective account sharing (F1.12) — real-time Firestore complete
+- Sign-in/out UI + display name for shared accounts
+- Soft delete / two-stage delete for shared transactions
+- Two-way revoke detection (owner revoke → recipient UI clears)
 - 183 tests
-- 3 mockup approved (Dashboard, Add, List)
 
 ⏳ **Pending implementation:**
-- Layout overhaul (bottom nav, FAB, hero card) — Phase 1 (3-4 วัน)
-- Quick-add full-screen modal + in-app keypad — Phase 2 (2 วัน)
-- Microinteractions — Phase 3 (1 วัน)
-- Swipe actions — Phase 4 (1 วัน)
-- Empty states + onboarding — Phase 5 (1 วัน)
-- Auto-detect account + transfer type
-- JSON backup Layer 1
-- Drive backup Layer 2
-- Recurring transactions
-- Forecast calendar
+- Onboarding 3-screen (F1.7)
+- Privacy Story Page (F1.8)
+- JSON backup Layer 1 (F1.9)
+- Google Drive backup Layer 2 (F1.9)
+- Gamification: coins + level UI (F1.13)
+- Microinteractions polish (haptic, scale animations)
+- Swipe actions on list rows
+- Empty states with 2-path CTA
+- Auto-detect recurring from PDF history (F2.1)
+- Calendar view for forecast (F2.2)
 
 ⏳ **Pre-launch ops (user's responsibility):**
 - DBD พาณิชย์อิเล็กทรอนิกส์ registration
@@ -884,37 +962,29 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 
 ## 12. Roadmap
 
-### Pre-launch (4-6 สัปดาห์)
+### Pre-launch (remaining)
 
-**สัปดาห์ 1-2:** Critical UX overhaul (Phase 1-2)
-- Bottom nav + FAB + hero insight card
-- Full-screen quick-add modal + in-app keypad
-- Auto-detect account + transfer type
-- Calculator in entry
-
-**สัปดาห์ 3:** Polish (Phase 3-5)
+**สัปดาห์ 1:** Polish ที่ค้างอยู่
 - Microinteractions (haptic, scale, tally)
-- Swipe actions on lists
-- Empty states (2-path)
-- Onboarding 3-screen
-- Privacy story page
-- Aha-moment insights
+- Swipe actions on list rows
+- Empty states (2-path CTA)
+- Gamification: coins + level UI
 
-**สัปดาห์ 4:** Stability + backup
+**สัปดาห์ 2:** Onboarding + Backup
+- Onboarding 3-screen
+- Privacy Story Page
 - Backup/restore JSON (Layer 1)
 - Google Drive backup (Layer 2)
+
+**สัปดาห์ 3:** Stability + Pre-launch ops
 - Test fixtures 5 ธนาคาร
 - Edge case testing
-- Performance optimization
-
-**สัปดาห์ 5:** Pre-launch ops
 - Sentry integration
 - Privacy Policy + Terms (Thai)
 - จดทะเบียนพาณิชย์อิเล็กทรอนิกส์
-- Google Play Console
-- TWA wrapper
+- Google Play Console + TWA wrapper
 
-**สัปดาห์ 6:** Launch
+**สัปดาห์ 4:** Launch
 - Soft launch → 50 beta users
 - Fix critical bugs
 - Official Play Store launch
@@ -922,21 +992,20 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 ### Post-launch (เดือน 2-12)
 
 **เดือน 2-3:** Iterate
-- Recurring transactions (auto-detect from PDF)
-- Forecast calendar
+- Auto-detect recurring from PDF history
+- Forecast calendar view
 - Smart reminders (gentle)
 - Bug fixes
 
 **เดือน 4-5:** Scale
 - 5 → 10+ banks
-- Receipt OCR
+- Receipt OCR / Slip
 - Bug report in-app
 - Comeback / catch-up mode
 
 **เดือน 6:** Monetization Phase 2
 - Affiliate (1 placement)
-- A/B test
-- Disclosure compliance
+- A/B test, disclosure compliance
 
 **เดือน 7-12:** Expand
 - 16 banks complete
@@ -945,7 +1014,7 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 
 ### Year 2
 
-- Cloud sync v2.0 (Firebase)
+- Cloud sync v2.0 (Firebase, ทุก account ไม่ใช่แค่ shared)
 - Net worth dashboard
 - Direct bank API (ถ้า BoT เปิด open banking)
 - iOS app
@@ -978,9 +1047,8 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Demo data mode สำหรับ first-run (ลองข้อมูลตัวอย่าง)?
 
 ### Implementation details
-- FAB position — confirm center bottom nav vs bottom-right
-- In-app keypad — custom (control 100%) vs system (less work) — confirmed custom from mockup
 - Microinteractions level — full (haptic+animation+sound) vs subtle — TBD
+- Gamification: แสดง level ที่ไหน — Settings เท่านั้น หรือ mini badge ที่ dashboard?
 
 ### Future
 - Native rewrite trigger point (MAU > 50K?)
@@ -1015,14 +1083,28 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | Edit transaction: pencil icon / swipe-left → pre-fill modal | user_classified=true หลัง edit → parser ไม่ override |
 | 2026-05 | Selective account sharing ระดับ account (ไม่ใช่ category) | ย้ายจาก v2.0 → v1.0; real-time via Firestore; hybrid storage รักษา privacy USP |
 | 2026-05 | ไม่ใส่ user-scalable=no ใน viewport + เพิ่ม in-app text size 3 ระดับ | ตาไม่ดี/หน้าจอเล็ก = real user pain, rem cascade ทำได้ง่าย |
-| 2026-05 | Gemini เป็น fallback เท่านั้น (ไม่แทน parsers.js) | รักษา privacy USP + ออฟไลน์; trigger เมื่อ confidence < 60 + user consent; ใช้ user OAuth token (generative-language scope) — ไม่มีค่าใช้จ่าย dev |
-| 2026-05 | Gemini OAuth: user ต้องเปิด AI Studio ก่อน | chat gemini.google.com ไม่นับ; ถ้า 403 terms_not_accepted → แนะนำเปิด aistudio.google.com |
-| 2026-05 | PDF มีรหัส + Gemini fallback → ส่ง extractedText ไม่ส่งไฟล์ | Gemini ถอดรหัส PDF ไม่ได้; pdf.js decrypt ก่อนแล้วส่ง text; parsePDF() ต้อง return extractedText เสมอ |
-| 2026-05 | Gamification: 8 levels + เหรียญรายวัน (ทองแดง/เงิน/ทอง) | habit formation; subtle UX ไม่ popup บัง; level ชื่อไทย เน้นการบริหารเงินไม่ใช่การลงทุน |
+| 2026-05 | Gemini เป็น fallback เท่านั้น (ไม่แทน parsers.js) | รักษา privacy USP + ออฟไลน์; trigger เมื่อ confidence < 60 + user consent |
+| 2026-05 | Gemini OAuth: user ต้องเปิด AI Studio ก่อน | chat gemini.google.com ไม่นับ; ถ้า 403 → แนะนำเปิด aistudio.google.com |
+| 2026-05 | PDF มีรหัส + Gemini fallback → ส่ง extractedText ไม่ส่งไฟล์ | Gemini ถอดรหัส PDF ไม่ได้; pdf.js decrypt ก่อนแล้วส่ง text |
+| 2026-05 | Gamification: 8 levels + เหรียญรายวัน (ทองแดง/เงิน/ทอง) | habit formation; subtle UX; level ชื่อไทย เน้นการบริหารเงิน |
 | 2026-05 | Level 7-8 ชื่อ "นักบริหารเงิน" ไม่ใช่ "นักลงทุน" | "นักลงทุน" แคบเกิน ไม่ครอบคลุม user ที่ไม่ได้ลงทุน |
-| 2026-05 | GitHub Secrets + Actions สร้าง config.js ตอน deploy | API keys ไม่เคย commit ใน repo; ทดสอบเหมือน production ได้ |
-| 2026-05 | Firebase: Web app, Auth Google + Firestore เท่านั้น, region asia-southeast1 | ไม่ต้องการ Storage/Functions/Hosting; Drive backup ใช้ drive.file scope แยก |
+| 2026-05 | GitHub Secrets + Actions สร้าง config.js ตอน deploy | API keys ไม่เคย commit ใน repo |
+| 2026-05 | Firebase: Web app, Auth Google + Firestore เท่านั้น, region asia-southeast1 | ไม่ต้องการ Storage/Functions/Hosting |
 | 2026-05 | Play Store: GitHub Pages ฟรีก่อน → ซื้อ domain ตอน submit | ยังไม่เคย submit = เปลี่ยน domain ก่อน submit ไม่มีผลเสีย |
+| 2026-05 | migrateAccountToCloud: เขียน account ด้วย setDoc ก่อน แล้ว batch transactions แยก | Firestore tx security rules ทำ get() บน parent doc — ต้อง commit ก่อน batch จะสำเร็จ |
+| 2026-05 | remove-share-email ต้อง call updateSharedWith() เสมอแม้ list empty | root bug ของ "shared account not revoked" — Firestore ไม่รู้เว้นแต่จะ write |
+| 2026-05 | activeTxs() pattern: soft-deleted ออกจากการคำนวณทั้งหมด แต่ยังแสดงใน list สีเทา | trust + UX: เห็นว่าถูกลบ แต่ไม่กระทบตัวเลข |
+| 2026-05 | created_by_name เก็บตอน save (snapshot) ไม่ lookup ตอน render | recipient ไม่รู้จัก settings ของ owner — ต้องฝัง name ใน transaction |
+| 2026-05 | Two-stage delete: soft → hard เมื่อคนที่สองลบ | ให้ทุกคนในบัญชีเห็นว่ามีการลบ ก่อนหายจริง |
+| 2026-05 | subscribeSharedAccounts() เรียกทันทีเมื่อ sign in ไม่รอ shared-with callback | เจ้าของบัญชีต้อง subscribe own cloud accounts ทันที |
+| 2026-05 | clearReceivedAccounts(myEmail) เรียกตอน sign out | ล้าง received accounts จาก UI ทันที ไม่รอ Firestore |
+| 2026-05 | bankGradient() JS helper ต้องตรงกับ CSS .acct-icon.{bank} เสมอ | ถ้าแก้สีที่ CSS ต้องแก้ JS ด้วย และกลับกัน |
+| 2026-05 | Account picker: bottom-sheet overlay แทน prompt() | prompt() บล็อก thread, ไม่ stylable, UX แย่ |
+| 2026-05 | Bar chart: ใช้ SVG จาก dailyExpenseBars() แทน CSS div | responsive ผ่าน viewBox, accurate data จาก activeTxs() |
+| 2026-05 | List view: default แสดงเดือนปัจจุบัน (month selector) แทนแสดงทั้งหมด | แสดงทุกรายการพร้อมกันทำให้ scroll ยาวเกิน + filter ทำงานแปลก |
+| 2026-05 | Backdate option ("ย้อนหลัง") ใน add modal: frequency='past' + date picker max=yesterday | user ลืมบันทึก ต้องย้อนหลังได้ — บันทึกเป็น tx ปกติแต่ใช้วันที่เลือก |
+| 2026-05 | Freq grid: 3×2 layout (3 คอลัมน์) สำหรับ 6 ตัวเลือก | จาก 5×1 เดิม เพิ่ม "ย้อนหลัง" ทำให้ต้องปรับ grid |
+| 2026-05 | ผู้รับแชร์ไม่มีสิทธิ์ลบบัญชี — มีแค่ปุ่ม "ปฏิเสธ" เพื่อยกเลิก access ตัวเอง | การลบบัญชีเป็นสิทธิ์ของ owner เท่านั้น |
 
 ---
 
@@ -1038,6 +1120,10 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - **FAB** — Floating Action Button
 - **USP** — Unique Selling Proposition
 - **OCR** — Optical Character Recognition
+- **activeTxs()** — helper ใน state.js ที่ filter `deleted_by == null` ก่อน return transactions ใช้ในทุก calculation
+- **soft delete** — ตั้ง `deleted_by = email` แทนลบจริง ยังเห็นในหน้า list แต่สีเทา ไม่นับในตัวเลข
+- **hard delete** — `deleteDoc()` จาก Firestore จริง เกิดเมื่อคนที่สองกดลบ (two-stage delete)
+- **bankGradient(bank, type)** — JS helper ใน add.js คืน CSS gradient string ตามธนาคาร ต้องตรงกับ `.acct-icon.{bank}` ใน styles.css
 
 ---
 
@@ -1062,20 +1148,4 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 
 ---
 
-## Appendix C — Files in /mnt/user-data/outputs/
-
-ไฟล์ที่ user มี/ควรเก็บไว้:
-- `finance-pwa.zip` — ทั้งโค้ด (90KB)
-- `PRODUCT_SPEC.md` — original spec (898 lines)
-- `UX_RESEARCH.md` — UX deep-dive (502 lines)
-- `preview-friendly.png` — theme demo
-- `preview-pro.png` — theme demo
-- `mockup-dashboard.png` — approved direction
-- `mockup-add.png` — approved direction
-- `mockup-list.png` — approved direction
-- `PROJECT_KNOWLEDGE.md` — เอกสารนี้
-- `TASK_LIST.md` — ordered prompts สำหรับ Claude Code พร้อม priority และสถานะ
-
----
-
-*End of Project Knowledge*
+*End of Project Knowledge — Version 1.2, May 2026*
