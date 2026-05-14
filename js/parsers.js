@@ -255,8 +255,8 @@ function detectColumns(rows) {
     let withdrawalX = null, depositX = null, balanceX = null;
     for (const item of (row.items || [])) {
       const t = (item.str || '').toLowerCase().trim();
-      if (/withdraw|debit|ถอน/.test(t))                    withdrawalX = item.transform[4];
-      else if (/^deposit$|^credit$|^ฝาก$|^เงินเข้า$/.test(t)) depositX = item.transform[4];
+      if (/withdraw|debit|เดบิต|ถอน/.test(t))               withdrawalX = item.transform[4];
+      else if (/deposit|credit|เครดิต|ฝาก|เงินเข้า/.test(t)) depositX = item.transform[4];
       else if (/balance|คงเหลือ/.test(t))                   balanceX  = item.transform[4];
     }
     if (withdrawalX !== null && depositX !== null) {
