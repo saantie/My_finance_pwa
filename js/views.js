@@ -19,7 +19,7 @@ import {
 } from './utils.js';
 import { cashflowForecast } from './chart.js';
 import {
-  signInWithGoogle, getCurrentUser,
+  signInWithGoogle, signOut as firebaseSignOut, getCurrentUser,
   updateSharedWith, migrateAccountToCloud
 } from './firebase.js';
 
@@ -1267,6 +1267,39 @@ export function renderSettings(container) {
       }
     });
   });
+
+  // Google sign-in (สำหรับผู้รับที่ต้องการดูบัญชีที่แชร์)
+  container.querySelector('[data-action="google-sign-in"]')?.addEventListener('click', async () => {
+    try {
+      await signInWithGoogle();
+      showToast('ลงชื่อเข้าใช้สำเร็จ');
+      renderSettings(container);
+    } catch (e) {
+      const code = e?.code || '';
+      if (code === 'auth/popup-blocked')
+        showToast('Popup ถูกบล็อก — อนุญาต popup ในเบราว์เซอร์แล้วลองใหม่');
+      else if (code === 'auth/unauthorized-domain')
+        showToast('Domain นี้ยังไม่ได้รับอนุญาตใน Firebase Console');
+      else if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user')
+        showToast('ยกเลิกการลงชื่อเข้าใช้');
+      else
+        showToast(`ลงชื่อเข้าใช้ไม่สำเร็จ: ${code || e?.message || 'unknown'}`);
+      console.error('[sign-in]', e);
+    }
+  });
+
+  // Google sign-out
+  container.querySelector('[data-action="google-sign-out"]')?.addEventListener('click', async () => {
+    if (!confirm('ออกจากระบบ Google?\nบัญชีที่แชร์กับคุณจะไม่แสดงจนกว่าจะลงชื่อเข้าใหม่')) return;
+    try {
+      await firebaseSignOut();
+      showToast('ออกจากระบบแล้ว');
+      renderSettings(container);
+    } catch (e) {
+      console.error('[sign-out]', e);
+      showToast('ออกจากระบบไม่สำเร็จ');
+    }
+  });
 }
 
 
@@ -1277,12 +1310,43 @@ export function renderSettings(container) {
 /** Render section บัญชีของฉัน + share controls ใน Settings */
 function renderAccountsSection() {
   const accounts = State.getAccounts();
-  if (accounts.length === 0) return '';
+  const currentUser = getCurrentUser();
 
   const TYPE_LABEL = {
     bank: 'บัญชีธนาคาร', cash: 'เงินสด',
     credit_card: 'บัตรเครดิต', ewallet: 'กระเป๋าเงินอิเล็กทรอนิกส์'
   };
+
+  // Google account card — sign in / sign out
+  const googleCard = currentUser
+    ? `<div class="card" style="margin-bottom:8px">
+        <div class="setting-row">
+          <div style="flex:1;min-width:0">
+            <div class="setting-label">ลงชื่อเข้าใช้แล้ว</div>
+            <div class="setting-sub">${escapeHtml(currentUser.email)}</div>
+          </div>
+          <button class="setting-seg-btn" data-action="google-sign-out">ออกจากระบบ</button>
+        </div>
+      </div>`
+    : `<div class="card" style="margin-bottom:8px">
+        <div class="setting-row">
+          <div style="flex:1;min-width:0">
+            <div class="setting-label">บัญชีที่แชร์กับฉัน</div>
+            <div class="setting-sub">ลงชื่อด้วย Google เพื่อดูบัญชีที่คนอื่นแชร์</div>
+          </div>
+          <button class="setting-seg-btn active" data-action="google-sign-in">ลงชื่อเข้าใช้</button>
+        </div>
+      </div>`;
+
+  if (accounts.length === 0) {
+    return `
+      <div class="section">
+        <div class="section-head">
+          <h2 class="section-title">บัญชีของฉัน</h2>
+        </div>
+        ${googleCard}
+      </div>`;
+  }
 
   const cards = accounts.map(acct => {
     const isShared = (acct.shared_with || []).length > 0;
@@ -1336,6 +1400,7 @@ function renderAccountsSection() {
       <div class="section-head">
         <h2 class="section-title">บัญชีของฉัน</h2>
       </div>
+      ${googleCard}
       ${cards}
     </div>`;
 }

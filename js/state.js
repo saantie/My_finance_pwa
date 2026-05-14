@@ -449,6 +449,25 @@ export function importJSON(json) {
  * เปิด realtime listeners สำหรับทุก account ที่ storage === 'cloud'
  * remote transactions จะ merge เข้า _state.transactions อัตโนมัติ
  */
+/**
+ * Merge บัญชีที่คนอื่นแชร์มาให้เรา เข้า _state.accounts
+ * เรียกหลังได้รับผลจาก subscribeAccountsSharedWithMe
+ */
+export function mergeSharedAccounts(remoteAccounts) {
+  let changed = false;
+  for (const ra of remoteAccounts) {
+    const idx = _state.accounts.findIndex(a => a.id === ra.id);
+    if (idx === -1) {
+      _state.accounts.push({ ...ra, storage: 'cloud' });
+      changed = true;
+    } else if (_state.accounts[idx].storage !== 'cloud') {
+      _state.accounts[idx] = { ..._state.accounts[idx], ...ra, storage: 'cloud' };
+      changed = true;
+    }
+  }
+  if (changed) notify();
+}
+
 export function subscribeSharedAccounts() {
   // ปิด listeners เก่าก่อน
   _sharedListeners.forEach(unsub => unsub());

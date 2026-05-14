@@ -31,7 +31,9 @@ import {
   collection,
   onSnapshot,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const FIREBASE_CONFIG = {
@@ -246,6 +248,28 @@ export async function migrateAccountToCloud(account, transactions) {
     await batch.commit();
   } catch (e) {
     console.error('[firebase] migrateAccountToCloud failed', e);
+    throw e;
+  }
+}
+
+
+/* === 13. subscribeAccountsSharedWithMe ========================= */
+
+export function subscribeAccountsSharedWithMe(email, callback) {
+  try {
+    const q = query(
+      collection(_db, 'shared_accounts'),
+      where('shared_with', 'array-contains', email)
+    );
+    return onSnapshot(q, snapshot => {
+      const accounts = [];
+      snapshot.forEach(docSnap => accounts.push(docSnap.data()));
+      callback(accounts);
+    }, e => {
+      console.error('[firebase] subscribeAccountsSharedWithMe error', e);
+    });
+  } catch (e) {
+    console.error('[firebase] subscribeAccountsSharedWithMe failed', e);
     throw e;
   }
 }
