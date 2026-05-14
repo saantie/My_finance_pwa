@@ -472,14 +472,27 @@ export function mergeSharedAccounts(remoteAccounts) {
   const remoteIds = new Set(remoteAccounts.map(a => a.id));
   let changed = false;
 
-  // ลบบัญชีที่คนอื่นเคยแชร์ให้เรา แต่ถูกยกเลิกการแชร์แล้ว
+  // หา account IDs ที่ถูกยกเลิกการแชร์ (เคยอยู่ใน local แต่ไม่อยู่ใน remote แล้ว)
+  const revokedIds = new Set();
   _state.accounts = _state.accounts.filter(a => {
     if (a.storage === 'cloud' && a.owner && a.owner !== myEmail && !remoteIds.has(a.id)) {
+      revokedIds.add(a.id);
       changed = true;
       return false;
     }
     return true;
   });
+
+  // ลบ transactions + ปิด listener ของบัญชีที่ถูกยกเลิกการแชร์
+  if (revokedIds.size > 0) {
+    _state.transactions = _state.transactions.filter(t =>
+      !revokedIds.has(t.account_from) && !revokedIds.has(t.account_to)
+    );
+    revokedIds.forEach(id => {
+      const unsub = _sharedListeners.get(id);
+      if (unsub) { unsub(); _sharedListeners.delete(id); }
+    });
+  }
 
   for (const ra of remoteAccounts) {
     const idx = _state.accounts.findIndex(a => a.id === ra.id);
