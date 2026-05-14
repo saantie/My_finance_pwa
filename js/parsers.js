@@ -355,7 +355,7 @@ export function autoClassifyType(tx, ownAccountMasks = []) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
   // Income signals
-  if (/(?:เงินเดือน|salary|payroll|deposit|รับโอน|interest|ดอกเบี้ย|cashback|refund|คืนเงิน|รับ\s)/i.test(t)) {
+  if (/(?:เงินเดือน|salary|payroll|bonus|deposit|รับโอน|โอนเข้า|เงินเข้า|รับเงิน|เครดิตเงิน|transfer\s*in|received|interest|ดอกเบี้ย|cashback|cash\s*back|refund|คืนเงิน|รับ\s)/i.test(t)) {
     return 'income';
   }
 
