@@ -14,6 +14,7 @@ import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize } from './views.js';
 import { openAddModal, closeAddModal } from './add.js';
+import { initFirebase } from './firebase.js';
 
 
 /* === Globals ==================================================== */
@@ -160,6 +161,9 @@ function seedSampleDataIfEmpty() {
 /* === Init ======================================================= */
 
 function init() {
+  // 0. Firebase — ต้องเรียกก่อน feature ที่ต้องการ auth/Firestore
+  try { initFirebase(); } catch (e) { console.warn('[firebase] init failed', e); }
+
   // 1. Apply saved appearance settings (ก่อน render ใดๆ)
   const settings = State.getSettings();
   applyTheme(settings.theme || 'diary');

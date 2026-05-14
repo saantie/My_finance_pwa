@@ -1188,7 +1188,16 @@ export function renderSettings(container) {
         try {
           await signInWithGoogle();
         } catch (e) {
-          showToast('ลงชื่อเข้าใช้ไม่สำเร็จ');
+          const code = e?.code || '';
+          if (code === 'auth/popup-blocked')
+            showToast('Popup ถูกบล็อก — อนุญาต popup ในเบราว์เซอร์แล้วลองใหม่');
+          else if (code === 'auth/unauthorized-domain')
+            showToast('Domain นี้ยังไม่ได้รับอนุญาตใน Firebase Console');
+          else if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user')
+            showToast('ยกเลิกการลงชื่อเข้าใช้');
+          else
+            showToast(`ลงชื่อเข้าใช้ไม่สำเร็จ: ${code || e?.message || 'unknown'}`);
+          console.error('[sign-in]', e);
           return;
         }
       }
