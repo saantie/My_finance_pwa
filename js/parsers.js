@@ -247,8 +247,47 @@ const EN_MONTHS = {
   'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
 };
 
+/* === Column detection (Withdrawal / Deposit / Balance) ========== */
+
+// หา X-position ของแต่ละ column จาก header row
+function detectColumns(rows) {
+  for (const row of rows) {
+    let withdrawalX = null, depositX = null, balanceX = null;
+    for (const item of (row.items || [])) {
+      const t = (item.str || '').toLowerCase().trim();
+      if (/withdraw|debit|ถอน/.test(t))                    withdrawalX = item.transform[4];
+      else if (/^deposit$|^credit$|^ฝาก$|^เงินเข้า$/.test(t)) depositX = item.transform[4];
+      else if (/balance|คงเหลือ/.test(t))                   balanceX  = item.transform[4];
+    }
+    if (withdrawalX !== null && depositX !== null) {
+      return { withdrawalX, depositX, balanceX };
+    }
+  }
+  return null;
+}
+
+// ดูว่า amount ใน row นี้อยู่ใน column ไหน โดยใช้ X-position
+function getColumnHint(row, columns) {
+  if (!columns) return null;
+  const { withdrawalX, depositX, balanceX } = columns;
+  const wdMid = (withdrawalX + depositX) / 2;
+  const dbMid = balanceX != null ? (depositX + balanceX) / 2 : Infinity;
+  const numRx = /^-?[\d,]+(\.\d+)?$/;
+
+  for (const item of (row.items || [])) {
+    const s = (item.str || '').replace(/,/g, '').trim();
+    if (!numRx.test(s) || isNaN(parseFloat(s)) || parseFloat(s) === 0) continue;
+    const x = item.transform[4];
+    if (x >= dbMid) continue;   // balance column — ข้าม
+    return x < wdMid ? 'withdrawal' : 'deposit';
+  }
+  return null;
+}
+
+
 export function parseTransactions(rows, bank) {
   const transactions = [];
+  const columns = detectColumns(rows);   // detect Withdrawal/Deposit column positions once
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -340,6 +379,7 @@ export function parseTransactions(rows, bank) {
       description,
       bank,
       raw_text: text,
+      column_hint: getColumnHint(row, columns),         // 'deposit'|'withdrawal'|null
       source: 'import',
       user_classified: false
     });
@@ -354,29 +394,22 @@ export function parseTransactions(rows, bank) {
 export function autoClassifyType(tx, ownAccountMasks = []) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
-  // Income signals
-  if (/(?:เงินเดือน|salary|payroll|bonus|deposit|รับโอน|โอนเข้า|เงินเข้า|รับเงิน|เครดิตเงิน|transfer\s*in|received|interest|ดอกเบี้ย|cashback|cash\s*back|refund|คืนเงิน|รับ\s)/i.test(t)) {
-    return 'income';
-  }
-
-  // Transfer signals: ATM, จ่ายบัตรเครดิต, โอนระหว่างบัญชีตัวเอง
-  if (/(?:atm|withdraw|ถอน|cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) {
-    return 'transfer';
-  }
-  if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t)) {
-    return 'transfer';
-  }
-  if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) {
-    return 'transfer';
-  }
-
-  // โอนไปบัญชีตัวเอง — ถ้า description มี 4 หลักสุดท้ายของบัญชีที่รู้จัก
-  // ดึง digits ออกจาก mask ก่อน เพราะ "xxx-x-x7821-x".slice(-4) = "1-x" ไม่ใช่ "7821"
+  // 1. Transfer signals ชนะทุกอย่าง (ATM, CDM, บัตรเครดิต, โอนบัญชีตัวเอง)
+  if (/(?:atm|withdraw|ถอน|cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) return 'transfer';
+  if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t))  return 'transfer';
+  if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) return 'transfer';
   if (ownAccountMasks.some(mask => {
     const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
     return last4 && t.includes(last4);
-  })) {
-    return 'transfer';
+  })) return 'transfer';
+
+  // 2. Column position (high confidence — จาก layout ของ PDF จริง)
+  if (tx.column_hint === 'deposit')    return 'income';
+  if (tx.column_hint === 'withdrawal') return 'expense';
+
+  // 3. Keyword fallback (สำหรับ statement ที่ detect column ไม่ได้)
+  if (/(?:เงินเดือน|salary|payroll|bonus|deposit|รับโอน|โอนเข้า|เงินเข้า|รับเงิน|เครดิตเงิน|transfer\s*in|received|interest|ดอกเบี้ย|cashback|cash\s*back|refund|คืนเงิน|รับ\s)/i.test(t)) {
+    return 'income';
   }
 
   return 'expense';
