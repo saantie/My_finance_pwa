@@ -17,7 +17,7 @@ import {
   formatBaht, formatLongDate, formatShortDate, formatTime,
   todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce
 } from './utils.js';
-import { cashflowForecast } from './chart.js';
+import { cashflowForecast, dailyExpenseBars } from './chart.js';
 import {
   signInWithGoogle, signOut as firebaseSignOut, getCurrentUser,
   updateSharedWith, migrateAccountToCloud
@@ -149,45 +149,11 @@ export function renderDashboard(container) {
 ================================================================ */
 function renderSpendingChart() {
   const days = 14;
-  const data = State.getDailyExpenses(days);
   const cmp = State.getMonthComparison();
+  const activeTxs = State.getTransactions().filter(t => t.deleted_by == null);
+  const { svg, avg, todayTotal } = dailyExpenseBars(activeTxs, days);
 
-  // Stats สำหรับ render bars
-  const totals = data.map(d => d.total);
-  const maxTotal = Math.max(...totals, 1);
-  const sumTotal = totals.reduce((s, v) => s + v, 0);
-  const daysWithSpend = totals.filter(t => t > 0).length;
-  const avgDaily = daysWithSpend > 0 ? Math.round(sumTotal / daysWithSpend) : 0;
-
-  // Threshold "วันที่ใช้เยอะ" = 1.3 เท่าของค่าเฉลี่ย
-  const highMark = avgDaily * 1.3;
-
-  // Render bars
-  const bars = data.map((d, i) => {
-    const isToday = i === days - 1;
-    const heightPct = (d.total / maxTotal) * 100;
-    const dateObj = parseLocalDate(d.date);
-    const dayLabel = `${dateObj.getDate()} ${monthNameTH(dateObj, true)}`;
-
-    let cls = 'bar';
-    if (d.total === 0) cls += ' empty';
-    else if (isToday) cls += ' today';
-    else if (d.total > highMark) cls += ' high';
-
-    const tooltip = d.total > 0
-      ? `${dayLabel} · ${formatBaht(d.total)} ฿`
-      : `${dayLabel} · ไม่มีบันทึก`;
-
-    return `<div class="${cls}" style="height: ${heightPct}%" data-label="${escapeHtml(tooltip)}"></div>`;
-  }).join('');
-
-  // X-axis labels — แสดงแค่ 3 จุด: เก่าสุด, กลาง, วันนี้
-  const startDate = parseLocalDate(data[0].date);
-  const midDate = parseLocalDate(data[Math.floor(days / 2)].date);
-  const startLabel = `${startDate.getDate()} ${monthNameTH(startDate, true)}`;
-  const midLabel = `${midDate.getDate()} ${monthNameTH(midDate, true)}`;
-
-  // Insight banner — เปรียบเทียบเดือนนี้ vs เดือนก่อน
+  // Insight banner
   let insightHtml = '';
   if (cmp.percentChange !== null && cmp.lastMonth > 0) {
     const better = cmp.percentChange < 0;
@@ -203,12 +169,12 @@ function renderSpendingChart() {
         </div>
       </div>
     `;
-  } else if (avgDaily > 0) {
+  } else if (avg > 0) {
     insightHtml = `
       <div class="insight-banner">
         <div class="ic">${svgIcon('trending', { size: 14, stroke: 2.5 })}</div>
         <div class="text">
-          ใช้เฉลี่ยวันละ <strong>${formatBaht(avgDaily)} ฿</strong>
+          ใช้เฉลี่ยวันละ <strong>${formatBaht(avg)} ฿</strong>
           ในช่วง ${days} วันที่ผ่านมา
         </div>
       </div>
@@ -221,12 +187,7 @@ function renderSpendingChart() {
         <h2 class="section-title">รายจ่าย ${days} วันล่าสุด</h2>
       </div>
       <div class="card chart-card">
-        <div class="bar-chart">${bars}</div>
-        <div class="chart-foot">
-          <span>${startLabel}</span>
-          <span>${midLabel}</span>
-          <span>วันนี้</span>
-        </div>
+        ${svg}
         ${insightHtml}
       </div>
     </div>
@@ -497,18 +458,27 @@ export function bindEntryActions(container) {
 /* ===================================================================
    LIST VIEW (บันทึก)
    =================================================================== */
-let listState = { search: '', filter: 'all' };
+let listState = { search: '', filter: 'all', month: todayISO().slice(0, 7) };
 
 export function renderList(container) {
   const filterFn = makeFilterFn(listState);
   const groups = State.getTransactionsByDay(filterFn);
 
+  // Month label: "พฤษภาคม 2568"
+  const [mYear, mMonth] = listState.month.split('-').map(Number);
+  const mDate = new Date(mYear, mMonth - 1, 1);
+  const monthLabel = `${monthNameTH(mDate)} ${ceToBe(mDate.getFullYear())}`;
+  const isCurrentMonth = listState.month === todayISO().slice(0, 7);
+
   container.innerHTML = `
     <div class="app-bar">
       <h1 class="title">บันทึกทั้งหมด</h1>
-      <button class="icon-btn" data-action="open-filter">
-        ${svgIcon('filter', { size: 20 })}
-      </button>
+    </div>
+
+    <div class="month-nav">
+      <button class="month-nav-btn" data-action="prev-month"><span class="flip-h">${svgIcon('chevron', { size: 16, stroke: 2.5 })}</span></button>
+      <span class="month-nav-label">${monthLabel}</span>
+      <button class="month-nav-btn${isCurrentMonth ? ' disabled' : ''}" data-action="next-month"${isCurrentMonth ? ' disabled' : ''}>${svgIcon('chevron', { size: 16, stroke: 2.5 })}</button>
     </div>
 
     <div class="search-bar">
@@ -526,8 +496,8 @@ export function renderList(container) {
     ${groups.length === 0
       ? `<div class="empty">
            <div class="icon">📖</div>
-           <div class="title">ยังไม่มีบันทึก</div>
-           <div class="desc">— หน้ากระดาษยังว่างอยู่ —</div>
+           <div class="title">ไม่มีรายการในเดือนนี้</div>
+           <div class="desc">— ลองเลื่อนไปเดือนอื่น หรือเพิ่มรายการใหม่ —</div>
          </div>`
       : groups.map(g => renderDayGroup(g)).join('')}
   `;
@@ -538,7 +508,6 @@ export function renderList(container) {
     searchInput.addEventListener('input', debounce(e => {
       listState.search = e.target.value;
       renderList(container);
-      // Refocus หลัง re-render
       const newInput = container.querySelector('#search-input');
       if (newInput) {
         newInput.focus();
@@ -554,12 +523,28 @@ export function renderList(container) {
     });
   });
 
+  container.querySelector('[data-action="prev-month"]')?.addEventListener('click', () => {
+    const [y, m] = listState.month.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    listState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    renderList(container);
+  });
+
+  container.querySelector('[data-action="next-month"]')?.addEventListener('click', () => {
+    if (isCurrentMonth) return;
+    const [y, m] = listState.month.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    listState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    renderList(container);
+  });
+
   bindEntryActions(container);
 }
 
 
 function makeFilterFn(state) {
   return (tx) => {
+    if (tx.date.slice(0, 7) !== state.month) return false;
     if (state.filter !== 'all' && tx.type !== state.filter) return false;
     if (state.search) {
       const q = state.search.toLowerCase();

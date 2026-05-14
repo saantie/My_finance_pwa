@@ -518,15 +518,43 @@ function handleKey(key) {
 
 function pickAccount() {
   const accts = State.getAccounts();
-  if (accts.length <= 1) return;
+  if (accts.length === 0) return;
 
-  const list = accts.map((a, i) => `${i + 1}. ${a.display_name}`).join('\n');
-  const choice = prompt(`เลือกบัญชี:\n${list}\n\nพิมพ์เลข:`);
-  const idx = Number(choice) - 1;
-  if (idx >= 0 && idx < accts.length) {
-    draft.account_id = accts[idx].id;
-    render();
-  }
+  const existing = modal().querySelector('.acct-picker-overlay');
+  if (existing) { existing.remove(); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'acct-picker-overlay';
+  overlay.innerHTML = `
+    <div class="acct-picker-sheet">
+      <div class="acct-picker-head">เลือกบัญชี</div>
+      ${accts.map(a => `
+        <button class="acct-picker-item ${a.id === draft.account_id ? 'active' : ''}" data-id="${escapeHtml(a.id)}">
+          <div class="ic" style="background: linear-gradient(135deg, ${a.bank ? '#6cc16c' : 'var(--mocha)'}, ${a.bank ? '#45984a' : '#a07246'})">
+            ${(a.bank || '$').toUpperCase().slice(0, 2)}
+          </div>
+          <div class="info">
+            <div class="nm">${escapeHtml(a.display_name)}</div>
+            ${a.account_number_masked ? `<div class="num">${escapeHtml(a.account_number_masked)}</div>` : ''}
+          </div>
+          ${a.id === draft.account_id ? svgIcon('check', { size: 16, stroke: 2.5 }) : ''}
+        </button>
+      `).join('')}
+    </div>
+  `;
+  modal().appendChild(overlay);
+
+  overlay.querySelectorAll('.acct-picker-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      draft.account_id = btn.dataset.id;
+      overlay.remove();
+      render();
+    });
+  });
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 

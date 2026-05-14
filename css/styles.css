@@ -856,6 +856,66 @@ html, body {
 .acct-pill .num { font-size: 11px; color: var(--ink-faint); }
 .acct-pill svg { width: 16px; height: 16px; color: var(--ink-faint); }
 
+/* Account picker bottom-sheet (inside add modal) */
+.acct-picker-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  animation: fade-in 0.15s ease;
+}
+.acct-picker-sheet {
+  background: var(--surface, #fff);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px 0 env(safe-area-inset-bottom, 16px);
+  animation: slide-up 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.acct-picker-head {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  padding: 14px 20px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+.acct-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.acct-picker-item:active { background: var(--rule, #efe5d4); }
+.acct-picker-item.active { background: var(--accent-soft, #fef3e7); }
+.acct-picker-item .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+.acct-picker-item .info { flex: 1; min-width: 0; }
+.acct-picker-item .nm { font-size: 14px; color: var(--ink); font-weight: 500; }
+.acct-picker-item .num { font-size: 12px; color: var(--ink-faint); }
+.acct-picker-item svg { color: var(--terracotta, #c0694c); flex-shrink: 0; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
 .note-input {
   background: var(--card);
   border: 1.5px solid var(--rule);
@@ -962,6 +1022,35 @@ html, body {
   font-style: italic;
   font-family: 'Cormorant Garamond', serif;
 }
+
+/* Month navigation (list view) */
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 10px;
+}
+.month-nav-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.month-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--card);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.month-nav-btn:active { background: var(--rule); }
+.month-nav-btn.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.flip-h { display: inline-flex; transform: scaleX(-1); }
 
 .filter-chips {
   display: flex;
