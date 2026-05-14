@@ -29,8 +29,8 @@ let _pdfjs = null;
 async function loadPdfJs() {
   if (_pdfjs) return _pdfjs;
   try {
-    const mod = await import('./js/lib/pdf.min.mjs');
-    mod.GlobalWorkerOptions.workerSrc = new URL('./js/lib/pdf.worker.min.mjs', import.meta.url).href;
+    const mod = await import(new URL('./lib/pdf.min.mjs', import.meta.url).href);
+    mod.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
     _pdfjs = mod;
     return mod;
   } catch (e) {
