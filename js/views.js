@@ -1015,12 +1015,21 @@ function confirmImport(result) {
         current_balance: result.transactions[0]?.balance || 0
       });
     }
-    // ใส่ account_id ใน transactions + ATM withdrawal → cash:default
+    // ใส่ account_id ใน transactions + route cash flows ให้ถูกทิศ
     for (const tx of result.transactions) {
       tx.account_from = tx.type !== 'income' ? accountId : null;
-      tx.account_to = tx.type === 'income' ? accountId : null;
-      if (tx.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(tx.description || '')) {
-        tx.account_to = 'cash:default';
+      tx.account_to   = tx.type === 'income' ? accountId : null;
+
+      const desc = tx.description || '';
+      if (tx.type === 'transfer') {
+        if (/(?:atm|ถอน|withdraw)/i.test(desc)) {
+          // ถอน ATM → เงินออกจากบัญชีธนาคาร เข้ากระเป๋าสด
+          tx.account_to = 'cash:default';
+        } else if (/(?:cdm|ฝากเงินสด|cash\s*deposit)/i.test(desc)) {
+          // ฝากเงินสด/CDM → เงินออกจากกระเป๋าสด เข้าบัญชีธนาคาร
+          tx.account_from = 'cash:default';
+          tx.account_to   = accountId;
+        }
       }
     }
   }
