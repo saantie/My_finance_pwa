@@ -1342,15 +1342,16 @@ export function renderSettings(container) {
     });
   });
 
-  // Toggle share — แสดง email input (sign in ก่อนถ้ายังไม่ได้ login)
+  // Toggle share — แสดง share panel (sign in ก่อนถ้ายังไม่ได้ login)
   container.querySelectorAll('[data-action="toggle-share"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const accountId = btn.dataset.accountId;
-      const emailSection = container.querySelector(`.share-email-input[data-account-id="${accountId}"]`);
-      if (!emailSection) return;
+      const sharePanel = container.querySelector(`.acct-share-panel[data-account-id="${accountId}"]`);
+      if (!sharePanel) return;
       if (!getCurrentUser()) {
         try {
           await signInWithGoogle();
+          renderSettings(container);
         } catch (e) {
           const code = e?.code || '';
           if (code === 'auth/popup-blocked')
@@ -1365,9 +1366,10 @@ export function renderSettings(container) {
           return;
         }
       }
-      const isHidden = emailSection.style.display === 'none';
-      emailSection.style.display = isHidden ? 'block' : 'none';
-      if (isHidden) emailSection.querySelector('.share-email-field')?.focus();
+      const isHidden = sharePanel.style.display === 'none';
+      sharePanel.style.display = isHidden ? 'block' : 'none';
+      btn.classList.toggle('share-active', isHidden);
+      if (isHidden) sharePanel.querySelector('.share-email-field')?.focus();
     });
   });
 
@@ -1507,16 +1509,12 @@ export function renderSettings(container) {
     });
   });
 
-  // ลบบัญชี
+  // ลบบัญชี — dialog 2 ตัวเลือก
   container.querySelectorAll('[data-action="delete-account"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const acct = State.getAccount(btn.dataset.accountId);
       if (!acct) return;
-      if (confirm(`ลบบัญชี "${acct.display_name}"?\nรายการในบัญชีนี้จะยังคงอยู่`)) {
-        State.removeAccount(acct.id);
-        renderSettings(container);
-        showToast('ลบบัญชีแล้ว');
-      }
+      showDeleteAccountDialog(acct, container);
     });
   });
 }
@@ -1538,7 +1536,7 @@ function renderAccountsSection() {
     investment: 'การลงทุน', debt: 'หนี้สิน'
   };
 
-  // Google account card — sign in / sign out
+  // Google account card — sign in / sign out (แสดงที่ด้านบนของ section)
   const googleCard = currentUser
     ? `<div class="card" style="margin-bottom:8px">
         <div class="setting-row">
@@ -1553,91 +1551,85 @@ function renderAccountsSection() {
         <div class="setting-row">
           <div style="flex:1;min-width:0">
             <div class="setting-label">บัญชีที่แชร์กับฉัน</div>
-            <div class="setting-sub">ลงชื่อด้วย Google เพื่อดูบัญชีที่คนอื่นแชร์</div>
+            <div class="setting-sub">ลงชื่อด้วย Google เพื่อแชร์บัญชีหรือดูบัญชีที่ได้รับแชร์</div>
           </div>
           <button class="setting-seg-btn active" data-action="google-sign-in">ลงชื่อเข้าใช้</button>
         </div>
       </div>`;
 
-  // --- ส่วนจัดการบัญชี (add/edit/delete) ---
   const myAccounts = accounts.filter(a => !(a.storage === 'cloud' && a.owner && a.owner !== myEmail));
   const sharedAccounts = accounts.filter(a => a.storage === 'cloud' && a.owner && a.owner !== myEmail);
 
-  const acctRows = myAccounts.map(acct => {
+  // แต่ละบัญชีของฉัน — รวม share panel ไว้ในการ์ดเดียวกัน
+  const acctCards = myAccounts.map(acct => {
     const balance = State.computeAccountBalance(acct.id);
     const typeLabel = TYPE_LABEL[acct.type] || acct.type;
     const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
-    return `
-      <div class="acct-manage-row">
-        <div class="acct-icon ${acct.bank || acct.type}" style="width:36px;height:36px;font-size:10px;flex-shrink:0">${initial}</div>
-        <div class="acct-manage-info">
-          <div class="setting-label" style="font-size:14px">${escapeHtml(acct.display_name)}</div>
-          <div class="setting-sub">${typeLabel} · ${formatBaht(balance)} ฿</div>
-        </div>
-        <div class="acct-manage-btns">
-          <button class="acct-mgr-btn" data-action="edit-account" data-account-id="${escapeHtml(acct.id)}"
-                  title="แก้ไข">${svgIcon('edit', { size: 15, stroke: 2 })}</button>
-          <button class="acct-mgr-btn danger" data-action="delete-account" data-account-id="${escapeHtml(acct.id)}"
-                  title="ลบ">${svgIcon('delete', { size: 15, stroke: 2 })}</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  // --- ส่วนแชร์บัญชี (เฉพาะบัญชีของตัวเอง ไม่ใช่ที่รับแชร์มา) ---
-  const shareCards = myAccounts.filter(a => a.storage !== 'cloud' || a.owner === myEmail).map(acct => {
     const isShared = (acct.shared_with || []).length > 0;
+    const canShare = !!(myEmail && (acct.owner === myEmail || !acct.owner));
+
     const emailRows = (acct.shared_with || []).map(em => `
-      <div class="setting-row" style="padding:6px 0">
-        <div class="setting-sub" style="flex:1">${escapeHtml(em)}</div>
+      <div class="acct-share-email-row">
+        <span class="share-addr">${escapeHtml(em)}</span>
         <button class="setting-action-btn"
                 data-action="remove-share-email"
                 data-account-id="${escapeHtml(acct.id)}"
-                data-email="${escapeHtml(em)}">ลบ</button>
+                data-email="${escapeHtml(em)}">ลบออก</button>
       </div>`).join('');
 
-    return `
-      <div class="card" style="margin-bottom:8px">
-        <div class="setting-row">
-          <div style="flex:1;min-width:0">
-            <div class="setting-label">
-              ${escapeHtml(acct.display_name)}
-              ${isShared ? '<span class="badge-shared">แชร์แล้ว</span>' : ''}
-            </div>
-            <div class="setting-sub">${TYPE_LABEL[acct.type] || acct.type}</div>
-          </div>
-          <button class="setting-seg-btn ${isShared ? 'active' : ''}"
-                  data-action="toggle-share"
-                  data-account-id="${escapeHtml(acct.id)}">แชร์บัญชีนี้</button>
-        </div>
+    const sharePanel = `
+      <div class="acct-share-panel" data-account-id="${escapeHtml(acct.id)}" style="display:none">
         ${emailRows}
-        <div class="share-email-input"
-             data-account-id="${escapeHtml(acct.id)}"
-             style="display:none;padding:8px 0 4px">
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="email" class="share-email-field" data-account-id="${escapeHtml(acct.id)}"
-                   placeholder="Gmail ของอีกคน"
-                   style="flex:1;padding:8px 12px;border:1px solid var(--rule);border-radius:8px;font-size:14px;background:var(--surface)">
-            <button class="setting-seg-btn active"
-                    data-action="add-share-email"
-                    data-account-id="${escapeHtml(acct.id)}">เพิ่ม</button>
+        <div class="share-email-add">
+          <input type="email" class="share-email-field" data-account-id="${escapeHtml(acct.id)}"
+                 placeholder="Gmail ของอีกคน">
+          <button class="setting-seg-btn active"
+                  data-action="add-share-email"
+                  data-account-id="${escapeHtml(acct.id)}">เพิ่ม</button>
+        </div>
+      </div>`;
+
+    return `
+      <div class="card" style="margin-bottom:6px;overflow:hidden">
+        <div class="acct-manage-row" style="border-bottom:none">
+          <div class="acct-icon ${acct.bank || acct.type}" style="width:36px;height:36px;font-size:10px;flex-shrink:0">${initial}</div>
+          <div class="acct-manage-info">
+            <div class="setting-label" style="font-size:14px">
+              ${escapeHtml(acct.display_name)}
+              ${isShared ? '<span class="badge-shared">แชร์</span>' : ''}
+            </div>
+            <div class="setting-sub">${typeLabel} · ${formatBaht(balance)} ฿</div>
+          </div>
+          <div class="acct-manage-btns">
+            ${canShare ? `<button class="acct-mgr-btn ${isShared ? 'share-active' : ''}" data-action="toggle-share"
+                    data-account-id="${escapeHtml(acct.id)}" title="แชร์">${svgIcon('share', { size: 15, stroke: 2 })}</button>` : ''}
+            <button class="acct-mgr-btn" data-action="edit-account" data-account-id="${escapeHtml(acct.id)}"
+                    title="แก้ไข">${svgIcon('edit', { size: 15, stroke: 2 })}</button>
+            <button class="acct-mgr-btn danger" data-action="delete-account" data-account-id="${escapeHtml(acct.id)}"
+                    title="ลบ">${svgIcon('delete', { size: 15, stroke: 2 })}</button>
           </div>
         </div>
+        ${sharePanel}
       </div>`;
   }).join('');
 
-  // --- บัญชีที่คนอื่นแชร์มาให้ ---
-  const receivedCards = sharedAccounts.map(acct => `
-    <div class="card" style="margin-bottom:8px">
-      <div class="setting-row">
-        <div style="flex:1;min-width:0">
-          <div class="setting-label">${escapeHtml(acct.display_name)}</div>
-          <div class="setting-sub">${TYPE_LABEL[acct.type] || acct.type} · แชร์โดย ${escapeHtml(acct.owner)}</div>
-        </div>
-        <button class="setting-action-btn"
-                data-action="reject-shared-account"
-                data-account-id="${escapeHtml(acct.id)}">ปฏิเสธ</button>
-      </div>
-    </div>`).join('');
+  // บัญชีที่รับแชร์มา — แสดงแยกด้านล่าง
+  const receivedSection = sharedAccounts.length > 0 ? `
+    <div style="margin-top:4px">
+      <div style="padding:10px 2px 6px;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.08em;font-weight:700">บัญชีที่ได้รับแชร์</div>
+      ${sharedAccounts.map(acct => `
+        <div class="card" style="margin-bottom:6px">
+          <div class="setting-row">
+            <div style="flex:1;min-width:0">
+              <div class="setting-label">${escapeHtml(acct.display_name)}</div>
+              <div class="setting-sub">${TYPE_LABEL[acct.type] || acct.type} · แชร์โดย ${escapeHtml(acct.owner)}</div>
+            </div>
+            <button class="setting-action-btn"
+                    data-action="reject-shared-account"
+                    data-account-id="${escapeHtml(acct.id)}">ปฏิเสธ</button>
+          </div>
+        </div>`).join('')}
+    </div>` : '';
 
   return `
     <div class="section">
@@ -1645,19 +1637,60 @@ function renderAccountsSection() {
         <h2 class="section-title">บัญชีของฉัน</h2>
         <button class="section-action" data-action="add-account">+ เพิ่มบัญชี</button>
       </div>
-      <div class="card card-padded acct-manage-list">
-        ${acctRows || '<div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div>'}
+      ${googleCard}
+      ${acctCards || '<div class="card"><div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div></div>'}
+      ${receivedSection}
+    </div>`;
+}
+
+/** แสดง dialog เลือกวิธีลบบัญชี */
+function showDeleteAccountDialog(acct, settingsContainer) {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="acct-modal">
+      <div class="acct-modal-head">ลบบัญชี "${escapeHtml(acct.display_name)}"</div>
+      <div class="acct-modal-body">
+        <div class="setting-sub" style="margin-bottom:12px">เลือกวิธีการลบ:</div>
+        <button id="del-txs-only" class="acct-type-btn" style="width:100%;text-align:left;padding:12px 14px;border-radius:10px;margin-bottom:8px;display:block">
+          <div style="font-weight:600;font-size:14px">ลบเฉพาะรายการ</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">บัญชียังคงอยู่ แต่ประวัติรายการทั้งหมดจะถูกลบ</div>
+        </button>
+        <button id="del-acct-and-txs" class="acct-type-btn" style="width:100%;text-align:left;padding:12px 14px;border-radius:10px;display:block;border-color:var(--clay);color:var(--clay)">
+          <div style="font-weight:600;font-size:14px">ลบบัญชีและรายการทั้งหมด</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">ลบบัญชีนี้ออกพร้อมรายการที่เกี่ยวข้องทั้งหมด</div>
+        </button>
+      </div>
+      <div class="acct-modal-footer">
+        <button class="cancel" id="del-cancel">ยกเลิก</button>
       </div>
     </div>
+  `;
+  document.body.appendChild(overlay);
 
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">แชร์บัญชี</h2>
-      </div>
-      ${googleCard}
-      ${shareCards}
-      ${receivedCards}
-    </div>`;
+  overlay.querySelector('#del-txs-only').addEventListener('click', () => {
+    if (!confirm(`ลบรายการทั้งหมดในบัญชี "${acct.display_name}"?\nบัญชีจะยังคงอยู่แต่ยอดจะเป็น 0`)) return;
+    State.removeAccountTransactions(acct.id);
+    document.body.removeChild(overlay);
+    renderSettings(settingsContainer);
+    showToast('ลบรายการทั้งหมดแล้ว');
+  });
+
+  overlay.querySelector('#del-acct-and-txs').addEventListener('click', () => {
+    if (!confirm(`ลบบัญชี "${acct.display_name}" และรายการทั้งหมด?\nไม่สามารถกู้คืนได้`)) return;
+    State.removeAccountWithTransactions(acct.id);
+    document.body.removeChild(overlay);
+    renderSettings(settingsContainer);
+    showToast('ลบบัญชีและรายการแล้ว');
+  });
+
+  overlay.querySelector('#del-cancel').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
 }
 
 /** Modal เพิ่ม / แก้ไขบัญชี */

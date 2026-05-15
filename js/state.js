@@ -297,6 +297,24 @@ export function removeAccount(id) {
   notify();
 }
 
+/** ลบรายการทั้งหมดของบัญชี แต่คงบัญชีไว้ */
+export function removeAccountTransactions(accountId) {
+  _state.transactions = _state.transactions.filter(
+    t => t.account_from !== accountId && t.account_to !== accountId
+  );
+  notify();
+}
+
+/** ลบบัญชีพร้อมรายการทั้งหมดที่เกี่ยวข้อง */
+export function removeAccountWithTransactions(id) {
+  _state.transactions = _state.transactions.filter(
+    t => t.account_from !== id && t.account_to !== id
+  );
+  const idx = _state.accounts.findIndex(a => a.id === id);
+  if (idx !== -1) _state.accounts.splice(idx, 1);
+  notify();
+}
+
 
 /* === Mutations: Settings ======================================== */
 

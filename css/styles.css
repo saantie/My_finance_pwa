@@ -987,6 +987,40 @@ html, body {
 .acct-mgr-btn:active { background: var(--rule); }
 .acct-mgr-btn.danger { color: var(--clay); }
 .acct-mgr-btn.danger:active { background: #fce8e6; }
+.acct-mgr-btn.share-active { color: var(--terracotta); background: var(--terracotta-soft); }
+
+/* Share panel — ขยายใต้ account row */
+.acct-share-panel {
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--rule-soft);
+  background: var(--paper);
+}
+.acct-share-email-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+.acct-share-email-row .share-addr {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.acct-share-panel .share-email-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.acct-share-panel .share-email-field {
+  flex: 1;
+  padding: 7px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--card);
+  color: var(--ink);
+}
 
 /* Full-screen overlay backdrop สำหรับ bottom-sheet popup */
 .overlay {
@@ -2396,6 +2430,14 @@ html[data-dark="1"] body {
 html[data-dark="1"] .card { box-shadow: none; border: 1px solid var(--rule); }
 html[data-dark="1"] .bottom-nav { border-top-color: var(--rule); }
 html[data-dark="1"] .toast { background: var(--card); color: var(--ink); border: 1px solid var(--rule); }
+html[data-dark="1"] .setting-seg-btn.active {
+  background: var(--terracotta);
+  border-color: var(--terracotta);
+}
+html[data-dark="1"] .seg-item.active {
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow: none;
+}
 
 
 /* ===================================================================
