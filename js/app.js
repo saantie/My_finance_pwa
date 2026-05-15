@@ -12,7 +12,7 @@
 
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
-import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize } from './views.js';
+import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, subscribeAccountsSharedWithMe } from './firebase.js';
 
@@ -190,6 +190,7 @@ function init() {
   const settings = State.getSettings();
   applyTheme(settings.theme || 'diary');
   applyTextSize(settings.text_size || 'normal');
+  applyDark(settings.dark || false);
 
   // 2. Seed (ถ้าจำเป็น) — เห็น demo data ทันทีเมื่อเปิดครั้งแรก
   seedSampleDataIfEmpty();

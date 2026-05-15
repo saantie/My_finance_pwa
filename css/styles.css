@@ -46,10 +46,40 @@ input, textarea {
    ตัวเลขใช้ ink เข้มเพื่อ legibility, accent ใช้กับ semantic เท่านั้น
 ================================================================ */
 
-/* Base font size — ปรับผ่าน [data-text-size] บน <html> */
+/* Base font size */
 html { font-size: 16px; }
-html[data-text-size="large"]  { font-size: 18px; }
-html[data-text-size="xlarge"] { font-size: 20px; }
+
+/* Text-size scale — คุมด้วย CSS variables, override per [data-text-size] */
+:root {
+  --ts-xs:   11px;   /* metadata, sub-labels, badges */
+  --ts-sm:   13px;   /* secondary text */
+  --ts-base: 14px;   /* body text: entry names, setting labels */
+  --ts-md:   15px;   /* account balance */
+  --ts-lg:   16px;   /* mini-stat values */
+  --ts-xl:   18px;   /* hero unit */
+  --ts-2xl:  24px;   /* hero sign */
+  --ts-hero: 38px;   /* hero main number */
+}
+html[data-text-size="large"] {
+  --ts-xs:   12px;
+  --ts-sm:   14px;
+  --ts-base: 16px;
+  --ts-md:   17px;
+  --ts-lg:   18px;
+  --ts-xl:   20px;
+  --ts-2xl:  26px;
+  --ts-hero: 44px;
+}
+html[data-text-size="xlarge"] {
+  --ts-xs:   13px;
+  --ts-sm:   16px;
+  --ts-base: 18px;
+  --ts-md:   19px;
+  --ts-lg:   20px;
+  --ts-xl:   22px;
+  --ts-2xl:  28px;
+  --ts-hero: 50px;
+}
 
 :root {
   /* Paper & ink (เน้น cream ไม่ใช่ขาวบริสุทธิ์) */
@@ -311,18 +341,18 @@ html, body {
   margin: 4px 0 6px;
 }
 .hero-amount .num {
-  font-size: 38px;
+  font-size: var(--ts-hero);
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -1.5px;
 }
 .hero-amount .unit {
-  font-size: 18px;
+  font-size: var(--ts-xl);
   color: var(--ink-soft);
 }
 .hero-amount .sign {
   color: var(--sage);
-  font-size: 24px;
+  font-size: var(--ts-2xl);
   font-weight: 500;
 }
 .hero-underline {
@@ -352,13 +382,13 @@ html, body {
   align-items: center;
 }
 .mini-stat .lbl {
-  font-size: 11px;
+  font-size: var(--ts-xs);
   color: var(--ink-faint);
   display: block;
   margin-bottom: 2px;
 }
 .mini-stat .val {
-  font-size: 16px;
+  font-size: var(--ts-lg);
   font-weight: 600;
   color: var(--ink);
 }
@@ -406,7 +436,7 @@ html, body {
 
 .acct-body { flex: 1; min-width: 0; }
 .acct-name {
-  font-size: 14px;
+  font-size: var(--ts-base);
   font-weight: 500;
   color: var(--ink);
   margin-bottom: 2px;
@@ -415,11 +445,11 @@ html, body {
   white-space: nowrap;
 }
 .acct-num {
-  font-size: 11px;
+  font-size: var(--ts-xs);
   color: var(--ink-faint);
 }
 .acct-balance {
-  font-size: 15px;
+  font-size: var(--ts-md);
   font-weight: 600;
   color: var(--ink);
   text-align: right;
@@ -620,17 +650,17 @@ html, body {
 .entry-icon svg { width: 16px; height: 16px; stroke-width: 2; }
 
 .entry-name {
-  font-size: 14px;
+  font-size: var(--ts-base);
   color: var(--ink);
   line-height: 1.2;
 }
 .entry-cat {
-  font-size: 11px;
+  font-size: var(--ts-xs);
   color: var(--ink-faint);
   margin-top: 2px;
 }
 .entry-amt {
-  font-size: 14px;
+  font-size: var(--ts-base);
   font-weight: 600;
   color: var(--clay);
 }
@@ -1484,16 +1514,16 @@ html, body {
 }
 .setting-row:last-child { border-bottom: none; }
 .setting-label {
-  font-size: 14px;
+  font-size: var(--ts-base);
   color: var(--ink);
 }
 .setting-sub {
-  font-size: 11px;
+  font-size: var(--ts-xs);
   color: var(--ink-faint);
   margin-top: 2px;
 }
 .setting-value {
-  font-size: 13px;
+  font-size: var(--ts-sm);
   color: var(--ink-soft);
 }
 
@@ -2266,6 +2296,109 @@ html[data-theme="pro"] .add-save {
 
 
 /* ===================================================================
+   Color themes — Ocean / Forest / Rose / Slate / Citrus / Violet
+   สลับได้ใน Settings → data-theme บน <html>
+   =================================================================== */
+html[data-theme="ocean"] {
+  --terracotta:      #2e86c1;
+  --terracotta-soft: #d4eaf8;
+  --paper:           #f0f8ff;
+  --paper-deep:      #dcedf8;
+}
+html[data-theme="ocean"] .fab {
+  background: linear-gradient(135deg, #2e86c1 0%, #1a6ea8 100%);
+}
+html[data-theme="ocean"] .hero::before { background: #2e86c1; }
+html[data-theme="ocean"] .add-save { background: #2e86c1; }
+
+html[data-theme="forest"] {
+  --terracotta:      #27ae60;
+  --terracotta-soft: #d4ecd8;
+  --paper:           #f0faf2;
+  --paper-deep:      #dceee0;
+}
+html[data-theme="forest"] .fab {
+  background: linear-gradient(135deg, #27ae60 0%, #1a9050 100%);
+}
+html[data-theme="forest"] .hero::before { background: #27ae60; }
+html[data-theme="forest"] .add-save { background: #27ae60; }
+
+html[data-theme="rose"] {
+  --terracotta:      #e06880;
+  --terracotta-soft: #fde0e7;
+  --paper:           #fff5f7;
+  --paper-deep:      #fde8ec;
+}
+html[data-theme="rose"] .fab {
+  background: linear-gradient(135deg, #e06880 0%, #c8506a 100%);
+}
+html[data-theme="rose"] .hero::before { background: #e06880; }
+html[data-theme="rose"] .add-save { background: #e06880; }
+
+html[data-theme="slate"] {
+  --terracotta:      #5a7fb5;
+  --terracotta-soft: #dae4f4;
+  --paper:           #f4f6f9;
+  --paper-deep:      #e8ecf2;
+}
+html[data-theme="slate"] .fab {
+  background: linear-gradient(135deg, #5a7fb5 0%, #436599 100%);
+}
+html[data-theme="slate"] .hero::before { background: #5a7fb5; }
+html[data-theme="slate"] .add-save { background: #5a7fb5; }
+
+html[data-theme="citrus"] {
+  --terracotta:      #d4880e;
+  --terracotta-soft: #fce8c8;
+  --paper:           #fffbf0;
+  --paper-deep:      #fdf3d8;
+}
+html[data-theme="citrus"] .fab {
+  background: linear-gradient(135deg, #d4880e 0%, #b87208 100%);
+}
+html[data-theme="citrus"] .hero::before { background: #d4880e; }
+html[data-theme="citrus"] .add-save { background: #d4880e; }
+
+html[data-theme="violet"] {
+  --terracotta:      #7c5cbf;
+  --terracotta-soft: #e8dff8;
+  --paper:           #f8f5ff;
+  --paper-deep:      #ede8f8;
+}
+html[data-theme="violet"] .fab {
+  background: linear-gradient(135deg, #7c5cbf 0%, #6344a8 100%);
+}
+html[data-theme="violet"] .hero::before { background: #7c5cbf; }
+html[data-theme="violet"] .add-save { background: #7c5cbf; }
+
+
+/* ===================================================================
+   Dark mode — data-dark="1" บน <html>
+   =================================================================== */
+html[data-dark="1"] {
+  --paper:        #1a1510;
+  --paper-deep:   #110e08;
+  --card:         #252018;
+  --ink:          #f0ede8;
+  --ink-soft:     #c0a898;
+  --ink-faint:    #806858;
+  --rule:         #3a2d20;
+  --rule-soft:    #2d2418;
+  --terracotta-soft: #3d2818;
+  --sage-soft:    #1a2e1a;
+  --clay-soft:    #2e1818;
+  --dust-blue-soft: #182030;
+}
+html[data-dark="1"],
+html[data-dark="1"] body {
+  background-image: none;
+}
+html[data-dark="1"] .card { box-shadow: none; border: 1px solid var(--rule); }
+html[data-dark="1"] .bottom-nav { border-top-color: var(--rule); }
+html[data-dark="1"] .toast { background: var(--card); color: var(--ink); border: 1px solid var(--rule); }
+
+
+/* ===================================================================
    Entry row — action buttons (edit / delete)
    =================================================================== */
 .entry-body {
@@ -2374,3 +2507,134 @@ html[data-theme="pro"] .add-save {
 .entry-note--deleted {
   color: var(--clay);
 }
+
+
+/* ===================================================================
+   Appearance settings redesign — swatches / size buttons / toggle
+   =================================================================== */
+.appear-block {
+  padding: 14px 18px 16px;
+  border-bottom: 1px dotted var(--rule);
+}
+.appear-block:last-child { border-bottom: none; }
+.appear-block-label {
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+/* Theme swatches */
+.theme-swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--sw-color, #ccc);
+  border: 2.5px solid transparent;
+  outline: 3px solid transparent;
+  outline-offset: 2px;
+  transition: transform 0.15s, outline-color 0.15s;
+  position: relative;
+  cursor: pointer;
+}
+.swatch:active { transform: scale(0.88); }
+.swatch.active {
+  outline-color: var(--ink);
+  transform: scale(1.08);
+}
+.swatch.active::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.theme-cur-name {
+  font-size: var(--ts-xs);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* Text-size buttons */
+.text-size-btns {
+  display: flex;
+  gap: 8px;
+}
+.size-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 6px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--rule);
+  background: var(--rule-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.size-btn.active {
+  background: var(--terracotta-soft);
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+.size-btn:active { transform: scale(0.95); }
+.size-btn .size-ก { font-family: 'Sarabun', sans-serif; font-weight: 600; line-height: 1; }
+.size-btn .size-lbl { font-size: 10px; font-weight: 500; }
+
+/* iOS-style toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--rule);
+  border-radius: 999px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--terracotta); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* Dark mode toggle row */
+.dark-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px dotted var(--rule);
+}
+.dark-toggle-row .setting-label { margin: 0; }

@@ -53,6 +53,7 @@ const DEFAULT_STATE = {
   settings: {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
+    dark: false,                 // dark mode
     text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
     language: 'th',
     display_name: ''             // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)

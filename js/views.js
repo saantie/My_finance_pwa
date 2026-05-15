@@ -1060,7 +1060,19 @@ export function renderSettings(container) {
   const acctCount = State.getAccounts().length;
   const theme       = settings.theme || 'diary';
   const textSize    = settings.text_size || 'normal';
+  const darkMode    = settings.dark || false;
   const displayName = settings.display_name || '';
+
+  const THEME_SWATCHES = [
+    { val: 'diary',  color: '#e88563', name: 'Diary' },
+    { val: 'ocean',  color: '#2e86c1', name: 'Ocean' },
+    { val: 'forest', color: '#27ae60', name: 'Forest' },
+    { val: 'rose',   color: '#e06880', name: 'Rose' },
+    { val: 'slate',  color: '#5a7fb5', name: 'Slate' },
+    { val: 'citrus', color: '#d4880e', name: 'Citrus' },
+    { val: 'violet', color: '#7c5cbf', name: 'Violet' },
+  ];
+  const curThemeName = THEME_SWATCHES.find(t => t.val === theme)?.name || 'Diary';
 
   container.innerHTML = `
     <div class="app-bar">
@@ -1095,25 +1107,45 @@ export function renderSettings(container) {
         <h2 class="section-title">รูปแบบการแสดงผล</h2>
       </div>
       <div class="card">
-        <div class="setting-row">
-          <div>
-            <div class="setting-label">ธีม</div>
-            <div class="setting-sub">Diary = อบอุ่น · Pro = เข้มกระชับ</div>
-          </div>
-          <div class="setting-segment">
-            <button class="setting-seg-btn ${theme === 'diary' ? 'active' : ''}" data-action="set-theme" data-val="diary">Diary</button>
-            <button class="setting-seg-btn ${theme === 'pro'   ? 'active' : ''}" data-action="set-theme" data-val="pro">Pro</button>
-          </div>
+        <!-- Dark mode toggle -->
+        <div class="dark-toggle-row">
+          <div class="setting-label">โหมดมืด</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="dark-toggle" ${darkMode ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <div class="setting-row">
-          <div>
-            <div class="setting-label">ขนาดตัวอักษร</div>
-            <div class="setting-sub">Normal 16px · Large 18px · XL 20px</div>
+
+        <!-- Theme swatches -->
+        <div class="appear-block">
+          <div class="appear-block-label">ธีม</div>
+          <div class="theme-swatches">
+            ${THEME_SWATCHES.map(t => `
+              <button class="swatch ${theme === t.val ? 'active' : ''}"
+                style="--sw-color: ${t.color}"
+                data-action="set-theme" data-val="${t.val}"
+                title="${t.name}"></button>
+            `).join('')}
           </div>
-          <div class="setting-segment">
-            <button class="setting-seg-btn ${textSize === 'normal'  ? 'active' : ''}" data-action="set-text-size" data-val="normal">ปกติ</button>
-            <button class="setting-seg-btn ${textSize === 'large'   ? 'active' : ''}" data-action="set-text-size" data-val="large">ใหญ่</button>
-            <button class="setting-seg-btn ${textSize === 'xlarge'  ? 'active' : ''}" data-action="set-text-size" data-val="xlarge">ใหญ่มาก</button>
+          <div class="theme-cur-name">${curThemeName}</div>
+        </div>
+
+        <!-- Text size -->
+        <div class="appear-block">
+          <div class="appear-block-label">ขนาดตัวอักษร</div>
+          <div class="text-size-btns">
+            <button class="size-btn ${textSize === 'normal'  ? 'active' : ''}" data-action="set-text-size" data-val="normal">
+              <span class="size-ก" style="font-size: 16px">ก</span>
+              <span class="size-lbl">ปกติ</span>
+            </button>
+            <button class="size-btn ${textSize === 'large'   ? 'active' : ''}" data-action="set-text-size" data-val="large">
+              <span class="size-ก" style="font-size: 20px">ก</span>
+              <span class="size-lbl">ใหญ่</span>
+            </button>
+            <button class="size-btn ${textSize === 'xlarge'  ? 'active' : ''}" data-action="set-text-size" data-val="xlarge">
+              <span class="size-ก" style="font-size: 24px">ก</span>
+              <span class="size-lbl">ใหญ่มาก</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1232,6 +1264,13 @@ export function renderSettings(container) {
       State.resetAll();
       showToast('ลบข้อมูลทั้งหมดแล้ว');
     }
+  });
+
+  // Dark mode toggle
+  container.querySelector('#dark-toggle')?.addEventListener('change', (e) => {
+    const val = e.target.checked;
+    State.setSetting('dark', val);
+    applyDark(val);
   });
 
   // Theme toggle
@@ -1802,14 +1841,21 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+const NAMED_THEMES = ['ocean', 'forest', 'rose', 'slate', 'citrus', 'violet', 'pro'];
+
 /** Apply theme ลง <html> element */
 export function applyTheme(theme) {
-  document.documentElement.dataset.theme = (theme === 'pro') ? 'pro' : '';
+  document.documentElement.dataset.theme = NAMED_THEMES.includes(theme) ? theme : '';
 }
 
 /** Apply text size ลง <html> element */
 export function applyTextSize(size) {
   document.documentElement.dataset.textSize = (size === 'normal' || !size) ? '' : size;
+}
+
+/** Apply dark mode ลง <html> element */
+export function applyDark(dark) {
+  document.documentElement.dataset.dark = dark ? '1' : '';
 }
 
 /** แสดง toast — ใช้ across views */
