@@ -97,14 +97,21 @@ export function renderDashboard(container) {
     <!-- Upcoming recurring/scheduled -->
     ${renderUpcomingSection()}
 
-    <!-- Accounts -->
+    <!-- Accounts — แสดงเฉพาะที่มียอดไม่ใช่ศูนย์ หรือมาจาก PDF (มี bank) หรือ user rename แล้ว -->
     <div class="section">
       <div class="section-head">
         <h2 class="section-title">บัญชีของฉัน</h2>
         <a class="section-action" data-action="manage-accounts">จัดการ</a>
       </div>
       <div class="card card-padded">
-        ${accounts.map(a => renderAccountRow(a, threshold)).join('')}
+        ${(() => {
+          const visible = accounts.filter(a => {
+            const bal = State.computeAccountBalance(a.id);
+            return bal !== 0 || a.bank || a.user_renamed;
+          });
+          if (!visible.length) return `<div class="empty" style="padding:20px 12px;"><div class="desc">— ยังไม่มีบัญชี กด <strong>จัดการ</strong> เพื่อเพิ่ม —</div></div>`;
+          return visible.map(a => renderAccountRow(a, threshold)).join('');
+        })()}
       </div>
     </div>
 
@@ -139,6 +146,11 @@ export function renderDashboard(container) {
   `;
 
   bindEntryActions(container);
+
+  // "จัดการ" → navigate ไปหน้า Settings
+  container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-view="settings"]')?.click();
+  });
 }
 
 
@@ -203,7 +215,7 @@ function renderSpendingChart() {
 ================================================================ */
 function renderForecastChart() {
   const accounts = State.getAccounts();
-  const totalBalance = accounts.reduce((s, a) => s + (a.current_balance || 0), 0);
+  const totalBalance = accounts.reduce((s, a) => s + State.computeAccountBalance(a.id), 0);
   const threshold = State.getSettings().threshold_satang;
 
   // ดึง recurring forecast 30 วัน
@@ -339,7 +351,11 @@ const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', c
 function renderAccountRow(acct, globalThreshold) {
   const threshold = acct.threshold || globalThreshold;
   const balance = State.computeAccountBalance(acct.id);
-  const isWarn = balance < threshold && acct.type !== 'cash' && acct.type !== 'debt' && acct.type !== 'investment';
+  const isWarn = balance < threshold
+    && acct.type !== 'cash'
+    && acct.type !== 'debt'
+    && acct.type !== 'investment'
+    && acct.type !== 'credit_card';
   const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
 
   return `
