@@ -958,6 +958,17 @@ html, body {
 .acct-mgr-btn.danger { color: var(--clay); }
 .acct-mgr-btn.danger:active { background: #fce8e6; }
 
+/* Full-screen overlay backdrop สำหรับ bottom-sheet popup */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  animation: fade-in 0.15s ease;
+}
+
 /* Account add/edit modal (bottom-sheet overlay) */
 .acct-modal {
   background: var(--paper);
