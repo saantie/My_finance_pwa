@@ -98,6 +98,9 @@ export function openEditModal(tx) {
     amount:            tx.amount,
     group:             tx.group,
     account_id:        tx.account_from || tx.account_to || 'cash:default',
+    // เก็บ account_to ต้นฉบับของ transfer ไว้ (เช่น ATM → cash:default)
+    // เพราะ modal มี account picker แค่ตัวเดียว (account_from) — account_to ต้องรักษาไว้
+    _orig_account_to:  tx.type === 'transfer' ? (tx.account_to || null) : null,
     note:              tx.description || '',
     date:              tx.date,
     frequency:         'today',
@@ -627,6 +630,11 @@ function save() {
 
   // === Edit mode: อัปเดตรายการที่มีอยู่ ===
   if (editingTxId) {
+    // สำหรับ transfer → รักษา account_to ต้นฉบับ (เช่น ATM → cash:default)
+    // เพราะ modal มี picker แค่ตัวเดียว (account_from) — ผู้ใช้ไม่ได้เปลี่ยน account_to
+    const newAccountTo = draft.type === 'income'
+      ? draft.account_id
+      : (draft.type === 'transfer' ? (draft._orig_account_to || null) : null);
     State.updateTransaction(editingTxId, {
       type:             draft.type,
       amount:           draft.amount,
@@ -634,7 +642,7 @@ function save() {
       category,
       description,
       account_from:     draft.type !== 'income' ? draft.account_id : null,
-      account_to:       draft.type === 'income' ? draft.account_id : null,
+      account_to:       newAccountTo,
       user_classified:  true    // user แก้แล้ว → parser ไม่ override
     });
     haptic([5, 30, 50]);

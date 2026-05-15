@@ -315,8 +315,13 @@ function activeTxs() {
 
 /**
  * คำนวณยอดคงเหลือของบัญชีจากรายการที่บันทึกไว้
- * - ถ้ามี tx ที่มี balance field → ใช้ balance ของ tx ล่าสุด (ยอดจริงจาก bank statement)
- * - ถ้าไม่มี → คำนวณจากผลรวม tx (เงินเข้า − เงินออก) + opening balance
+ *
+ * กฎ:
+ * 1. balance field จาก PDF statement เชื่อถือได้เฉพาะ account_from (ต้นทาง)
+ *    — ห้ามใช้ balance จาก tx ที่บัญชีนี้เป็น account_to เพราะเป็นยอดของบัญชีอื่น
+ * 2. หลังยึดยอดจาก tx ล่าสุดที่มี balance field แล้ว
+ *    ให้บวก/ลบ tx ที่เกิดหลังจากนั้นและไม่มี balance field (manual entries)
+ * 3. ถ้าไม่มี balance field เลย → คำนวณจาก opening balance + sum ทุกรายการ
  */
 export function computeAccountBalance(accountId) {
   const txs = activeTxs().filter(t =>
@@ -324,14 +329,30 @@ export function computeAccountBalance(accountId) {
   );
   if (!txs.length) return getAccount(accountId)?.current_balance ?? 0;
 
+  // ใช้ balance field เฉพาะ tx ที่บัญชีนี้เป็น account_from (ต้นทาง)
   const withBal = txs
-    .filter(t => t.balance != null)
+    .filter(t => t.balance != null && t.account_from === accountId)
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
-  if (withBal.length) return withBal[0].balance;
 
+  if (withBal.length) {
+    const anchor = withBal[0];
+    // บวก/ลบ tx ที่เกิดหลัง anchor และไม่มี balance field (manual entries หลัง import)
+    const laterTxs = txs.filter(t =>
+      t.balance == null &&
+      (t.date > anchor.date ||
+        (t.date === anchor.date && (t.createdAt || '') > (anchor.createdAt || '')))
+    );
+    return laterTxs.reduce((sum, t) => {
+      if (t.account_to   === accountId) return sum + t.amount;
+      if (t.account_from === accountId) return sum - t.amount;
+      return sum;
+    }, anchor.balance);
+  }
+
+  // ไม่มี balance field เลย — คำนวณจาก opening balance + sum ทุกรายการ
   const openingBal = getAccount(accountId)?.current_balance ?? 0;
   return txs.reduce((sum, t) => {
-    if (t.account_to === accountId) return sum + t.amount;
+    if (t.account_to   === accountId) return sum + t.amount;
     if (t.account_from === accountId) return sum - t.amount;
     return sum;
   }, openingBal);
