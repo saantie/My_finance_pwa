@@ -23,25 +23,33 @@ import {
 const STORAGE_KEY = 'diary_finance_v1';
 
 /* === Default state ============================================== */
+const DEFAULT_ACCOUNTS = [
+  { id: 'cash:default',        type: 'cash',       display_name: 'เงินสด' },
+  { id: 'bank:manual:default', type: 'bank',        display_name: 'เงินฝากธนาคาร' },
+  { id: 'invest:default',      type: 'investment',  display_name: 'การลงทุน' },
+  { id: 'debt:default',        type: 'debt',        display_name: 'หนี้สิน' },
+];
+
+function makeDefaultAccount(def) {
+  return {
+    id: def.id,
+    bank: null,
+    account_number_masked: '',
+    display_name: def.display_name,
+    type: def.type,
+    current_balance: 0,
+    threshold: 0,
+    detected_at: new Date().toISOString(),
+    user_renamed: false,
+    owner: null,
+    storage: 'local',
+    shared_with: []
+  };
+}
+
 const DEFAULT_STATE = {
   transactions: [],
-  accounts: [
-    // Cash account สร้างให้ default — user ใช้ทันที
-    {
-      id: 'cash:default',
-      bank: null,
-      account_number_masked: '',
-      display_name: 'เงินสด',
-      type: 'cash',
-      current_balance: 0,
-      threshold: 0,
-      detected_at: new Date().toISOString(),
-      user_renamed: false,
-      owner: null,
-      storage: 'local',
-      shared_with: []
-    }
-  ],
+  accounts: DEFAULT_ACCOUNTS.map(makeDefaultAccount),
   settings: {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
@@ -65,10 +73,16 @@ function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
-    // Merge กับ default — เผื่อ schema เพิ่ม field ใหม่ในเวอร์ชันถัดไป
+    const accounts = parsed.accounts && parsed.accounts.length ? parsed.accounts : DEFAULT_STATE.accounts;
+    // Migration: เพิ่ม default accounts ที่ยังไม่มี
+    for (const def of DEFAULT_ACCOUNTS) {
+      if (!accounts.find(a => a.id === def.id)) {
+        accounts.push(makeDefaultAccount(def));
+      }
+    }
     return {
       transactions: parsed.transactions || [],
-      accounts: parsed.accounts && parsed.accounts.length ? parsed.accounts : DEFAULT_STATE.accounts,
+      accounts,
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) }
     };
   } catch (e) {
@@ -296,6 +310,30 @@ export function setSetting(key, value) {
 /** รายการที่ยังไม่ถูกลบ — base filter สำหรับ computed functions ทั้งหมด */
 function activeTxs() {
   return _state.transactions.filter(t => t.deleted_by == null);
+}
+
+/**
+ * คำนวณยอดคงเหลือของบัญชีจากรายการที่บันทึกไว้
+ * - ถ้ามี tx ที่มี balance field → ใช้ balance ของ tx ล่าสุด (ยอดจริงจาก bank statement)
+ * - ถ้าไม่มี → คำนวณจากผลรวม tx (เงินเข้า − เงินออก) + opening balance
+ */
+export function computeAccountBalance(accountId) {
+  const txs = activeTxs().filter(t =>
+    t.account_from === accountId || t.account_to === accountId
+  );
+  if (!txs.length) return getAccount(accountId)?.current_balance ?? 0;
+
+  const withBal = txs
+    .filter(t => t.balance != null)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  if (withBal.length) return withBal[0].balance;
+
+  const openingBal = getAccount(accountId)?.current_balance ?? 0;
+  return txs.reduce((sum, t) => {
+    if (t.account_to === accountId) return sum + t.amount;
+    if (t.account_from === accountId) return sum - t.amount;
+    return sum;
+  }, openingBal);
 }
 
 /**

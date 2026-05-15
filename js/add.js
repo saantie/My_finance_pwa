@@ -719,13 +719,17 @@ function save() {
 
 function bankGradient(bank, type) {
   const MAP = {
-    ktb:   'linear-gradient(135deg, #5fb0e0, #3787c5)',
-    kbank: 'linear-gradient(135deg, #6cc16c, #45984a)',
-    scb:   'linear-gradient(135deg, #b378c0, #8a59a0)',
-    bbl:   'linear-gradient(135deg, #4f7eb8, #2a5a94)',
-    bay:   'linear-gradient(135deg, #e8b649, #c79939)',
+    ktb:        'linear-gradient(135deg, #5fb0e0, #3787c5)',
+    kbank:      'linear-gradient(135deg, #6cc16c, #45984a)',
+    scb:        'linear-gradient(135deg, #b378c0, #8a59a0)',
+    bbl:        'linear-gradient(135deg, #4f7eb8, #2a5a94)',
+    bay:        'linear-gradient(135deg, #e8b649, #c79939)',
+    investment: 'linear-gradient(135deg, #3aafa9, #2a8780)',
+    debt:       'linear-gradient(135deg, #d96b5e, #b84f44)',
+    credit_card:'linear-gradient(135deg, #8b6db5, #6a4f96)',
+    ewallet:    'linear-gradient(135deg, #5e9bd6, #3a77b8)',
   };
-  return MAP[bank] || 'linear-gradient(135deg, #c89368, #a07246)';
+  return MAP[bank] || MAP[type] || 'linear-gradient(135deg, #c89368, #a07246)';
 }
 
 function escapeHtml(s) {

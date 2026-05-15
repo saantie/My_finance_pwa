@@ -334,10 +334,13 @@ function renderUpcomingRow(u) {
 
 
 /* === Helper: account row ======================================== */
+const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', credit_card: 'CC', ewallet: 'EW' };
+
 function renderAccountRow(acct, globalThreshold) {
   const threshold = acct.threshold || globalThreshold;
-  const isWarn = acct.current_balance < threshold && acct.type !== 'cash';
-  const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (acct.type === 'cash' ? '$' : '?');
+  const balance = State.computeAccountBalance(acct.id);
+  const isWarn = balance < threshold && acct.type !== 'cash' && acct.type !== 'debt' && acct.type !== 'investment';
+  const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
 
   return `
     <div class="acct ${isWarn ? 'warn' : ''}">
@@ -349,7 +352,7 @@ function renderAccountRow(acct, globalThreshold) {
           : ''}
       </div>
       <div>
-        <div class="acct-balance">${formatBaht(acct.current_balance)} ฿</div>
+        <div class="acct-balance">${formatBaht(balance)} ฿</div>
         ${isWarn ? `<div class="acct-warn-tag">⚠ ใกล้เกณฑ์</div>` : ''}
       </div>
     </div>
@@ -1426,6 +1429,32 @@ export function renderSettings(container) {
       showToast('ออกจากระบบไม่สำเร็จ');
     }
   });
+
+  // เพิ่มบัญชีใหม่
+  container.querySelector('[data-action="add-account"]')?.addEventListener('click', () => {
+    showAccountModal(null, container);
+  });
+
+  // แก้ไขบัญชี
+  container.querySelectorAll('[data-action="edit-account"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const acct = State.getAccount(btn.dataset.accountId);
+      if (acct) showAccountModal(acct, container);
+    });
+  });
+
+  // ลบบัญชี
+  container.querySelectorAll('[data-action="delete-account"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const acct = State.getAccount(btn.dataset.accountId);
+      if (!acct) return;
+      if (confirm(`ลบบัญชี "${acct.display_name}"?\nรายการในบัญชีนี้จะยังคงอยู่`)) {
+        State.removeAccount(acct.id);
+        renderSettings(container);
+        showToast('ลบบัญชีแล้ว');
+      }
+    });
+  });
 }
 
 
@@ -1437,10 +1466,12 @@ export function renderSettings(container) {
 function renderAccountsSection() {
   const accounts = State.getAccounts();
   const currentUser = getCurrentUser();
+  const myEmail = currentUser?.email ?? null;
 
   const TYPE_LABEL = {
-    bank: 'บัญชีธนาคาร', cash: 'เงินสด',
-    credit_card: 'บัตรเครดิต', ewallet: 'กระเป๋าเงินอิเล็กทรอนิกส์'
+    bank: 'เงินฝากธนาคาร', cash: 'เงินสด',
+    credit_card: 'บัตรเครดิต', ewallet: 'กระเป๋าเงิน',
+    investment: 'การลงทุน', debt: 'หนี้สิน'
   };
 
   // Google account card — sign in / sign out
@@ -1464,41 +1495,33 @@ function renderAccountsSection() {
         </div>
       </div>`;
 
-  if (accounts.length === 0) {
-    return `
-      <div class="section">
-        <div class="section-head">
-          <h2 class="section-title">บัญชีของฉัน</h2>
-        </div>
-        ${googleCard}
-      </div>`;
-  }
+  // --- ส่วนจัดการบัญชี (add/edit/delete) ---
+  const myAccounts = accounts.filter(a => !(a.storage === 'cloud' && a.owner && a.owner !== myEmail));
+  const sharedAccounts = accounts.filter(a => a.storage === 'cloud' && a.owner && a.owner !== myEmail);
 
-  const myEmail = currentUser?.email ?? null;
-
-  const cards = accounts.map(acct => {
+  const acctRows = myAccounts.map(acct => {
+    const balance = State.computeAccountBalance(acct.id);
     const typeLabel = TYPE_LABEL[acct.type] || acct.type;
-    const isRecipient = acct.storage === 'cloud' && acct.owner && acct.owner !== myEmail;
+    const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
+    return `
+      <div class="acct-manage-row">
+        <div class="acct-icon ${acct.bank || acct.type}" style="width:36px;height:36px;font-size:10px;flex-shrink:0">${initial}</div>
+        <div class="acct-manage-info">
+          <div class="setting-label" style="font-size:14px">${escapeHtml(acct.display_name)}</div>
+          <div class="setting-sub">${typeLabel} · ${formatBaht(balance)} ฿</div>
+        </div>
+        <div class="acct-manage-btns">
+          <button class="acct-mgr-btn" data-action="edit-account" data-account-id="${escapeHtml(acct.id)}"
+                  title="แก้ไข">${svgIcon('edit', { size: 15, stroke: 2 })}</button>
+          <button class="acct-mgr-btn danger" data-action="delete-account" data-account-id="${escapeHtml(acct.id)}"
+                  title="ลบ">${svgIcon('delete', { size: 15, stroke: 2 })}</button>
+        </div>
+      </div>`;
+  }).join('');
 
-    // บัญชีที่คนอื่นแชร์ให้ → แสดงเฉพาะปุ่ม "ปฏิเสธ"
-    if (isRecipient) {
-      return `
-        <div class="card" style="margin-bottom:8px">
-          <div class="setting-row">
-            <div style="flex:1;min-width:0">
-              <div class="setting-label">${escapeHtml(acct.display_name)}</div>
-              <div class="setting-sub">${typeLabel} · แชร์โดย ${escapeHtml(acct.owner)}</div>
-            </div>
-            <button class="setting-action-btn"
-                    data-action="reject-shared-account"
-                    data-account-id="${escapeHtml(acct.id)}">ปฏิเสธ</button>
-          </div>
-        </div>`;
-    }
-
-    // บัญชีของตัวเอง → แสดง share controls ตามเดิม
+  // --- ส่วนแชร์บัญชี (เฉพาะบัญชีของตัวเอง ไม่ใช่ที่รับแชร์มา) ---
+  const shareCards = myAccounts.filter(a => a.storage !== 'cloud' || a.owner === myEmail).map(acct => {
     const isShared = (acct.shared_with || []).length > 0;
-
     const emailRows = (acct.shared_with || []).map(em => `
       <div class="setting-row" style="padding:6px 0">
         <div class="setting-sub" style="flex:1">${escapeHtml(em)}</div>
@@ -1516,22 +1539,18 @@ function renderAccountsSection() {
               ${escapeHtml(acct.display_name)}
               ${isShared ? '<span class="badge-shared">แชร์แล้ว</span>' : ''}
             </div>
-            <div class="setting-sub">${typeLabel}</div>
+            <div class="setting-sub">${TYPE_LABEL[acct.type] || acct.type}</div>
           </div>
           <button class="setting-seg-btn ${isShared ? 'active' : ''}"
                   data-action="toggle-share"
-                  data-account-id="${escapeHtml(acct.id)}">
-            แชร์บัญชีนี้
-          </button>
+                  data-account-id="${escapeHtml(acct.id)}">แชร์บัญชีนี้</button>
         </div>
         ${emailRows}
         <div class="share-email-input"
              data-account-id="${escapeHtml(acct.id)}"
              style="display:none;padding:8px 0 4px">
           <div style="display:flex;gap:8px;align-items:center">
-            <input type="email"
-                   class="share-email-field"
-                   data-account-id="${escapeHtml(acct.id)}"
+            <input type="email" class="share-email-field" data-account-id="${escapeHtml(acct.id)}"
                    placeholder="Gmail ของอีกคน"
                    style="flex:1;padding:8px 12px;border:1px solid var(--rule);border-radius:8px;font-size:14px;background:var(--surface)">
             <button class="setting-seg-btn active"
@@ -1542,14 +1561,144 @@ function renderAccountsSection() {
       </div>`;
   }).join('');
 
+  // --- บัญชีที่คนอื่นแชร์มาให้ ---
+  const receivedCards = sharedAccounts.map(acct => `
+    <div class="card" style="margin-bottom:8px">
+      <div class="setting-row">
+        <div style="flex:1;min-width:0">
+          <div class="setting-label">${escapeHtml(acct.display_name)}</div>
+          <div class="setting-sub">${TYPE_LABEL[acct.type] || acct.type} · แชร์โดย ${escapeHtml(acct.owner)}</div>
+        </div>
+        <button class="setting-action-btn"
+                data-action="reject-shared-account"
+                data-account-id="${escapeHtml(acct.id)}">ปฏิเสธ</button>
+      </div>
+    </div>`).join('');
+
   return `
     <div class="section">
       <div class="section-head">
         <h2 class="section-title">บัญชีของฉัน</h2>
+        <button class="section-action" data-action="add-account">+ เพิ่มบัญชี</button>
+      </div>
+      <div class="card card-padded acct-manage-list">
+        ${acctRows || '<div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div>'}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">แชร์บัญชี</h2>
       </div>
       ${googleCard}
-      ${cards}
+      ${shareCards}
+      ${receivedCards}
     </div>`;
+}
+
+/** Modal เพิ่ม / แก้ไขบัญชี */
+function showAccountModal(existingAcct, settingsContainer) {
+  const isEdit = Boolean(existingAcct);
+  const settings = State.getSettings();
+  const TYPE_OPTIONS = [
+    { value: 'cash',        label: 'เงินสด' },
+    { value: 'bank',        label: 'เงินฝากธนาคาร' },
+    { value: 'credit_card', label: 'บัตรเครดิต' },
+    { value: 'ewallet',     label: 'กระเป๋าเงิน' },
+    { value: 'investment',  label: 'การลงทุน' },
+    { value: 'debt',        label: 'หนี้สิน' },
+  ];
+
+  const currentType = existingAcct?.type || 'bank';
+  const currentBalance = existingAcct
+    ? (existingAcct.current_balance / 100).toFixed(0)
+    : '';
+  const currentThreshold = existingAcct?.threshold
+    ? (existingAcct.threshold / 100).toFixed(0)
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="acct-modal">
+      <div class="acct-modal-head">${isEdit ? 'แก้ไขบัญชี' : 'เพิ่มบัญชีใหม่'}</div>
+      <div class="acct-modal-body">
+        <label class="acct-field-label">ชื่อบัญชี</label>
+        <input class="acct-field-input" id="am-name" type="text"
+               placeholder="เช่น บัญชีเงินเดือน"
+               value="${escapeHtml(existingAcct?.display_name || '')}">
+
+        <label class="acct-field-label">ประเภทบัญชี</label>
+        <div class="acct-type-grid">
+          ${TYPE_OPTIONS.map(t => `
+            <button class="acct-type-btn ${currentType === t.value ? 'active' : ''}"
+                    data-type="${t.value}">${t.label}</button>`).join('')}
+        </div>
+
+        <label class="acct-field-label">ยอดเปิดบัญชี (฿)</label>
+        <input class="acct-field-input" id="am-balance" type="number"
+               inputmode="numeric" placeholder="0" value="${currentBalance}">
+        <div class="acct-field-hint">ยอดตั้งต้นก่อนบันทึกรายการ (ถ้าไม่ใส่ = เริ่มที่ 0)</div>
+
+        <label class="acct-field-label">เกณฑ์แจ้งเตือน (฿)</label>
+        <input class="acct-field-input" id="am-threshold" type="number"
+               inputmode="numeric"
+               placeholder="${(settings.threshold_satang / 100).toFixed(0)}"
+               value="${currentThreshold}">
+        <div class="acct-field-hint">เตือนเมื่อยอดต่ำกว่าค่านี้ (เว้นว่าง = ใช้ค่า global ${formatBaht(settings.threshold_satang)} ฿)</div>
+      </div>
+      <div class="acct-modal-footer">
+        <button class="cancel" id="am-cancel">ยกเลิก</button>
+        <button class="confirm" id="am-save">${isEdit ? 'บันทึก' : 'เพิ่มบัญชี'}</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  let selectedType = currentType;
+  overlay.querySelectorAll('.acct-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedType = btn.dataset.type;
+      overlay.querySelectorAll('.acct-type-btn').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  overlay.querySelector('#am-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelector('#am-save').addEventListener('click', () => {
+    const name = overlay.querySelector('#am-name').value.trim();
+    if (!name) { showToast('ใส่ชื่อบัญชีก่อน'); return; }
+
+    const balRaw = overlay.querySelector('#am-balance').value;
+    const balSatang = balRaw !== '' ? Math.round(Number(balRaw) * 100) : 0;
+    const thrRaw = overlay.querySelector('#am-threshold').value;
+    const thrSatang = thrRaw !== '' ? Math.round(Number(thrRaw) * 100) : settings.threshold_satang;
+
+    if (isEdit) {
+      State.updateAccount(existingAcct.id, {
+        display_name: name,
+        type: selectedType,
+        current_balance: balSatang,
+        threshold: thrSatang,
+        user_renamed: true
+      });
+      showToast('แก้ไขบัญชีแล้ว');
+    } else {
+      State.addAccount({
+        display_name: name,
+        type: selectedType,
+        current_balance: balSatang,
+        threshold: thrSatang,
+        user_renamed: true
+      });
+      showToast('เพิ่มบัญชีแล้ว');
+    }
+
+    overlay.remove();
+    if (settingsContainer) renderSettings(settingsContainer);
+  });
 }
 
 
