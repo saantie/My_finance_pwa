@@ -846,18 +846,34 @@ function showReviewModal(result, fileName) {
     unknown: 'ไม่รู้จัก'
   }[result.bank] || result.bank;
 
-  // จัดกลุ่มตาม date
+  // ตรวจสอบรายการที่อาจซ้ำกับรายการที่มีอยู่แล้ว (จำนวนเงินเท่ากัน + วันที่ต่างกันไม่เกิน 1 วัน)
+  const existingTxs = State.getTransactions();
+  const dupSet = new Set();
+  result.transactions.forEach((tx, i) => {
+    const txTime = new Date(tx.date).getTime();
+    const isDup = existingTxs.some(ex =>
+      ex.amount === tx.amount &&
+      Math.abs(new Date(ex.date).getTime() - txTime) <= 86400000
+    );
+    if (isDup) dupSet.add(i);
+  });
+
+  // Selection — รายการที่อาจซ้ำเริ่มต้นไม่ถูกเลือก, อื่นๆ เลือกทั้งหมด
+  const sel = new Set(result.transactions.map((_, i) => i).filter(i => !dupSet.has(i)));
+
+  // จัดกลุ่มตาม date พร้อม index
   const groups = {};
-  for (const tx of result.transactions) {
+  result.transactions.forEach((tx, i) => {
     if (!groups[tx.date]) groups[tx.date] = [];
-    groups[tx.date].push(tx);
-  }
+    groups[tx.date].push({ tx, i });
+  });
   const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
   // Summary
   const income = result.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = result.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const transfer = result.transactions.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
+  const dupCount = dupSet.size;
 
   modal.innerHTML = `
     <div class="review-header">
@@ -867,10 +883,11 @@ function showReviewModal(result, fileName) {
         ${result.accountInfo?.account_number_masked ? ` · ${result.accountInfo.account_number_masked}` : ''}
         · พบ ${result.transactions.length} รายการ
       </div>
+      ${dupCount > 0 ? `<div class="review-dup-warn">⚠️ พบ ${dupCount} รายการที่อาจซ้ำกับที่มีอยู่แล้ว — ยกเลิกการเลือกไว้แล้ว</div>` : ''}
     </div>
     <div class="review-body">
       <!-- Summary -->
-      <div class="card card-padded" style="padding: 14px 18px; margin-bottom: 16px;">
+      <div class="card card-padded" style="padding: 14px 18px; margin-bottom: 12px;">
         <div class="recur-summary" style="grid-template-columns: 1fr 1fr 1fr;">
           ${income > 0 ? `<div><div class="setting-sub">รายรับ</div><div class="setting-label" style="color: var(--sage)">+${formatBaht(income)} ฿</div></div>` : ''}
           ${expense > 0 ? `<div><div class="setting-sub">รายจ่าย</div><div class="setting-label" style="color: var(--clay)">−${formatBaht(expense)} ฿</div></div>` : ''}
@@ -878,18 +895,27 @@ function showReviewModal(result, fileName) {
         </div>
       </div>
 
+      <!-- Select all toggle -->
+      <div class="review-select-all">
+        <label class="review-select-all-label">
+          <input type="checkbox" id="review-check-all">
+          <span>เลือกทั้งหมด</span>
+        </label>
+        <span class="review-sel-count" id="review-sel-count">${sel.size} / ${result.transactions.length} รายการ</span>
+      </div>
+
       <!-- Transaction list grouped by date -->
       ${sortedDates.map(date => {
-        const dayTxs = groups[date];
+        const dayItems = groups[date];
         const d = parseLocalDate(date);
         return `
           <div class="day-group">
             <div class="day-head">
               <div class="day-name">วัน${dayNameTH(d)} <span class="num">ที่ ${d.getDate()}</span></div>
-              <div class="day-meta">${monthNameTH(d, true)} ${ceToBe(d.getFullYear())} · ${dayTxs.length} รายการ</div>
+              <div class="day-meta">${monthNameTH(d, true)} ${ceToBe(d.getFullYear())} · ${dayItems.length} รายการ</div>
             </div>
             <div class="card card-padded">
-              ${dayTxs.map(t => renderReviewRow(t)).join('')}
+              ${dayItems.map(({ tx, i }) => renderReviewRow(tx, i, dupSet.has(i), sel.has(i))).join('')}
             </div>
           </div>
         `;
@@ -897,34 +923,73 @@ function showReviewModal(result, fileName) {
     </div>
     <div class="review-footer">
       <button class="cancel" data-action="cancel">ยกเลิก</button>
-      <button class="confirm" data-action="confirm">นำเข้าทั้งหมด</button>
+      <button class="confirm" data-action="confirm" id="review-confirm-btn">นำเข้า (${sel.size} รายการ)</button>
     </div>
   `;
 
   document.body.appendChild(modal);
 
-  modal.querySelector('[data-action="cancel"]').addEventListener('click', () => {
-    modal.remove();
+  function syncUI() {
+    const btn = modal.querySelector('#review-confirm-btn');
+    const countEl = modal.querySelector('#review-sel-count');
+    btn.textContent = sel.size > 0 ? `นำเข้า (${sel.size} รายการ)` : 'ไม่มีรายการที่เลือก';
+    btn.disabled = sel.size === 0;
+    if (countEl) countEl.textContent = `${sel.size} / ${result.transactions.length} รายการ`;
+    const allCb = modal.querySelector('#review-check-all');
+    if (allCb) {
+      allCb.checked = sel.size === result.transactions.length;
+      allCb.indeterminate = sel.size > 0 && sel.size < result.transactions.length;
+    }
+  }
+
+  syncUI();
+
+  // Checkbox events (delegate บน body เพื่อจับทุก row)
+  modal.querySelector('.review-body').addEventListener('change', e => {
+    const cb = e.target.closest('.review-check');
+    if (!cb) return;
+    const i = parseInt(cb.dataset.idx);
+    if (cb.checked) sel.add(i); else sel.delete(i);
+    syncUI();
   });
 
+  modal.querySelector('#review-check-all').addEventListener('change', e => {
+    if (e.target.checked) {
+      result.transactions.forEach((_, i) => sel.add(i));
+      modal.querySelectorAll('.review-check').forEach(cb => cb.checked = true);
+    } else {
+      sel.clear();
+      modal.querySelectorAll('.review-check').forEach(cb => cb.checked = false);
+    }
+    syncUI();
+  });
+
+  modal.querySelector('[data-action="cancel"]').addEventListener('click', () => modal.remove());
+
   modal.querySelector('[data-action="confirm"]').addEventListener('click', () => {
-    confirmImport(result);
+    const selectedTxs = result.transactions.filter((_, i) => sel.has(i));
+    confirmImport({ ...result, transactions: selectedTxs });
     modal.remove();
   });
 }
 
-function renderReviewRow(tx) {
+function renderReviewRow(tx, idx, isDuplicate, isSelected) {
   const def = getCategory(tx.group);
   const sign = tx.type === 'income' ? '+' : (tx.type === 'transfer' ? '↔' : '−');
   const amtClass = tx.type === 'income' ? 'income' : (tx.type === 'transfer' ? 'transfer' : '');
+  const isATM = tx.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(tx.description || '');
   return `
-    <div class="entry">
-      <span class="entry-time"></span>
+    <div class="entry review-entry ${isDuplicate ? 'entry--dup-warn' : ''}">
+      <input type="checkbox" class="review-check" data-idx="${idx}" ${isSelected ? 'checked' : ''}>
       <div class="entry-icon" style="background: ${def.color}">
         ${svgIcon(def.icon, { size: 14, stroke: 2 })}
       </div>
-      <div>
-        <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
+      <div class="review-entry-info">
+        <div class="entry-name">
+          ${escapeHtml(tx.description || def.label)}
+          ${isDuplicate ? '<span class="dup-badge">อาจซ้ำ</span>' : ''}
+          ${isATM ? '<span class="atm-badge">→ เงินสด</span>' : ''}
+        </div>
         <div class="entry-cat">${def.label}${tx.balance != null ? ` · คงเหลือ ${formatBaht(tx.balance)} ฿` : ''}</div>
       </div>
       <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
@@ -947,10 +1012,13 @@ function confirmImport(result) {
         current_balance: result.transactions[0]?.balance || 0
       });
     }
-    // ใส่ account_id ใน transactions
+    // ใส่ account_id ใน transactions + ATM withdrawal → cash:default
     for (const tx of result.transactions) {
       tx.account_from = tx.type !== 'income' ? accountId : null;
       tx.account_to = tx.type === 'income' ? accountId : null;
+      if (tx.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(tx.description || '')) {
+        tx.account_to = 'cash:default';
+      }
     }
   }
 

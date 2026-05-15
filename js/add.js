@@ -576,6 +576,44 @@ function pickAccount() {
 }
 
 
+/* === Duplicate detection ======================================== */
+
+function hasDuplicate(amount, date) {
+  const dateTime = new Date(date).getTime();
+  return State.getTransactions().some(ex =>
+    ex.amount === amount &&
+    Math.abs(new Date(ex.date).getTime() - dateTime) <= 86400000
+  );
+}
+
+function showDupConfirm(onConfirm) {
+  const m = modal();
+  m.querySelector('.dup-confirm')?.remove();
+
+  const bar = document.createElement('div');
+  bar.className = 'dup-confirm';
+  bar.innerHTML = `
+    <div class="dup-confirm-msg">
+      ${svgIcon('alert-triangle', { size: 15, stroke: 2 })}
+      พบรายการจำนวนนี้ในวันใกล้เคียง — บันทึกซ้ำหรือไม่?
+    </div>
+    <div class="dup-confirm-btns">
+      <button class="dup-btn-cancel">ยกเลิก</button>
+      <button class="dup-btn-save">บันทึกต่อ</button>
+    </div>
+  `;
+
+  const topbar = m.querySelector('.add-topbar');
+  topbar.insertAdjacentElement('afterend', bar);
+
+  bar.querySelector('.dup-btn-cancel').addEventListener('click', () => bar.remove());
+  bar.querySelector('.dup-btn-save').addEventListener('click', () => {
+    bar.remove();
+    onConfirm();
+  });
+}
+
+
 /* === Save ======================================================= */
 
 function save() {
@@ -607,21 +645,32 @@ function save() {
 
   // === Case 1: บันทึกธรรมดา (วันนี้ หรือ ย้อนหลัง) ===
   if (draft.frequency === 'today' || draft.frequency === 'past') {
-    State.addTransaction({
-      type: draft.type,
-      amount: draft.amount,
-      group: draft.group,
-      category,
-      description,
-      account_from: draft.type !== 'income' ? draft.account_id : null,
-      account_to: draft.type === 'income' ? draft.account_id : null,
-      date: draft.frequency === 'past' ? draft.first_due : draft.date,
-      source: 'manual',
-      user_classified: true
-    });
-    haptic([5, 30, 50]);
-    showToast('บันทึกแล้ว');
-    closeAddModal();
+    const txDate = draft.frequency === 'past' ? draft.first_due : draft.date;
+
+    function doSave() {
+      State.addTransaction({
+        type: draft.type,
+        amount: draft.amount,
+        group: draft.group,
+        category,
+        description,
+        account_from: draft.type !== 'income' ? draft.account_id : null,
+        account_to: draft.type === 'income' ? draft.account_id : null,
+        date: txDate,
+        source: 'manual',
+        user_classified: true
+      });
+      haptic([5, 30, 50]);
+      showToast('บันทึกแล้ว');
+      closeAddModal();
+    }
+
+    if (hasDuplicate(draft.amount, txDate)) {
+      showDupConfirm(doSave);
+      return;
+    }
+
+    doSave();
     return;
   }
 

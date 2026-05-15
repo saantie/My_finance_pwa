@@ -1899,6 +1899,164 @@ html, body {
   color: white;
   box-shadow: 0 4px 12px -4px rgba(232, 133, 99, 0.55);
 }
+.review-footer .confirm:disabled {
+  background: var(--rule);
+  color: var(--ink-faint);
+  box-shadow: none;
+}
+
+/* แถบเตือนรายการซ้ำในหัว review */
+.review-dup-warn {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fff8e1;
+  color: #7a5c00;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+html[data-theme="pro"] .review-dup-warn {
+  background: #fdf6dc;
+  color: #5a4000;
+}
+
+/* Select-all row */
+.review-select-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px 10px;
+}
+.review-select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.review-select-all-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--terracotta);
+  cursor: pointer;
+}
+.review-sel-count {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* Review row ที่มี checkbox */
+.review-entry {
+  display: grid;
+  grid-template-columns: 20px 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.review-entry + .review-entry {
+  border-top: 1px solid var(--rule-soft);
+}
+.review-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--terracotta);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.review-entry-info {
+  min-width: 0;
+}
+.review-entry-info .entry-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* row ที่สงสัยซ้ำ — highlight อ่อนๆ */
+.entry--dup-warn {
+  opacity: 0.6;
+}
+
+/* badge "อาจซ้ำ" และ "→ เงินสด" */
+.dup-badge,
+.atm-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.dup-badge {
+  background: #fff0c2;
+  color: #7a5c00;
+}
+.atm-badge {
+  background: #e8f4fd;
+  color: #2a6fa8;
+}
+html[data-theme="pro"] .dup-badge {
+  background: #fdf6dc;
+  color: #5a4000;
+}
+html[data-theme="pro"] .atm-badge {
+  background: #d4e2f0;
+  color: #1a3a5c;
+}
+
+/* Duplicate confirm bar ใน add modal */
+.dup-confirm {
+  margin: 0 16px 4px;
+  padding: 12px 14px;
+  background: #fff8e1;
+  border: 1px solid #f0d060;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+html[data-theme="pro"] .dup-confirm {
+  background: #fdf6dc;
+  border-color: #d4b830;
+}
+.dup-confirm-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #5a4400;
+  line-height: 1.4;
+}
+.dup-confirm-msg svg {
+  flex-shrink: 0;
+  color: #c08010;
+}
+.dup-confirm-btns {
+  display: flex;
+  gap: 8px;
+}
+.dup-btn-cancel,
+.dup-btn-save {
+  flex: 1;
+  padding: 9px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.dup-btn-cancel {
+  background: var(--rule-soft);
+  color: var(--ink-soft);
+}
+.dup-btn-save {
+  background: var(--terracotta);
+  color: white;
+}
 
 
 /* ===================================================================
