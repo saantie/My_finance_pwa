@@ -771,16 +771,60 @@ html, body {
 .seg-item.active[data-type="income"]  { color: var(--sage); }
 .seg-item.active[data-type="transfer"]{ color: var(--dust-blue); }
 
+/* Account pill row — บน amount section */
+.add-acct-row {
+  padding: 8px 24px 0;
+}
+.add-acct-row .acct-pill {
+  width: 100%;
+}
+
 /* Big amount display */
 .add-amount {
   text-align: center;
-  padding: 32px 24px 6px;
+  padding: 20px 24px 6px;
 }
 .add-amount-label {
   font-family: 'Mali', cursive;
   font-size: 16px;
   color: var(--ink-soft);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+/* Row: [mic] [amount-centered] [spacer] */
+.add-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.voice-btn-large {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--terracotta-soft);
+  color: var(--terracotta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.2s;
+}
+.voice-btn-large:active {
+  transform: scale(0.92);
+  background: var(--terracotta);
+  color: white;
+}
+.voice-btn-large svg { width: 40px; height: 40px; }
+.voice-btn-spacer {
+  width: 56px;
+  flex-shrink: 0;
+}
+.add-amount-row .add-amount-value {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
 }
 .add-amount-value {
   font-size: 56px;
@@ -2434,10 +2478,17 @@ html[data-dark="1"] .setting-seg-btn.active {
   background: var(--terracotta);
   border-color: var(--terracotta);
 }
-html[data-dark="1"] .seg-item.active {
-  background: rgba(255, 255, 255, 0.13);
-  box-shadow: none;
+html[data-dark="1"] .seg-item {
+  color: var(--ink-soft);
 }
+html[data-dark="1"] .seg-item.active {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+  color: var(--ink);
+}
+html[data-dark="1"] .seg-item.active[data-type="expense"] { color: var(--clay); }
+html[data-dark="1"] .seg-item.active[data-type="income"]  { color: var(--sage); }
+html[data-dark="1"] .seg-item.active[data-type="transfer"]{ color: var(--dust-blue); }
 
 
 /* ===================================================================

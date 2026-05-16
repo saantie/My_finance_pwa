@@ -141,9 +141,9 @@ function render() {
     : '0';
 
   const titleByType = {
-    expense:  editingTxId ? 'แก้ไขรายจ่าย' : 'บันทึกรายจ่าย',
-    income:   editingTxId ? 'แก้ไขรายรับ'  : 'บันทึกรายรับ',
-    transfer: editingTxId ? 'แก้ไขการโอน'  : 'โอนระหว่างบัญชี'
+    expense:  editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
+    income:   editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
+    transfer: editingTxId ? 'แก้ไขการโอน' : 'โอนระหว่างบัญชี'
   };
 
   // Title prefix ถ้าเป็น recurring (ไม่แสดงใน edit mode)
@@ -175,16 +175,33 @@ function render() {
       <div class="seg-item ${draft.type === 'transfer' ? 'active' : ''}" data-type="transfer">โอน</div>
     </div>
 
+    <!-- Account picker — ย้ายมาก่อนใส่จำนวน -->
+    <div class="add-acct-row">
+      <button class="acct-pill" data-action="pick-account">
+        <div class="ic" style="background: ${bankGradient(acct?.bank, acct?.type)}">
+          ${(acct?.bank || '$').toUpperCase().slice(0, 2)}
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="nm">${escapeHtml(acct?.display_name || 'เลือกบัญชี')}</div>
+          ${acct?.account_number_masked
+            ? `<div class="num">${escapeHtml(acct.account_number_masked)}</div>`
+            : ''}
+        </div>
+        ${svgIcon('chevron', { size: 16, stroke: 2 })}
+      </button>
+    </div>
+
     <div class="add-amount">
-      <div class="add-amount-label">
-        ใส่จำนวน
-        <button class="voice-btn" data-action="voice" aria-label="พูดเพื่อบันทึก">
-          ${svgIcon('mic', { size: 14, stroke: 2 })}
+      <div class="add-amount-label">ใส่จำนวน</div>
+      <div class="add-amount-row">
+        <button class="voice-btn-large" data-action="voice" aria-label="พูดเพื่อบันทึก">
+          ${svgIcon('mic', { size: 40, stroke: 1.6 })}
         </button>
-      </div>
-      <div class="add-amount-value" data-type="${draft.type}">
-        <span class="num">${escapeHtml(amountDisplay)}</span>
-        <span class="unit">฿</span>
+        <div class="add-amount-value" data-type="${draft.type}">
+          <span class="num">${escapeHtml(amountDisplay)}</span>
+          <span class="unit">฿</span>
+        </div>
+        <div class="voice-btn-spacer"></div>
       </div>
       ${draft.expression && /[+\-*/]/.test(draft.expression)
         ? `<div class="add-calc-hint">= ${escapeHtml(draft.expression)}</div>`
@@ -222,23 +239,6 @@ function render() {
         ${renderFreqDetails()}
       </div>
       `}
-
-      <!-- Account -->
-      <div class="meta-block">
-        <div class="meta-label">บัญชี</div>
-        <button class="acct-pill" data-action="pick-account">
-          <div class="ic" style="background: ${bankGradient(acct?.bank, acct?.type)}">
-            ${(acct?.bank || '$').toUpperCase().slice(0, 2)}
-          </div>
-          <div style="flex: 1; min-width: 0;">
-            <div class="nm">${escapeHtml(acct?.display_name || 'เลือกบัญชี')}</div>
-            ${acct?.account_number_masked
-              ? `<div class="num">${escapeHtml(acct.account_number_masked)}</div>`
-              : ''}
-          </div>
-          ${svgIcon('chevron', { size: 16, stroke: 2 })}
-        </button>
-      </div>
 
       <!-- Note -->
       <div class="meta-block">

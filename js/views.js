@@ -88,6 +88,21 @@ export function renderDashboard(container) {
       </div>
     </div>
 
+    <!-- Today entries — ต่อจาก hero card -->
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">บันทึกวันนี้</h2>
+      </div>
+      <div class="card card-padded">
+        ${todayTxs.length === 0
+          ? `<div class="empty" style="padding: 24px 12px;">
+               <div class="title">หน้านี้ยังว่างอยู่</div>
+               <div class="desc">— กดปุ่ม <strong>+</strong> ตรงกลางเพื่อเริ่ม —</div>
+             </div>`
+          : todayTxs.map(t => renderEntryRow(t)).join('')}
+      </div>
+    </div>
+
     <!-- Spending chart: 14 วันล่าสุด -->
     ${renderSpendingChart()}
 
@@ -126,21 +141,6 @@ export function renderDashboard(container) {
       </div>
     </div>
     ` : ''}
-
-    <!-- Today entries -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">บันทึกวันนี้</h2>
-      </div>
-      <div class="card card-padded">
-        ${todayTxs.length === 0
-          ? `<div class="empty" style="padding: 24px 12px;">
-               <div class="title">หน้านี้ยังว่างอยู่</div>
-               <div class="desc">— กดปุ่ม <strong>+</strong> ตรงกลางเพื่อเริ่ม —</div>
-             </div>`
-          : todayTxs.map(t => renderEntryRow(t)).join('')}
-      </div>
-    </div>
 
     <div class="signoff">— จบหน้าวันนี้ —</div>
   `;
