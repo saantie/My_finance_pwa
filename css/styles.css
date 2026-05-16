@@ -2553,6 +2553,19 @@ html[data-dark="1"] .seg-item.active[data-type="expense"] { color: var(--clay); 
 html[data-dark="1"] .seg-item.active[data-type="income"]  { color: var(--sage); }
 html[data-dark="1"] .seg-item.active[data-type="transfer"]{ color: var(--dust-blue); }
 
+/* filter chips (ทั้งหมด/รายจ่าย/รายรับ/โอน) — ใน dark mode --ink เป็นขาวครีม
+   ทำให้ active chip ได้อักษรขาวบนพื้นขาว → ใช้ terracotta แทน */
+html[data-dark="1"] .chip {
+  background: var(--card);
+  border-color: var(--rule);
+  color: var(--ink-soft);
+}
+html[data-dark="1"] .chip.active {
+  background: var(--terracotta);
+  color: white;
+  border-color: var(--terracotta);
+}
+
 
 /* ===================================================================
    Entry row — action buttons (edit / delete)
