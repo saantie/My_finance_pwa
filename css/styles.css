@@ -2247,8 +2247,71 @@ html[data-theme="pro"] .review-dup-warn {
 
 /* row ที่สงสัยซ้ำ — highlight อ่อนๆ */
 .entry--dup-warn {
-  opacity: 0.6;
+  opacity: 0.65;
 }
+
+/* Comparison row — แสดงรายการเดิมที่คาดซ้ำ */
+.dup-compare-row {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding: 7px 10px;
+  background: #fff8e0;
+  border: 1px solid #f0d878;
+  border-radius: 8px;
+  font-size: 12px;
+}
+html[data-dark="1"] .dup-compare-row {
+  background: #2a2208;
+  border-color: #4a3c10;
+}
+.dup-compare-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #7a5c00;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+html[data-dark="1"] .dup-compare-label { color: #c0a030; }
+.dup-compare-body {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dup-compare-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.dup-compare-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dup-compare-desc {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dup-compare-date {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+.dup-compare-amt {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.dup-compare-amt.income  { color: var(--sage); }
+.dup-compare-amt.transfer { color: var(--dust-blue); }
 
 /* badge "อาจซ้ำ" และ "→ เงินสด" */
 .dup-badge,

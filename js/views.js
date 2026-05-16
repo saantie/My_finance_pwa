@@ -865,20 +865,21 @@ function showReviewModal(result, fileName) {
     unknown: 'ไม่รู้จัก'
   }[result.bank] || result.bank;
 
-  // ตรวจสอบรายการที่อาจซ้ำกับรายการที่มีอยู่แล้ว (จำนวนเงินเท่ากัน + วันที่ต่างกันไม่เกิน 1 วัน)
+  // ตรวจสอบรายการที่อาจซ้ำ — เก็บ existing tx ที่ match ไว้เพื่อแสดงเปรียบเทียบ
   const existingTxs = State.getTransactions();
-  const dupSet = new Set();
+  const dupMap = new Map(); // index → existing tx ที่ match
   result.transactions.forEach((tx, i) => {
     const txTime = new Date(tx.date).getTime();
-    const isDup = existingTxs.some(ex =>
+    const match = existingTxs.find(ex =>
+      ex.deleted_by == null &&
       ex.amount === tx.amount &&
       Math.abs(new Date(ex.date).getTime() - txTime) <= 86400000
     );
-    if (isDup) dupSet.add(i);
+    if (match) dupMap.set(i, match);
   });
 
   // Selection — รายการที่อาจซ้ำเริ่มต้นไม่ถูกเลือก, อื่นๆ เลือกทั้งหมด
-  const sel = new Set(result.transactions.map((_, i) => i).filter(i => !dupSet.has(i)));
+  const sel = new Set(result.transactions.map((_, i) => i).filter(i => !dupMap.has(i)));
 
   // จัดกลุ่มตาม date พร้อม index
   const groups = {};
@@ -892,7 +893,7 @@ function showReviewModal(result, fileName) {
   const income = result.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = result.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const transfer = result.transactions.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
-  const dupCount = dupSet.size;
+  const dupCount = dupMap.size;
 
   modal.innerHTML = `
     <div class="review-header">
@@ -934,7 +935,7 @@ function showReviewModal(result, fileName) {
               <div class="day-meta">${monthNameTH(d, true)} ${ceToBe(d.getFullYear())} · ${dayItems.length} รายการ</div>
             </div>
             <div class="card card-padded">
-              ${dayItems.map(({ tx, i }) => renderReviewRow(tx, i, dupSet.has(i), sel.has(i))).join('')}
+              ${dayItems.map(({ tx, i }) => renderReviewRow(tx, i, dupMap.get(i), sel.has(i))).join('')}
             </div>
           </div>
         `;
@@ -992,11 +993,35 @@ function showReviewModal(result, fileName) {
   });
 }
 
-function renderReviewRow(tx, idx, isDuplicate, isSelected) {
+function renderReviewRow(tx, idx, matchingTx, isSelected) {
+  const isDuplicate = !!matchingTx;
   const def = getCategory(tx.group);
   const sign = tx.type === 'income' ? '+' : (tx.type === 'transfer' ? '↔' : '−');
   const amtClass = tx.type === 'income' ? 'income' : (tx.type === 'transfer' ? 'transfer' : '');
   const isATM = tx.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(tx.description || '');
+
+  let compareHtml = '';
+  if (matchingTx) {
+    const exDef = getCategory(matchingTx.group);
+    const exSign = matchingTx.type === 'income' ? '+' : (matchingTx.type === 'transfer' ? '↔' : '−');
+    const exAmtClass = matchingTx.type === 'income' ? 'income' : (matchingTx.type === 'transfer' ? 'transfer' : '');
+    compareHtml = `
+      <div class="dup-compare-row">
+        <div class="dup-compare-label">รายการที่มีอยู่แล้ว</div>
+        <div class="dup-compare-body">
+          <div class="dup-compare-icon" style="background: ${exDef.color}">
+            ${svgIcon(exDef.icon, { size: 11, stroke: 2 })}
+          </div>
+          <div class="dup-compare-info">
+            <span class="dup-compare-desc">${escapeHtml(matchingTx.description || exDef.label)}</span>
+            <span class="dup-compare-date">${formatShortDate(matchingTx.date)}</span>
+          </div>
+          <span class="dup-compare-amt ${exAmtClass}">${exSign}${formatBaht(matchingTx.amount)} ฿</span>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="entry review-entry ${isDuplicate ? 'entry--dup-warn' : ''}">
       <input type="checkbox" class="review-check" data-idx="${idx}" ${isSelected ? 'checked' : ''}>
@@ -1012,6 +1037,7 @@ function renderReviewRow(tx, idx, isDuplicate, isSelected) {
         <div class="entry-cat">${def.label}${tx.balance != null ? ` · คงเหลือ ${formatBaht(tx.balance)} ฿` : ''}</div>
       </div>
       <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
+      ${compareHtml}
     </div>
   `;
 }
