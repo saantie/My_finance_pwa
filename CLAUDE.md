@@ -2,7 +2,7 @@
 
 **เอกสารฉบับเดียวที่รวมทุกการตัดสินใจ, research, design choices และ state ของ project**
 
-Version: 1.2 — May 2026
+Version: 1.3 — May 2026
 Owner: Solo developer
 Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish remaining)
 
@@ -397,13 +397,23 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 - **Confidence scoring** หลัง parse: score < 60 → dialog "ให้ AI ช่วยไหม?"
   - PDF มีรหัส: ส่ง `extractedText` ให้ Gemini (ไม่ส่งไฟล์เข้ารหัส)
   - PDF ไม่มีรหัส: ส่งไฟล์เป็น base64
-- Review screen ก่อน import เสร็จ
+- **Review screen ก่อน import** — เลือก/ยกเลิกการเลือกรายการแต่ละรายการได้ (partial import)
+- **Duplicate detection ใน review screen:**
+  - ตรวจสอบ amount + date กับ existing transactions
+  - รายการที่อาจซ้ำ → ยกเลิกการเลือกอัตโนมัติ + แสดง warning
+  - แสดง existing transaction ที่ match ไว้เพื่อเปรียบเทียบ (dupMap) ให้ user ตัดสินใจเอง
+- **ATM cash balance fix:** เงินที่นับเข้าบัญชีเงินสดจาก import = เฉพาะ ATM withdraw เท่านั้น ไม่รวม transfer เข้า (transfer เข้าคือเงินที่อยู่ในบัญชีธนาคารอยู่แล้ว)
 
-#### F1.2 — Auto-Detect Account [✅ DONE]
+#### F1.2 — Account Management [✅ DONE]
 - Parser อ่านเลขบัญชีจาก header → create Account record
 - Mask: เก็บแค่ 4 หลักท้าย "xxx-x-x7821-x"
-- User rename ได้ ("กรุงไทย ...7821" → "บัญชีเงินเดือน")
+- User rename ได้ ("กรุงไทย ...7821" → "บัญชีเงินเดือน") — **popup modal** เมื่อกดดินสอ ไม่ใช่ inline ใน settings
 - Manual entry default = "ไม่ระบุ" (ไม่บังคับ)
+- **Default accounts (4 บัญชีเริ่มต้น):** เงินสด (`cash:default`), เงินฝากธนาคาร (`bank:manual:default`), การลงทุน (`invest:default`), หนี้สิน (`debt:default`)
+- **เพิ่มบัญชีด้วยตนเอง:** Settings → บัญชีของฉัน → กดปุ่มเพิ่ม (เลือก type: cash/bank/investment/debt/ewallet/credit_card)
+- **ลบบัญชี:** popup dialog เลือก 2 วิธี — (1) ลบเฉพาะรายการ (บัญชีคงไว้ ยอด=0) หรือ (2) ลบบัญชีและรายการทั้งหมด
+- **ยอดคงเหลือต่อบัญชี:** คำนวณจากรายการจริง (income+expense+transfer) แยกตาม account_id — ไม่ใช้ `current_balance` field จาก statement โดยตรง
+- **Dashboard แสดงเฉพาะบัญชีที่ active:** ยอดไม่ใช่ 0 หรือมาจาก PDF หรือ user ตั้งชื่อเอง; ถ้าไม่มีบัญชีใดแสดง → empty state "กด จัดการ เพื่อเพิ่ม" + link ไปหน้าตั้งค่า
 
 #### F1.3 — Min Balance Alert + Days Below Threshold [✅ DONE]
 - Per-account view (ไม่ใช่ยอดรวม)
@@ -413,6 +423,10 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 
 #### F1.4 — Manual Entry [✅ DONE]
 - Quick add fields: amount + category + account + date + note
+- **Modal title:** "บันทึกรายการ" (เดิมคือ "บันทึกรายจ่าย")
+- **Layout ใหม่ใน add modal:**
+  - Account picker ย้ายไปอยู่ **บนหมวด** (เดิมอยู่ล่าง)
+  - แถวจำนวนเงิน: "ใส่จำนวน" + ตัวเลข (กลาง) + ไอคอนไมค์ — อยู่บรรทัดเดียวกัน; ตัวเลขอยู่กึ่งกลาง; ไมค์ขนาดเท่ากับ font ตัวเลข
 - **Calculator built-in** (1500+200, 1500*0.93)
 - Smart defaults: today, expense, recent category
 - Duplicate detection (Layer 2)
@@ -430,15 +444,17 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 
 #### F1.6 — Dashboard [✅ DONE]
 - **Hero insight card** "เดือนนี้คุณเหลือ +12,550 ฿"
+- **บันทึกวันนี้** — แสดงหลัง hero card (เดิมอยู่ด้านบน)
 - Income/Expense pair (secondary)
-- Account list (auto-detect, with min-balance warning)
+- **Account list** — แสดงเฉพาะบัญชีที่ active (ยอดไม่ใช่ 0 / มาจาก PDF / user ตั้งชื่อ); empty state "กด จัดการ เพื่อเพิ่ม" + navigate ไปหน้าตั้งค่า
+- **ยอดคงเหลือต่อบัญชี** — คำนวณจากรายการจริงแยกตาม account_id และ type (ไม่ใช้ statement balance โดยตรง)
 - Top categories (3-5)
 - **14-day expense chart** — SVG inline (responsive, `width: 100%`) จาก `dailyExpenseBars()` ใน chart.js
   - สี: วันนี้ = terracotta, เสาร์-อาทิตย์ = mocha, ปกติ = rule
   - เส้น avg ประ (dashed)
   - data source ใช้ `activeTxs()` — ไม่นับ soft-deleted
 - Recent transactions
-- Cashflow forecast chart (30 วันข้างหน้า)
+- **Cashflow forecast chart** (30 วันข้างหน้า) — ใช้ยอดจริงที่คำนวณจากรายการทั้งหมด
 
 #### F1.7 — Onboarding 3-screen [⏳ PENDING]
 - Screen 1: Privacy promise (3 sec)
@@ -458,16 +474,18 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 - Sign in Google ครั้งเดียว → upload .json daily
 - New device: sign in → auto-restore
 
-#### F1.10 — 2 Themes [✅ DONE]
-- **Friendly mode (default)** — warm orange, cream, rounded, soft shadows
-- **Pro mode** — Bloomberg/editorial, navy, dense
-- Toggle ใน Settings (ไม่ใช่ topbar)
+#### F1.10 — Themes + Dark Mode [✅ DONE]
+- **7 color themes:** Diary (default), Ocean, Forest, Rose, Slate, Citrus, Violet — swatch picker ใน Settings
+- **Pro mode** — Bloomberg/editorial, navy, dense (ยังคงมีเป็น 1 ใน 7 ตัวเลือก)
+- **Dark mode:** toggle แยกต่างหากใน Settings; `data-dark="1"` บน `<html>`
+- **Settings → รูปแบบการแสดงผล:** UI ปรับให้ clean ไม่ดูรก — swatch + dark toggle + text size รวมอยู่ในส่วนเดียว
 
 #### F1.10b — Text Size / Zoom [✅ DONE]
 - **Pinch-to-zoom:** ไม่ block native browser zoom — `viewport` meta ห้ามใส่ `user-scalable=no`
-- **In-app text size:** Settings → ขนาดตัวอักษร → Normal / ใหญ่ / ใหญ่มาก
+- **In-app text size:** Settings → รูปแบบการแสดงผล → Normal / ใหญ่ / ใหญ่มาก
   - ใช้ `font-size` บน `:root` (rem cascade ทั้งแอป)
   - Normal = 16px, Large = 18px, XLarge = 20px
+  - ใช้งานได้จริง (แก้ bug ที่ไม่ apply จริงก่อนหน้านี้)
 
 #### F1.11 — UX Overhaul [✅ DONE]
 - Bottom nav 4 tabs + center FAB
@@ -603,7 +621,7 @@ Bottom nav (4 tabs + FAB):
 
 ### 8.3 Design tokens
 
-#### Friendly mode (DEFAULT)
+#### Diary mode (DEFAULT — warm orange)
 ```
 Background:  #fdfaf6  (warm cream)
 Surface:     #ffffff
@@ -646,6 +664,28 @@ Shadow:      soft drop shadow ~12% opacity
 Font:        Sarabun (no serif)
 Font-size:   :root 16px (normal) / 18px (large) / 20px (xlarge) — rem cascade
 ```
+
+#### Color themes (7 สี — เลือกใน Settings)
+
+| val | ชื่อ | Primary color |
+|---|---|---|
+| `diary` | Diary (default) | #e88563 (warm orange) |
+| `ocean` | Ocean | #2e86c1 (blue) |
+| `forest` | Forest | #27ae60 (green) |
+| `rose` | Rose | #e06880 (pink) |
+| `slate` | Slate | #5a7fb5 (blue-grey) |
+| `citrus` | Citrus | #d4880e (amber) |
+| `violet` | Violet | #7c5cbf (purple) |
+
+- แต่ละ theme override `--primary`, `.fab`, `.hero::before`, `.add-save`
+- สลับผ่าน swatch buttons ใน Settings → `data-theme` บน `<html>` element
+- `applyTheme(theme)` helper ใน views.js จัดการ
+
+#### Dark mode
+- Toggle ใน Settings → `data-dark="1"` บน `<html>`
+- `applyDark(dark)` helper ใน views.js
+- Dark mode override: background → #1a1a2e, surface → #16213e, ink → #e8e8f0
+- **Dark mode bug patterns ที่แก้แล้ว:** `.chip` / `.seg-item` (filter chips + type selector) ต้องใส่ contrast fix ใน `html[data-dark="1"]` — สีอักษรขาวบนพื้นขาวอ่านไม่ออก
 
 #### Pro mode (toggle)
 ```
@@ -907,6 +947,14 @@ finance-pwa/
 14. Bar chart ไม่ responsive (CSS div) — แก้: ใช้ SVG จาก `dailyExpenseBars()` + `width: 100%`
 15. Filter chips ใน list view ไม่ทำงาน — แก้: `makeFilterFn` + event binding ครบ
 16. Account picker ใช้ `prompt()` — แก้: bottom-sheet overlay UI
+17. ยอดคงเหลือบัญชีบน dashboard ไม่ตรง — แก้: คำนวณจาก transactions จริงแยก account_id + type ไม่ใช้ statement balance
+18. Text size ใน Settings ไม่ apply จริง — แก้: bind event ถูก selector + apply `:root font-size`
+19. Dark mode: ปุ่มเลือกประเภทรายการ (type selector / filter chips) อักษรขาวบนพื้นขาว — แก้: `html[data-dark="1"] .chip`, `.seg-item` contrast fix
+20. Dark mode: ปุ่มลงชื่อเข้าใช้อ่านไม่ออก — แก้: เพิ่ม dark override rule
+21. ATM cash balance นับรวม transfer เข้าด้วย — แก้: เฉพาะ ATM withdraw เท่านั้นที่เพิ่ม cash balance ตอน import
+22. Dashboard แสดงบัญชี inactive (ยอด 0) — แก้: filter เฉพาะบัญชีที่ active ก่อนแสดง
+23. Forecast chart ยอดไม่ตรง — แก้: ใช้ยอดคำนวณจากรายการจริงแทนการอ่าน field ตรง
+24. Edit account popup — เดิมแสดง inline ใน settings ดูรก — แก้: เปลี่ยนเป็น popup modal เมื่อกดดินสอ
 
 ### 11.4 Banks supported (parsers)
 
@@ -925,17 +973,21 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Voice NLP Thai
 - Min balance + days-below alert
 - Daily/monthly stats + month comparison
-- 2 themes (Friendly default + Pro toggle) + text size 3 ระดับ
+- **7 color themes + dark mode** (Diary default) + text size 3 ระดับ (ใช้งานได้จริง)
 - Lucide icons inline
 - Bottom nav + FAB + full-screen add modal + in-app keypad
 - Recurring template engine + scheduler + forecast
-- Dashboard: hero card + accounts + categories + 14-day SVG chart + cashflow forecast
+- Dashboard: hero card + บันทึกวันนี้ (หลัง hero) + accounts (active only) + categories + 14-day SVG chart + cashflow forecast (ยอดจริง)
 - List view: month selector + filter chips + search
-- Add modal: account picker (bottom-sheet) + backdate option + 6 frequency options
+- **Add modal:** account picker (bottom-sheet) + backdate option + 6 frequency options; layout ใหม่ (account picker บนหมวด, แถวจำนวนเงิน centered)
+- **Account management:** 4 default accounts + เพิ่มด้วยตนเอง + edit popup + ลบ 2 วิธี (เฉพาะรายการ / ทั้งบัญชี+รายการ)
+- **PDF import:** partial select + duplicate detection พร้อมแสดง existing tx เปรียบเทียบ + ATM cash fix
+- **Account balance:** คำนวณจาก transactions จริงแยก account_id
 - Selective account sharing (F1.12) — real-time Firestore complete
 - Sign-in/out UI + display name for shared accounts
 - Soft delete / two-stage delete for shared transactions
 - Two-way revoke detection (owner revoke → recipient UI clears)
+- Settings: shared account UI อยู่ติดกับแชร์บัญชี
 - 183 tests
 
 ⏳ **Pending implementation:**
@@ -1105,6 +1157,17 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | Backdate option ("ย้อนหลัง") ใน add modal: frequency='past' + date picker max=yesterday | user ลืมบันทึก ต้องย้อนหลังได้ — บันทึกเป็น tx ปกติแต่ใช้วันที่เลือก |
 | 2026-05 | Freq grid: 3×2 layout (3 คอลัมน์) สำหรับ 6 ตัวเลือก | จาก 5×1 เดิม เพิ่ม "ย้อนหลัง" ทำให้ต้องปรับ grid |
 | 2026-05 | ผู้รับแชร์ไม่มีสิทธิ์ลบบัญชี — มีแค่ปุ่ม "ปฏิเสธ" เพื่อยกเลิก access ตัวเอง | การลบบัญชีเป็นสิทธิ์ของ owner เท่านั้น |
+| 2026-05 | Theme system: Friendly → Diary เป็น default; เพิ่ม 6 color themes (Ocean/Forest/Rose/Slate/Citrus/Violet); Dark mode toggle แยก | ขยายตัวเลือกเพื่อ personalization; dark mode เป็น accessibility need |
+| 2026-05 | Edit account: เปลี่ยนจาก inline settings → popup modal เมื่อกดดินสอ | inline ทำให้หน้า settings ดูรกเกินไป; popup สะอาดกว่า |
+| 2026-05 | Default accounts 4 ตัว (เงินสด/เงินฝากธนาคาร/การลงทุน/หนี้สิน) + เพิ่มเองได้ | user ต้องการ account type ที่ไม่ใช่แค่ bank จาก PDF |
+| 2026-05 | ลบบัญชี: 2 วิธี — ลบเฉพาะรายการ (บัญชีคงไว้) หรือ ลบทั้งบัญชีและรายการ | use case ต่างกัน: อยากเคลียร์ข้อมูล vs อยากลบบัญชีทิ้งจริงๆ |
+| 2026-05 | ATM cash balance: นับเฉพาะ ATM withdraw ไม่นับ transfer เข้า | transfer เข้าคือเงินที่อยู่ในธนาคารอยู่แล้ว ไม่ใช่เงินสดใหม่ |
+| 2026-05 | Dashboard: แสดงเฉพาะบัญชีที่ active (ยอด≠0 / มาจาก PDF / user ตั้งชื่อ) | ป้องกัน default accounts ที่ไม่ได้ใช้ทำให้ dashboard รก |
+| 2026-05 | Account balance: คำนวณจาก transactions จริง (income+expense+transfer แยก account_id) | ยอดจาก statement อาจไม่ up-to-date และไม่รวม manual entries |
+| 2026-05 | PDF import: เลือกรายการแต่ละรายการได้ (partial import) + แสดง existing tx เปรียบเทียบตอนซ้ำ | ให้ user ตัดสินใจเองว่ารายการไหนซ้ำจริง แทนที่ระบบจะ auto-skip |
+| 2026-05 | Add modal: title เปลี่ยนเป็น "บันทึกรายการ" (ไม่ใช่ "บันทึกรายจ่าย") | รองรับ income, transfer ด้วย ไม่ใช่แค่รายจ่าย |
+| 2026-05 | Add modal: account picker ย้ายไปบนหมวด; แถวจำนวนเงิน ใส่จำนวน+ตัวเลข+ไมค์ อยู่บรรทัดเดียว | ลำดับสมเหตุสมผลกว่า: เลือกบัญชีก่อนหมวด; ตัวเลขอยู่กลางง่ายอ่าน |
+| 2026-05 | Dashboard: บันทึกวันนี้ย้ายมาอยู่หลัง hero card | ให้ hero card (ภาพรวม) เป็นสิ่งแรกที่เห็น แล้วค่อยตามด้วยรายการวันนี้ |
 
 ---
 
