@@ -74,27 +74,15 @@ function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
-
-    // Strip cloud accounts — ข้อมูลจาก Firestore ต้องไม่อยู่ใน localStorage
-    // (migration สำหรับ users เก่าที่เคย save cloud accounts ลง localStorage)
-    const rawAccounts = (parsed.accounts || []).filter(a => (a.storage || 'local') !== 'cloud');
-    const cloudIds = new Set(
-      (parsed.accounts || []).filter(a => (a.storage || 'local') === 'cloud').map(a => a.id)
-    );
-
-    const accounts = rawAccounts.length ? rawAccounts : DEFAULT_STATE.accounts;
+    const accounts = parsed.accounts && parsed.accounts.length ? parsed.accounts : DEFAULT_STATE.accounts;
     // Migration: เพิ่ม default accounts ที่ยังไม่มี
     for (const def of DEFAULT_ACCOUNTS) {
       if (!accounts.find(a => a.id === def.id)) {
         accounts.push(makeDefaultAccount(def));
       }
     }
-
     return {
-      // ลบ transactions ของ cloud accounts ที่ถูก strip ออกด้วย
-      transactions: (parsed.transactions || []).filter(t =>
-        !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
-      ),
+      transactions: parsed.transactions || [],
       accounts,
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) }
     };
@@ -106,15 +94,17 @@ function loadFromStorage() {
 
 function saveToStorage() {
   try {
-    // Cloud accounts มาจาก Firestore — ไม่ save ลง localStorage
-    // เพื่อให้ revocation มีผลทันทีเมื่อ Firestore fire ครั้งต่อไป
-    const cloudIds = new Set(
-      _state.accounts.filter(a => a.storage === 'cloud').map(a => a.id)
+    // บัญชีที่รับแชร์มา (_received: true) ห้าม persist ลง localStorage
+    // เพื่อให้ revocation มีผลทันทีในการเปิดแอปครั้งถัดไป
+    // บัญชีของเจ้าของเอง (storage: 'cloud' แต่ไม่มี _received) ยัง save ได้ปกติ
+    // เพราะ subscribeSharedAccounts() ต้องอ่าน list นี้เพื่อ subscribe Firestore
+    const receivedIds = new Set(
+      _state.accounts.filter(a => a._received === true).map(a => a.id)
     );
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      accounts: _state.accounts.filter(a => !cloudIds.has(a.id)),
+      accounts: _state.accounts.filter(a => !receivedIds.has(a.id)),
       transactions: _state.transactions.filter(t =>
-        !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
+        !receivedIds.has(t.account_from) && !receivedIds.has(t.account_to)
       ),
       settings: _state.settings
     }));
@@ -245,7 +235,13 @@ export function updateTransaction(id, patch) {
     updatedAt: new Date().toISOString()
   };
   notify();
-  return _state.transactions[idx];
+  const updated = _state.transactions[idx];
+  const acctId = updated.account_from || updated.account_to;
+  const acct = acctId ? getAccount(acctId) : null;
+  if (acct?.storage === 'cloud') {
+    pushTransaction(acct.id, updated).catch(console.error);
+  }
+  return updated;
 }
 
 /** Soft delete — ตั้ง deleted_by แทนการลบจริง (ใช้กับ shared accounts) */
@@ -627,10 +623,10 @@ export function mergeSharedAccounts(remoteAccounts) {
   for (const ra of remoteAccounts) {
     const idx = _state.accounts.findIndex(a => a.id === ra.id);
     if (idx === -1) {
-      _state.accounts.push({ ...ra, storage: 'cloud' });
+      _state.accounts.push({ ...ra, storage: 'cloud', _received: true });
       changed = true;
     } else {
-      _state.accounts[idx] = { ..._state.accounts[idx], ...ra, storage: 'cloud' };
+      _state.accounts[idx] = { ..._state.accounts[idx], ...ra, storage: 'cloud', _received: true };
       changed = true;
     }
   }

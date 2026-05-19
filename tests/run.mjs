@@ -291,48 +291,53 @@ test('getDailyExpenses has date+total', () => assert(daily.every(d => 'date' in 
 
 resetAll();
 
-// cloud accounts must NOT be persisted to localStorage
-// — verifies the revocation-stale-data bug is fixed
-test('saveToStorage excludes cloud accounts', () => {
+// _received accounts must NOT be persisted to localStorage
+// — verifies the revocation-stale-data bug fix (_received: true flag strategy)
+test('saveToStorage excludes _received accounts', () => {
   resetAll();
-  addAccount({ id: 'local-1',    display_name: 'บัญชีส่วนตัว', storage: 'local' });
-  addAccount({ id: 'cloud-recv', display_name: 'บัญชีรับแชร์', storage: 'cloud', owner: 'owner@example.com' });
-  // saveToStorage is called inside notify() after addAccount — check localStorage directly
+  addAccount({ id: 'local-1',   display_name: 'บัญชีส่วนตัว', storage: 'local' });
+  addAccount({ id: 'cloud-own', display_name: 'บัญชีคลาวด์ของฉัน', storage: 'cloud' });
+  addAccount({ id: 'cloud-rcv', display_name: 'บัญชีรับแชร์', storage: 'cloud' });
+  // mergeSharedAccounts sets _received: true — simulate that here
+  updateAccount('cloud-rcv', { _received: true });
   const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
-  assert(!saved.accounts.some(a => a.id === 'cloud-recv'), 'cloud account must not be in localStorage');
-  assert(saved.accounts.some(a => a.id === 'local-1'), 'local account must be saved');
+  assert(!saved.accounts.some(a => a.id === 'cloud-rcv'), '_received account must not be in localStorage');
+  assert(saved.accounts.some(a => a.id === 'cloud-own'),  'own cloud account must be saved');
+  assert(saved.accounts.some(a => a.id === 'local-1'),    'local account must be saved');
 });
 
-test('saveToStorage excludes cloud account transactions', () => {
+test('saveToStorage excludes _received account transactions', () => {
   resetAll();
-  addAccount({ id: 'cloud-acct', display_name: 'แชร์', storage: 'cloud', owner: 'o@test.com' });
-  addTransaction({ amount: 100000, account_from: 'cloud-acct', account_to: null });
+  addAccount({ id: 'cloud-rcv', display_name: 'แชร์', storage: 'cloud' });
+  updateAccount('cloud-rcv', { _received: true });
+  addTransaction({ amount: 100000, account_from: 'cloud-rcv',   account_to: null });
   addTransaction({ amount: 50000,  account_from: 'cash:default', account_to: null });
   const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
   const savedAmounts = saved.transactions.map(t => t.amount);
-  assert(!savedAmounts.includes(100000), 'cloud tx must not be in localStorage');
-  assert(savedAmounts.includes(50000), 'local tx must be saved');
+  assert(!savedAmounts.includes(100000), '_received cloud tx must not be in localStorage');
+  assert(savedAmounts.includes(50000),   'local tx must be saved');
 });
 
-// importJSON with cloud accounts → saveToStorage must strip them (migration path)
-test('importJSON does not persist cloud accounts to localStorage', () => {
+// importJSON with cloud accounts → no _received flag = treated as own → saved normally
+test('importJSON preserves own cloud accounts in localStorage', () => {
   resetAll();
   importJSON(JSON.stringify({
     accounts: [
-      { id: 'cash:default', storage: 'local', display_name: 'เงินสด', shared_with: [] },
-      { id: 'cloud-old',    storage: 'cloud', display_name: 'เก่า',   owner: 'x@x.com', shared_with: [] },
+      { id: 'cash:default', storage: 'local', display_name: 'เงินสด',  shared_with: [] },
+      { id: 'cloud-own',    storage: 'cloud', display_name: 'คลาวด์',  owner: 'me@x.com', shared_with: [] },
     ],
     transactions: [
-      { id: 'tc1', amount: 99,  account_from: 'cloud-old',    account_to: null, deleted_by: null },
-      { id: 'tc2', amount: 77,  account_from: 'cash:default', account_to: null, deleted_by: null },
+      { id: 'tc1', amount: 99, account_from: 'cloud-own',    account_to: null, deleted_by: null },
+      { id: 'tc2', amount: 77, account_from: 'cash:default', account_to: null, deleted_by: null },
     ],
     settings: {}
   }));
   const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
-  assert(!saved.accounts.some(a => a.id === 'cloud-old'),
-    'cloud account must be stripped from localStorage by saveToStorage');
-  assert(!saved.transactions.some(t => t.id === 'tc1'),
-    'cloud account transaction must be stripped from localStorage');
+  // cloud accounts from import have no _received flag → treated as own → saved
+  assert(saved.accounts.some(a => a.id === 'cloud-own'),
+    'own cloud account from import must be saved to localStorage');
+  assert(saved.transactions.some(t => t.id === 'tc1'),
+    'own cloud account transaction must be saved');
   assert(saved.transactions.some(t => t.id === 'tc2'),
     'local transaction must remain in localStorage');
 });

@@ -170,6 +170,8 @@ function init() {
       if (_sharedWithMeUnsub) { _sharedWithMeUnsub(); _sharedWithMeUnsub = null; }
       if (user) {
         _lastEmail = user.email;
+        // Migration: ล้าง received accounts จาก localStorage format เก่า (ก่อนมี _received flag)
+        State.clearReceivedAccounts(user.email);
         // เปิด listeners สำหรับ cloud accounts ของตัวเองทันที
         State.subscribeSharedAccounts();
         // Subscribe บัญชีที่คนอื่นแชร์ให้เรา — เมื่อ Firestore ตอบกลับ merge + re-subscribe
