@@ -1631,6 +1631,21 @@ html, body {
 
 /* === 10. Settings ============================================== */
 .setting-group { margin-top: 22px; }
+.setting-section {
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 0 16px;
+  margin: 16px 0;
+  box-shadow: 0 1px 0 rgba(80, 60, 30, 0.04);
+}
+.setting-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  padding: 14px 0 6px;
+}
 .setting-row {
   display: flex;
   align-items: center;
@@ -2873,33 +2888,28 @@ html[data-dark="1"] .chip.active {
   font-style: italic;
 }
 
-/* Text-size buttons */
-.text-size-btns {
+/* Text-size picker */
+.text-size-picker {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 .size-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 12px 6px 10px;
-  border-radius: 14px;
-  border: 1.5px solid var(--rule);
-  background: var(--rule-soft);
-  color: var(--ink-soft);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 0.5px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
   cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
   transition: all 0.15s;
 }
 .size-btn.active {
-  background: var(--terracotta-soft);
-  border-color: var(--terracotta);
-  color: var(--terracotta);
+  background: var(--terracotta);
+  color: white;
+  border-color: transparent;
 }
 .size-btn:active { transform: scale(0.95); }
-.size-btn .size-ก { font-family: 'Sarabun', sans-serif; font-weight: 600; line-height: 1; }
-.size-btn .size-lbl { font-size: 10px; font-weight: 500; }
 
 /* iOS-style toggle switch */
 .toggle-switch {

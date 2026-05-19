@@ -1110,7 +1110,6 @@ export function renderSettings(container) {
   const txCount = State.getTransactions().length;
   const acctCount = State.getAccounts().length;
   const theme       = settings.theme || 'diary';
-  const textSize    = settings.text_size || 'normal';
   const darkMode    = settings.dark || false;
   const displayName = settings.display_name || '';
 
@@ -1181,24 +1180,6 @@ export function renderSettings(container) {
           <div class="theme-cur-name">${curThemeName}</div>
         </div>
 
-        <!-- Text size -->
-        <div class="appear-block">
-          <div class="appear-block-label">ขนาดตัวอักษร</div>
-          <div class="text-size-btns">
-            <button class="size-btn ${textSize === 'normal'  ? 'active' : ''}" data-action="set-text-size" data-val="normal">
-              <span class="size-ก" style="font-size: 16px">ก</span>
-              <span class="size-lbl">ปกติ</span>
-            </button>
-            <button class="size-btn ${textSize === 'large'   ? 'active' : ''}" data-action="set-text-size" data-val="large">
-              <span class="size-ก" style="font-size: 20px">ก</span>
-              <span class="size-lbl">ใหญ่</span>
-            </button>
-            <button class="size-btn ${textSize === 'xlarge'  ? 'active' : ''}" data-action="set-text-size" data-val="xlarge">
-              <span class="size-ก" style="font-size: 24px">ก</span>
-              <span class="size-lbl">ใหญ่มาก</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -1265,6 +1246,22 @@ export function renderSettings(container) {
 
     <!-- บัญชีของฉัน -->
     ${renderAccountsSection()}
+
+    <!-- Display settings -->
+    <div class="setting-section">
+      <div class="setting-section-title">การแสดงผล</div>
+      <div class="setting-row" style="align-items: center;">
+        <div>
+          <div class="setting-label">ขนาดตัวอักษร</div>
+          <div class="setting-sub">Normal 16px / ใหญ่ 18px / ใหญ่มาก 20px</div>
+        </div>
+        <div class="text-size-picker" id="text-size-picker">
+          <button class="size-btn" data-size="normal" style="font-size:14px">ก</button>
+          <button class="size-btn" data-size="large"  style="font-size:17px">ก</button>
+          <button class="size-btn" data-size="xlarge" style="font-size:20px">ก</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Privacy info -->
     <div class="privacy-footer" style="margin-top: 22px;">
@@ -1333,12 +1330,15 @@ export function renderSettings(container) {
     });
   });
 
-  // Text size — เช่นเดียวกัน ไม่ต้อง renderSettings ซ้ำ
-  container.querySelectorAll('[data-action="set-text-size"]').forEach(btn => {
+  // Text size
+  const currentSize = State.getSettings().text_size || 'normal';
+  container.querySelectorAll('.size-btn[data-size]').forEach(btn => {
+    if (btn.dataset.size === currentSize) btn.classList.add('active');
     btn.addEventListener('click', () => {
-      const val = btn.dataset.val;
-      State.setSetting('text_size', val);
-      applyTextSize(val);
+      container.querySelectorAll('.size-btn[data-size]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      State.setSetting('text_size', btn.dataset.size);
+      applyTextSize(btn.dataset.size);
     });
   });
 
