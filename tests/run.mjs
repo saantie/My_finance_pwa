@@ -722,6 +722,39 @@ test('verifyParseResult: swapped direction → not ok', () => {
   assert(v.diff >= 40000, `expected diff>=40000, got ${v.diff}`);
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// ADD.JS — source checks (no window.prompt, openAccountPickerModal exported)
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nadd.js');
+const { readFileSync } = await import('node:fs');
+const addJsSrc = readFileSync('./js/add.js', 'utf8');
+
+test('add.js: openAccountPickerModal is exported', () => {
+  assert(addJsSrc.includes('export function openAccountPickerModal'), 'must export openAccountPickerModal');
+});
+
+test('add.js: no window.prompt() calls', () => {
+  // allow the string "prompt(" only inside comments or strings — simplest check: raw presence
+  assert(!addJsSrc.includes('= prompt(') && !addJsSrc.includes('window.prompt('), 'add.js must not call prompt()');
+});
+
+test('add.js: picker-overlay class used in openAccountPickerModal', () => {
+  assert(addJsSrc.includes('picker-overlay'), 'must use picker-overlay class');
+});
+
+test('add.js: picker-sheet class used', () => {
+  assert(addJsSrc.includes('picker-sheet'), 'must use picker-sheet class');
+});
+
+test('add.js: picker-add button present', () => {
+  assert(addJsSrc.includes('picker-add'), 'must have picker-add button');
+});
+
+test('add.js: ESC key closes picker', () => {
+  assert(addJsSrc.includes("e.key==='Escape'") || addJsSrc.includes('e.key === \'Escape\''), 'must handle ESC key');
+});
+
+
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n\n${total} tests: ${passed} passed${failed ? `, ${failed} failed` : ''}\n`);

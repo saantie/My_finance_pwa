@@ -537,44 +537,105 @@ function handleKey(key) {
 
 /* === Account picker ============================================= */
 
-function pickAccount() {
+/* คำนวณยอดคงเหลือต่อบัญชีจากรายการจริง */
+function calcAccountBalance(accountId) {
+  return State.getTransactions().reduce((sum, tx) => {
+    if (tx.type === 'expense'  && tx.account_from === accountId) return sum - tx.amount;
+    if (tx.type === 'income'   && tx.account_to   === accountId) return sum + tx.amount;
+    if (tx.type === 'transfer') {
+      if (tx.account_from === accountId) return sum - tx.amount;
+      if (tx.account_to   === accountId) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+}
+
+/**
+ * Bottom-sheet picker สำหรับเลือกบัญชี
+ * @param {string} currentAccountId — account ที่เลือกอยู่ปัจจุบัน
+ * @param {function} onSelect — callback(accountId) เมื่อ user เลือก
+ */
+export function openAccountPickerModal(currentAccountId, onSelect) {
   const accts = State.getAccounts();
   if (accts.length === 0) return;
 
-  const existing = modal().querySelector('.acct-picker-overlay');
-  if (existing) { existing.remove(); return; }
+  // ป้องกัน picker ซ้อนกัน
+  document.querySelector('.picker-overlay')?.remove();
 
   const overlay = document.createElement('div');
-  overlay.className = 'acct-picker-overlay';
+  overlay.className = 'picker-overlay';
+
   overlay.innerHTML = `
-    <div class="acct-picker-sheet">
-      <div class="acct-picker-head">เลือกบัญชี</div>
-      ${accts.map(a => `
-        <button class="acct-picker-item ${a.id === draft.account_id ? 'active' : ''}" data-id="${escapeHtml(a.id)}">
-          <div class="ic" style="background: ${bankGradient(a.bank, a.type)}">
-            ${(a.bank || '$').toUpperCase().slice(0, 2)}
-          </div>
-          <div class="info">
-            <div class="nm">${escapeHtml(a.display_name)}</div>
-            ${a.account_number_masked ? `<div class="num">${escapeHtml(a.account_number_masked)}</div>` : ''}
-          </div>
-          ${a.id === draft.account_id ? svgIcon('check', { size: 16, stroke: 2.5 }) : ''}
-        </button>
-      `).join('')}
+    <div class="picker-sheet">
+      <div class="picker-handle"></div>
+      <div class="picker-title">เลือกบัญชี</div>
+      <div class="picker-list">
+        ${accts.map(a => {
+          const bal = calcAccountBalance(a.id);
+          const balStr = formatBaht(bal);
+          const isActive = a.id === currentAccountId;
+          return `
+            <button class="picker-row${isActive ? ' active' : ''}" data-id="${escapeHtml(a.id)}">
+              <div class="ic" style="background: ${bankGradient(a.bank, a.type)}">
+                ${(a.bank || '$').toUpperCase().slice(0, 2)}
+              </div>
+              <div class="picker-row-info">
+                <div class="nm">${escapeHtml(a.display_name)}</div>
+                <div class="num">${balStr} ฿${a.account_number_masked ? ' · ' + escapeHtml(a.account_number_masked) : ''}</div>
+              </div>
+              ${isActive ? svgIcon('check', { size: 16, stroke: 2.5 }) : ''}
+            </button>
+          `;
+        }).join('')}
+      </div>
+      <button class="picker-add">+ เพิ่มบัญชีใหม่</button>
     </div>
   `;
-  modal().appendChild(overlay);
 
-  overlay.querySelectorAll('.acct-picker-item').forEach(btn => {
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+
+  // ESC key → cancel (desktop)
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+
+  // tap row → select + close
+  overlay.querySelectorAll('.picker-row').forEach(btn => {
     btn.addEventListener('click', () => {
-      draft.account_id = btn.dataset.id;
-      overlay.remove();
-      render();
+      onSelect(btn.dataset.id);
+      close();
     });
   });
 
+  // tap overlay (outside sheet) → cancel
   overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) close();
+  });
+
+  // swipe-down handle → cancel (touch)
+  const handle = overlay.querySelector('.picker-handle');
+  let startY = 0;
+  handle.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+  handle.addEventListener('touchmove', e => {
+    if (e.touches[0].clientY - startY > 50) close();
+  }, { passive: true });
+
+  // + เพิ่มบัญชีใหม่ → navigate to settings
+  overlay.querySelector('.picker-add').addEventListener('click', () => {
+    close();
+    document.querySelector('[data-tab="settings"]')?.click();
+  });
+}
+
+/* wrapper ภายใน — เชื่อม draft กับ openAccountPickerModal */
+function pickAccount() {
+  openAccountPickerModal(draft.account_id, id => {
+    draft.account_id = id;
+    render();
   });
 }
 
