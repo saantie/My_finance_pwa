@@ -394,6 +394,11 @@ function renderCategoryRow(c) {
 
 
 /* === Helper: entry row (transaction) ============================ */
+function shortName(email) {
+  if (!email) return null;
+  return email.split('@')[0];
+}
+
 function renderEntryRow(tx) {
   const def = getCategory(tx.group);
   const time = formatTime(tx.createdAt || tx.date);
@@ -401,33 +406,16 @@ function renderEntryRow(tx) {
   const isTransfer = tx.type === 'transfer';
   const sign = isIncome ? '+' : (isTransfer ? '↔' : '−');
   const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
-
-  const acctId = tx.account_from || tx.account_to;
-  const acct = acctId ? State.getAccount(acctId) : null;
-  const isCloud = acct?.storage === 'cloud';
   const isDeleted = tx.deleted_by != null;
 
-  const byName = tx.created_by_name || tx.created_by;
-  const addedNote = isCloud && byName
-    ? `<div class="entry-note">เพิ่มโดย ${escapeHtml(byName)}</div>`
-    : '';
-  const deletedNote = isDeleted
-    ? `<div class="entry-note entry-note--deleted">ลบโดย ${escapeHtml(tx.deleted_by)}</div>`
-    : '';
-
-  const editBtn = isDeleted ? '' : `
-    <button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">
-      ${svgIcon('edit', { size: 13, stroke: 2 })}
-    </button>`;
-
-  const deleteLabel = isDeleted ? 'ลบถาวร' : 'ลบ';
-  const deleteBtn = `
-    <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${deleteLabel}" title="${deleteLabel}">
-      ${svgIcon('delete', { size: 13, stroke: 2 })}
-    </button>`;
+  const authorNote = isDeleted
+    ? `<div class="entry-author">ลบโดย ${escapeHtml(shortName(tx.deleted_by))}</div>`
+    : (tx.created_by
+        ? `<div class="entry-author">เพิ่มโดย ${escapeHtml(shortName(tx.created_by))}</div>`
+        : '');
 
   return `
-    <div class="entry${isDeleted ? ' entry--deleted' : ''}" data-tx-id="${tx.id}">
+    <div class="entry${isDeleted ? ' entry-deleted' : ''}" data-tx-id="${tx.id}">
       <span class="entry-time">${time}</span>
       <div class="entry-icon" style="background: ${def.color}">
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
@@ -435,13 +423,13 @@ function renderEntryRow(tx) {
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
         <div class="entry-cat">${def.label}</div>
-        ${addedNote}${deletedNote}
+        ${authorNote}
       </div>
       <div class="entry-right">
         <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
         <div class="entry-actions">
-          ${editBtn}
-          ${deleteBtn}
+          ${isDeleted ? '' : `<button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 13, stroke: 2 })}</button>`}
+          <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}" title="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 13, stroke: 2 })}</button>
         </div>
       </div>
     </div>

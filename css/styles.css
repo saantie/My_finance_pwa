@@ -2777,20 +2777,19 @@ html[data-dark="1"] .chip.active {
 }
 
 /* Soft-deleted transaction row (บัญชีแชร์ ขั้นที่ 1) */
-.entry--deleted {
-  opacity: 0.45;
-}
-.entry--deleted .entry-name,
-.entry--deleted .entry-amt {
-  text-decoration: line-through;
-}
-.entry-note {
+.entry-author {
   font-size: 11px;
   color: var(--ink-faint);
   margin-top: 1px;
 }
-.entry-note--deleted {
-  color: var(--clay);
+.entry-deleted {
+  opacity: 0.4;
+}
+.entry-deleted .entry-amt {
+  text-decoration: line-through;
+}
+.entry-deleted .entry-actions {
+  display: none;
 }
 
 
