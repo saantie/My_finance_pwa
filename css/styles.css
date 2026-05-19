@@ -2,6 +2,7 @@
    styles.css — Diary mode design system
    ===================================================================
    โครงสร้าง:
+   0. Font faces (self-hosted woff2 — ไม่พึ่ง Google Fonts CDN)
    1. Reset + base
    2. Design tokens (CSS variables)
    3. Typography
