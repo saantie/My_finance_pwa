@@ -351,9 +351,17 @@ html, body {
   color: var(--ink-soft);
 }
 .hero-amount .sign {
-  color: var(--sage);
   font-size: var(--ts-2xl);
   font-weight: 500;
+}
+.hero-amount.positive .sign { color: var(--sage); }
+.hero-amount.negative .sign { color: var(--clay); }
+.hero-amount.positive .num  { color: var(--sage); }
+.hero-amount.negative .num  { color: var(--clay); }
+.hero-sub {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 6px;
 }
 .hero-underline {
   width: 100%;

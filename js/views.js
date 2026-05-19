@@ -45,8 +45,16 @@ export function renderDashboard(container) {
 
   // === Hero card ===
   const netSign = monthSummary.net >= 0 ? '+' : '−';
-  const netColor = monthSummary.net >= 0 ? 'sage' : 'clay';
   const monthLabel = monthNameTH(todayDate);
+
+  const prevYearMonth = (() => {
+    const d = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const lastMonthSummary = State.getMonthSummary(prevYearMonth);
+  const pctChange = lastMonthSummary.expense > 0
+    ? Math.round((monthSummary.expense - lastMonthSummary.expense) / lastMonthSummary.expense * 100)
+    : null;
 
   container.innerHTML = `
     <!-- Page header (date as diary opening) -->
@@ -60,8 +68,8 @@ export function renderDashboard(container) {
 
     <!-- Hero: month net -->
     <div class="hero">
-      <div class="hero-label">เดือน${monthLabel}นี้ฉัน...</div>
-      <div class="hero-amount" style="color: var(--${netColor === 'sage' ? 'sage' : 'clay'})">
+      <div class="hero-label">เดือนนี้คุณ${monthSummary.net >= 0 ? 'เหลือ' : 'ใช้เกิน'}</div>
+      <div class="hero-amount ${monthSummary.net >= 0 ? 'positive' : 'negative'}">
         <span class="sign">${netSign}</span>
         <span class="num">${formatBaht(Math.abs(monthSummary.net))}</span>
         <span class="unit">฿</span>
@@ -69,11 +77,10 @@ export function renderDashboard(container) {
       <svg class="hero-underline" viewBox="0 0 300 6" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
         <path d="M5 3 Q 75 0, 150 3 T 295 3"/>
       </svg>
-      <div class="hero-trend">
-        ${monthSummary.net >= 0
-          ? `เก็บได้แล้ว <strong>${formatBaht(monthSummary.net)} ฿</strong> — ดีกว่าเดือนก่อนเล็กน้อย`
-          : `ใช้เกินรายรับ <strong style="color:var(--clay)">${formatBaht(Math.abs(monthSummary.net))} ฿</strong>`}
-      </div>
+      ${pctChange !== null ? `
+      <div class="hero-sub">
+        ${Math.abs(pctChange)}% ${pctChange <= 0 ? 'น้อยกว่า' : 'มากกว่า'}เดือนก่อน
+      </div>` : ''}
 
       <!-- Mini stats -->
       <div class="mini-stats">
