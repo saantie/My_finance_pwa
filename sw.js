@@ -2,15 +2,13 @@
    sw.js — Service Worker for offline + caching
    ===================================================================
    Strategy:
-   - App shell (HTML, CSS, JS) → cache-first (instant load)
-   - Google Fonts → stale-while-revalidate
+   - App shell (HTML, CSS, JS, fonts) → cache-first (instant load)
    - Other → network-first
    เปลี่ยน VERSION เพื่อ force update ทุก deploy
    =================================================================== */
 
-const VERSION = 'diary-v1.2.0';
+const VERSION = 'diary-v6.1.0';
 const SHELL_CACHE = `shell-${VERSION}`;
-const FONT_CACHE  = `fonts-${VERSION}`;
 
 /** ไฟล์ที่ cache ตอน install */
 const SHELL_FILES = [
@@ -31,7 +29,25 @@ const SHELL_FILES = [
   './js/parsers.js',
   './js/lib/pdf.min.mjs',
   './js/lib/pdf.worker.min.mjs',
-  './icons/icon.svg'
+  './icons/icon.svg',
+  // Self-hosted fonts — loaded once, always available offline
+  './fonts/sarabun-300-thai.woff2',
+  './fonts/sarabun-400-thai.woff2',
+  './fonts/sarabun-500-thai.woff2',
+  './fonts/sarabun-600-thai.woff2',
+  './fonts/sarabun-700-thai.woff2',
+  './fonts/sarabun-300-latin.woff2',
+  './fonts/sarabun-400-latin.woff2',
+  './fonts/sarabun-500-latin.woff2',
+  './fonts/sarabun-600-latin.woff2',
+  './fonts/sarabun-700-latin.woff2',
+  './fonts/mali-400-thai.woff2',
+  './fonts/mali-500-thai.woff2',
+  './fonts/mali-400-latin.woff2',
+  './fonts/mali-500-latin.woff2',
+  './fonts/noto-sans-thai-thai.woff2',
+  './fonts/noto-sans-thai-latin-ext.woff2',
+  './fonts/noto-sans-thai-latin.woff2'
 ];
 
 
@@ -51,7 +67,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => ![SHELL_CACHE, FONT_CACHE].includes(k))
+          .filter(k => k !== SHELL_CACHE)
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -64,16 +80,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // ไม่ cache POST, ไม่ cache cross-origin ที่ไม่ใช่ฟอนต์
+  // ไม่ cache POST และ cross-origin requests
   if (request.method !== 'GET') return;
 
-  // Google Fonts → stale-while-revalidate
-  if (url.host === 'fonts.googleapis.com' || url.host === 'fonts.gstatic.com') {
-    event.respondWith(staleWhileRevalidate(request, FONT_CACHE));
-    return;
-  }
-
-  // Same-origin → cache-first สำหรับ shell, network-first สำหรับอื่นๆ
+  // Same-origin → cache-first (fonts + shell + everything)
   if (url.origin === self.location.origin) {
     event.respondWith(cacheFirst(request, SHELL_CACHE));
   }
@@ -100,12 +110,3 @@ async function cacheFirst(request, cacheName) {
   }
 }
 
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const fetchPromise = fetch(request).then(response => {
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  }).catch(() => cached);
-  return cached || fetchPromise;
-}
