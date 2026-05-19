@@ -1323,23 +1323,21 @@ export function renderSettings(container) {
     applyDark(val);
   });
 
-  // Theme toggle
+  // Theme toggle — State.setSetting → notify() → subscriber → renderCurrentView() อัตโนมัติ
   container.querySelectorAll('[data-action="set-theme"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = btn.dataset.val;
       State.setSetting('theme', val);
       applyTheme(val);
-      renderSettings(container);
     });
   });
 
-  // Text size
+  // Text size — เช่นเดียวกัน ไม่ต้อง renderSettings ซ้ำ
   container.querySelectorAll('[data-action="set-text-size"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = btn.dataset.val;
       State.setSetting('text_size', val);
       applyTextSize(val);
-      renderSettings(container);
     });
   });
 
@@ -1361,8 +1359,8 @@ export function renderSettings(container) {
       if (!tmpl) return;
       if (confirm(`ลบ "${tmpl.description || 'รายการนี้'}"?\nรายการที่สร้างไปแล้วจะไม่ถูกลบ`)) {
         Recurring.deleteTemplate(id);
-        renderSettings(container);
         showToast('ลบรายการประจำแล้ว');
+        // Recurring.deleteTemplate → notify() → Recurring.subscribe → renderCurrentView()
       }
     });
   });

@@ -634,12 +634,19 @@ export function mergeSharedAccounts(remoteAccounts) {
 }
 
 export function subscribeSharedAccounts() {
-  // ปิด listeners เก่าก่อน แล้วเปิดใหม่ทุก cloud account
-  _sharedListeners.forEach(unsub => unsub());
-  _sharedListeners.clear();
+  const cloudIds = new Set(
+    _state.accounts.filter(a => a.storage === 'cloud').map(a => a.id)
+  );
 
+  // ปิด listeners สำหรับบัญชีที่ไม่ได้อยู่ใน state แล้ว
+  for (const [id, unsub] of _sharedListeners) {
+    if (!cloudIds.has(id)) { unsub(); _sharedListeners.delete(id); }
+  }
+
+  // เปิด listener เฉพาะบัญชีที่ยังไม่มี — ไม่รีสตาร์ทบัญชีที่ subscribe อยู่แล้ว
   for (const acct of _state.accounts) {
     if (acct.storage !== 'cloud') continue;
+    if (_sharedListeners.has(acct.id)) continue;
     const accountId = acct.id;
     const unsub = subscribeSharedAccount(accountId, (upserted, removedIds) => {
       // Merge/update transactions (รวม soft-deleted)

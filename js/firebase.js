@@ -30,6 +30,7 @@ import {
   updateDoc,
   deleteDoc,
   collection,
+  getDocs,
   onSnapshot,
   writeBatch,
   serverTimestamp,
@@ -258,13 +259,34 @@ export async function migrateAccountToCloud(account, transactions) {
       created_at:   serverTimestamp()
     });
 
-    if (transactions.length > 0) {
-      const batch = writeBatch(_db);
-      for (const tx of transactions) {
-        const txRef = doc(_db, 'shared_accounts', account.id, 'transactions', tx.id);
-        batch.set(txRef, tx);
+    // ลบ transactions เก่าของ owner ออกก่อนอัปโหลดชุดใหม่
+    // — ป้องกัน duplicate เมื่อ user re-import แล้ว re-share (IDs ใหม่ทุกครั้ง)
+    // — ไม่ลบ transactions ที่ผู้ใช้อื่นสร้าง (created_by !== owner)
+    const txsCol = collection(_db, 'shared_accounts', account.id, 'transactions');
+    const existing = await getDocs(txsCol);
+    if (!existing.empty) {
+      const ownerEmail = account.owner;
+      const toDelete = [];
+      existing.forEach(d => {
+        const createdBy = d.data().created_by;
+        if (!createdBy || createdBy === ownerEmail) toDelete.push(d.ref);
+      });
+      // Firestore batch สูงสุด 500 ops ต่อครั้ง
+      for (let i = 0; i < toDelete.length; i += 499) {
+        const batch = writeBatch(_db);
+        toDelete.slice(i, i + 499).forEach(ref => batch.delete(ref));
+        await batch.commit();
       }
-      await batch.commit();
+    }
+
+    if (transactions.length > 0) {
+      for (let i = 0; i < transactions.length; i += 499) {
+        const batch = writeBatch(_db);
+        for (const tx of transactions.slice(i, i + 499)) {
+          batch.set(doc(_db, 'shared_accounts', account.id, 'transactions', tx.id), tx);
+        }
+        await batch.commit();
+      }
     }
   } catch (e) {
     console.error('[firebase] migrateAccountToCloud failed', e);
