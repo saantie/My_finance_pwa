@@ -263,8 +263,7 @@ function renderForecastChart() {
     insight = `
       <div class="forecast-insight warn">
         ${svgIcon('alert', { size: 16, stroke: 2 })}
-        <div>เงินจะใกล้เกณฑ์ในอีก <strong>${result.daysUntilThreshold} วัน</strong> —
-          ลองลดรายจ่ายหรือเพิ่มรายรับ</div>
+        <div>ยอดใกล้เกณฑ์ในอีก <strong>${result.daysUntilThreshold} วัน</strong></div>
       </div>
     `;
   } else if (result.finalBalance > totalBalance) {
@@ -795,7 +794,7 @@ async function handlePdfImport(file) {
     } catch (err2) {
       prog2.el.remove();
       if (err2.name === 'PasswordException') {
-        showToast('รหัสผ่านไม่ถูกต้อง ลองใหม่อีกครั้ง');
+        showToast('รหัสผ่านไม่ตรง — ลองใหม่');
       } else {
         console.error('PDF parse failed', err2);
         showToast('อ่าน PDF ไม่สำเร็จ: ' + (err2.message || 'unknown'));
@@ -1331,7 +1330,7 @@ export function renderSettings(container) {
     if (State.importJSON(text)) {
       showToast('กู้คืนข้อมูลเรียบร้อย');
     } else {
-      showToast('ไฟล์ไม่ถูกต้อง');
+      showToast('รูปแบบไฟล์ไม่รองรับ — ใช้ไฟล์ JSON ที่สำรองไว้');
     }
   });
 
@@ -1432,13 +1431,13 @@ export function renderSettings(container) {
       const input = container.querySelector(`.share-email-field[data-account-id="${accountId}"]`);
       const email = (input?.value || '').trim().toLowerCase();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        showToast('รูปแบบอีเมลไม่ถูกต้อง');
+        showToast('ตรวจสอบรูปแบบอีเมลอีกครั้ง');
         return;
       }
       const account = State.getAccounts().find(a => a.id === accountId);
       if (!account) return;
       const ownerEmail = getCurrentUser()?.email;
-      if (!ownerEmail) { showToast('ต้องลงชื่อเข้าใช้ก่อน'); return; }
+      if (!ownerEmail) { showToast('ลงชื่อเข้าใช้เพื่อแชร์บัญชี'); return; }
       const newList = [...(account.shared_with || []), email];
       try {
         State.updateAccount(accountId, { shared_with: newList });
@@ -1454,7 +1453,7 @@ export function renderSettings(container) {
         renderSettings(container);
       } catch (e) {
         console.error('[share] add failed', e);
-        showToast(`เกิดข้อผิดพลาด: ${e?.code || e?.message || 'unknown'}`);
+        showToast('แชร์ไม่สำเร็จ — ลองใหม่');
       }
     });
   });
@@ -1480,7 +1479,7 @@ export function renderSettings(container) {
         renderSettings(container);
       } catch (e) {
         console.error('[share] remove failed', e);
-        showToast('เกิดข้อผิดพลาด — ลองใหม่อีกครั้ง');
+        showToast('ยกเลิกการแชร์ไม่สำเร็จ — ลองใหม่');
       }
     });
   });
@@ -1492,7 +1491,7 @@ export function renderSettings(container) {
       const account = State.getAccounts().find(a => a.id === accountId);
       if (!account) return;
       const myEmail = getCurrentUser()?.email;
-      if (!myEmail) { showToast('ต้องลงชื่อเข้าใช้ก่อน'); return; }
+      if (!myEmail) { showToast('ลงชื่อเข้าใช้เพื่อจัดการบัญชีแชร์'); return; }
       if (!confirm(`ปฏิเสธบัญชี "${account.display_name}"?\nบัญชีนี้จะไม่แสดงในแอปของคุณอีก`)) return;
       try {
         const newList = (account.shared_with || []).filter(e => e !== myEmail);
@@ -1502,7 +1501,7 @@ export function renderSettings(container) {
         renderSettings(container);
       } catch (e) {
         console.error('[reject-share]', e);
-        showToast(`เกิดข้อผิดพลาด: ${e?.code || e?.message || 'unknown'}`);
+        showToast('ปฏิเสธบัญชีไม่สำเร็จ — ลองใหม่');
       }
     });
   });
@@ -1547,7 +1546,7 @@ export function renderSettings(container) {
       renderSettings(container);
     } catch (e) {
       console.error('[sign-out]', e);
-      showToast('ออกจากระบบไม่สำเร็จ');
+      showToast('ออกจากระบบไม่ได้ — ลองใหม่');
     }
   });
 

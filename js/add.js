@@ -473,9 +473,9 @@ function startVoice() {
       const errMsg = {
         'not-allowed': 'ไม่ได้รับสิทธิ์ใช้ไมค์',
         'no-speech': 'ไม่ได้ยินเสียง — ลองใหม่',
-        'network': 'ต้องต่อ internet',
+        'network': 'ต้องการ internet',
         'browser_not_supported': 'เบราว์เซอร์ไม่รองรับ'
-      }[err] || 'เกิดข้อผิดพลาด';
+      }[err] || 'ไม่สำเร็จ — ลองใหม่';
       showToast(errMsg);
       close();
     },
@@ -668,7 +668,7 @@ function showDuplicateDialog(candidates, newTx) {
         </div>
         <div class="dup-dialog-btns">
           <button class="dup-btn dup-btn-keep">เก็บทั้งคู่</button>
-          <button class="dup-btn dup-btn-merge">บันทึกแทน (ลบเดิม)</button>
+          <button class="dup-btn dup-btn-merge">บันทึกแทนรายการเดิม</button>
           <button class="dup-btn dup-btn-skip">ข้ามรายการนี้</button>
         </div>
       </div>
