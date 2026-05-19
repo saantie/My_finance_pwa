@@ -74,15 +74,27 @@ function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
-    const accounts = parsed.accounts && parsed.accounts.length ? parsed.accounts : DEFAULT_STATE.accounts;
+
+    // Strip cloud accounts — ข้อมูลจาก Firestore ต้องไม่อยู่ใน localStorage
+    // (migration สำหรับ users เก่าที่เคย save cloud accounts ลง localStorage)
+    const rawAccounts = (parsed.accounts || []).filter(a => (a.storage || 'local') !== 'cloud');
+    const cloudIds = new Set(
+      (parsed.accounts || []).filter(a => (a.storage || 'local') === 'cloud').map(a => a.id)
+    );
+
+    const accounts = rawAccounts.length ? rawAccounts : DEFAULT_STATE.accounts;
     // Migration: เพิ่ม default accounts ที่ยังไม่มี
     for (const def of DEFAULT_ACCOUNTS) {
       if (!accounts.find(a => a.id === def.id)) {
         accounts.push(makeDefaultAccount(def));
       }
     }
+
     return {
-      transactions: parsed.transactions || [],
+      // ลบ transactions ของ cloud accounts ที่ถูก strip ออกด้วย
+      transactions: (parsed.transactions || []).filter(t =>
+        !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
+      ),
       accounts,
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) }
     };
@@ -94,7 +106,18 @@ function loadFromStorage() {
 
 function saveToStorage() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(_state));
+    // Cloud accounts มาจาก Firestore — ไม่ save ลง localStorage
+    // เพื่อให้ revocation มีผลทันทีเมื่อ Firestore fire ครั้งต่อไป
+    const cloudIds = new Set(
+      _state.accounts.filter(a => a.storage === 'cloud').map(a => a.id)
+    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      accounts: _state.accounts.filter(a => !cloudIds.has(a.id)),
+      transactions: _state.transactions.filter(t =>
+        !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
+      ),
+      settings: _state.settings
+    }));
   } catch (e) {
     console.error('Failed to save state', e);
   }
@@ -529,9 +552,18 @@ export function resetAll() {
   notify();
 }
 
-/** Export ข้อมูลทั้งหมดเป็น JSON string — สำหรับ backup */
+/** Export ข้อมูลทั้งหมดเป็น JSON string — สำหรับ backup (cloud accounts ไม่รวม) */
 export function exportJSON() {
-  return JSON.stringify(_state, null, 2);
+  const cloudIds = new Set(
+    _state.accounts.filter(a => a.storage === 'cloud').map(a => a.id)
+  );
+  return JSON.stringify({
+    accounts: _state.accounts.filter(a => !cloudIds.has(a.id)),
+    transactions: _state.transactions.filter(t =>
+      !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
+    ),
+    settings: _state.settings
+  }, null, 2);
 }
 
 /** Import ข้อมูลจาก JSON string — restore from backup */
