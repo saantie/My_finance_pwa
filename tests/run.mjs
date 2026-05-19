@@ -54,7 +54,8 @@ const { parseIntent } = await import('../js/voice.js');
 const {
   detectBank, detectAccountInfo,
   autoClassifyType, autoClassifyGroup,
-  groupRowsByY, parseTransactions: parseTxRows
+  groupRowsByY, parseTransactions: parseTxRows,
+  detectColumns, isSkipRow, verifyParseResult
 } = await import('../js/parsers.js');
 
 
@@ -534,6 +535,192 @@ test('voice removes action word จ่าย',  () => {
   assert(!r.description.startsWith('จ่าย'));
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// REAL PDF FIXTURES — KTB + BBL column detection tests
+// (snapshot ของ X-coord จาก pdf.js — simulate parser logic)
+// ═══════════════════════════════════════════════════════════════════════
+
+const KTB_HEADER_ITEMS = [
+  { str: 'วันที่/เวลา',              transform: [0,0,0,0,  80, 700] },
+  { str: 'รายการ',                   transform: [0,0,0,0, 165, 700] },
+  { str: 'รายละเอียด/หมายเลขเช็ค',   transform: [0,0,0,0, 300, 700] },
+  { str: 'รายการถอน',                transform: [0,0,0,0, 480, 700] },
+  { str: 'รายการฝาก',                transform: [0,0,0,0, 565, 700] },
+  { str: 'ยอดเงินคงเหลือ',            transform: [0,0,0,0, 660, 700] },
+  { str: 'สาขา',                     transform: [0,0,0,0, 760, 700] }
+];
+const KTB_INCOME_ITEMS = [
+  { str: '01/03/69',            transform: [0,0,0,0,  80, 600] },
+  { str: '22:32',               transform: [0,0,0,0,  80, 590] },
+  { str: 'เงินโอนเข้า (NBSDT)', transform: [0,0,0,0, 165, 600] },
+  { str: 'TR fr 4750263206',    transform: [0,0,0,0, 300, 600] },
+  { str: '2,000.00',            transform: [0,0,0,0, 595, 600] },  // ใกล้ depositX=565
+  { str: '13,979.50',           transform: [0,0,0,0, 690, 600] },  // ใกล้ balanceX=660
+  { str: '475',                 transform: [0,0,0,0, 770, 600] }
+];
+const KTB_EXPENSE_ITEMS = [
+  { str: '01/03/69',              transform: [0,0,0,0,  80, 580] },
+  { str: '05:40',                 transform: [0,0,0,0,  80, 570] },
+  { str: 'โอนเงินออก (IORSWT)',   transform: [0,0,0,0, 165, 580] },
+  { str: '034-012332860799',      transform: [0,0,0,0, 300, 580] },
+  { str: '100.00',                transform: [0,0,0,0, 510, 580] },  // ใกล้ withdrawalX=480
+  { str: '11,979.50',             transform: [0,0,0,0, 690, 580] },
+  { str: '433',                   transform: [0,0,0,0, 770, 580] }
+];
+
+const BBL_HEADER_ITEMS = [
+  { str: 'วันที่',       transform: [0,0,0,0,  60, 700] },
+  { str: 'Date',         transform: [0,0,0,0,  60, 690] },
+  { str: 'รายการ',       transform: [0,0,0,0, 130, 700] },
+  { str: 'Particulars',  transform: [0,0,0,0, 130, 690] },
+  { str: 'เลขที่เช็ค',   transform: [0,0,0,0, 290, 700] },
+  { str: 'Chq.No.',      transform: [0,0,0,0, 290, 690] },
+  { str: 'ถอน',          transform: [0,0,0,0, 410, 700] },
+  { str: 'Withdrawal',   transform: [0,0,0,0, 410, 690] },
+  { str: 'ฝาก',          transform: [0,0,0,0, 490, 700] },
+  { str: 'Deposit',      transform: [0,0,0,0, 490, 690] },
+  { str: 'คงเหลือ',      transform: [0,0,0,0, 580, 700] },
+  { str: 'Balance',      transform: [0,0,0,0, 580, 690] },
+  { str: 'ผ่านทาง',      transform: [0,0,0,0, 680, 700] }
+];
+const BBL_BF_ITEMS = [
+  { str: '01/06/25', transform: [0,0,0,0,  60, 670] },
+  { str: 'B/F',      transform: [0,0,0,0, 130, 670] },
+  { str: '22.52',    transform: [0,0,0,0, 600, 670] }   // ใกล้ balanceX=580
+];
+const BBL_INTEREST_ITEMS = [
+  { str: '25/06/25',      transform: [0,0,0,0,  60, 650] },
+  { str: 'INTEREST PAID', transform: [0,0,0,0, 130, 650] },
+  { str: '3.65',          transform: [0,0,0,0, 510, 650] },  // ใกล้ depositX=490
+  { str: '26.17',         transform: [0,0,0,0, 600, 650] },  // ใกล้ balanceX=580
+  { str: 'Auto',          transform: [0,0,0,0, 690, 650] }
+];
+const BBL_TRF_IN_ITEMS = [
+  { str: '22/08/25',       transform: [0,0,0,0,  60, 630] },
+  { str: 'TRF FR OTH BK', transform: [0,0,0,0, 130, 630] },
+  { str: '2,583.00',       transform: [0,0,0,0, 510, 630] },  // deposit
+  { str: '2,609.17',       transform: [0,0,0,0, 600, 630] },
+  { str: 'mPhone',         transform: [0,0,0,0, 690, 630] }
+];
+const BBL_PMT_ITEMS = [
+  { str: '29/08/25',      transform: [0,0,0,0,  60, 610] },
+  { str: 'PMT FOR GOODS', transform: [0,0,0,0, 130, 610] },
+  { str: '5,600.00',      transform: [0,0,0,0, 430, 610] },  // ใกล้ withdrawalX=410
+  { str: '9.17',          transform: [0,0,0,0, 600, 610] }   // balance
+];
+
+// ─── Column detection ────────────────────────────────────────────────
+
+test('detectColumns finds KTB column positions', () => {
+  const rows = groupRowsByY(KTB_HEADER_ITEMS);
+  const cols = detectColumns(rows);
+  assert(cols !== null, 'should detect columns');
+  assert(cols.withdrawalX === 480, `withdrawalX expected 480 got ${cols.withdrawalX}`);
+  assert(cols.depositX   === 565, `depositX expected 565 got ${cols.depositX}`);
+  assert(cols.balanceX   === 660, `balanceX expected 660 got ${cols.balanceX}`);
+});
+
+test('detectColumns finds BBL column positions', () => {
+  const rows = groupRowsByY(BBL_HEADER_ITEMS);
+  const cols = detectColumns(rows);
+  assert(cols !== null, 'should detect columns');
+  assert(cols.withdrawalX === 410, `withdrawalX expected 410 got ${cols.withdrawalX}`);
+  assert(cols.depositX   === 490, `depositX expected 490 got ${cols.depositX}`);
+  assert(cols.balanceX   === 580, `balanceX expected 580 got ${cols.balanceX}`);
+});
+
+test('detectColumns returns null when no header', () => {
+  const rows = [{ y: 0, text: 'random text', items: [{ str: 'foo', transform: [0,0,0,0,0,0] }] }];
+  eq(detectColumns(rows), null);
+});
+
+// ─── KTB income/expense classification (Bug 1) ───────────────────────
+
+test('KTB income row: เงินโอนเข้า → direction=in, type=income', () => {
+  const rows = groupRowsByY([...KTB_HEADER_ITEMS, ...KTB_INCOME_ITEMS]);
+  const txs  = parseTxRows(rows, 'ktb');
+  assert(txs.length === 1, `expected 1 tx, got ${txs.length}`);
+  eq(txs[0].amount, 200000);
+  eq(txs[0].direction, 'in');
+  eq(autoClassifyType(txs[0]), 'income');
+});
+
+test('KTB expense row: โอนเงินออก → direction=out, type=expense', () => {
+  const rows = groupRowsByY([...KTB_HEADER_ITEMS, ...KTB_EXPENSE_ITEMS]);
+  const txs  = parseTxRows(rows, 'ktb');
+  assert(txs.length === 1, `expected 1 tx, got ${txs.length}`);
+  eq(txs[0].amount, 10000);
+  eq(txs[0].direction, 'out');
+  eq(autoClassifyType(txs[0]), 'expense');
+});
+
+// ─── BBL income/expense classification (Bug 1) ───────────────────────
+
+test('BBL INTEREST PAID → direction=in, type=income', () => {
+  const rows = groupRowsByY([...BBL_HEADER_ITEMS, ...BBL_INTEREST_ITEMS]);
+  const txs  = parseTxRows(rows, 'bbl');
+  assert(txs.length === 1, `expected 1 tx, got ${txs.length}`);
+  eq(txs[0].direction, 'in');
+  eq(autoClassifyType(txs[0]), 'income');
+});
+
+test('BBL TRF FR OTH BK → direction=in, type=income', () => {
+  const rows = groupRowsByY([...BBL_HEADER_ITEMS, ...BBL_TRF_IN_ITEMS]);
+  const txs  = parseTxRows(rows, 'bbl');
+  assert(txs.length === 1, `expected 1 tx, got ${txs.length}`);
+  eq(txs[0].direction, 'in');
+  eq(autoClassifyType(txs[0]), 'income');
+});
+
+test('BBL PMT FOR GOODS → direction=out, type=expense', () => {
+  const rows = groupRowsByY([...BBL_HEADER_ITEMS, ...BBL_PMT_ITEMS]);
+  const txs  = parseTxRows(rows, 'bbl');
+  assert(txs.length === 1, `expected 1 tx, got ${txs.length}`);
+  eq(txs[0].direction, 'out');
+  eq(autoClassifyType(txs[0]), 'expense');
+});
+
+// ─── BBL B/F row must NOT become a transaction (Bug 2) ───────────────
+
+test('BBL B/F row is NOT extracted as transaction', () => {
+  const rows = groupRowsByY([...BBL_HEADER_ITEMS, ...BBL_BF_ITEMS]);
+  const txs  = parseTxRows(rows, 'bbl');
+  eq(txs.length, 0);
+});
+
+test('isSkipRow matches B/F and variations', () => {
+  assert(isSkipRow('B/F'));
+  assert(isSkipRow('C/F'));
+  assert(isSkipRow('ยอดยกมา'));
+  assert(isSkipRow('Balance Brought Forward'));
+  assert(isSkipRow('Total'));
+  assert(isSkipRow('จำนวนรายการ 31'));
+  assert(!isSkipRow('เงินโอนเข้า'));
+  assert(!isSkipRow('Starbucks coffee'));
+});
+
+// ─── verifyParseResult ────────────────────────────────────────────────
+
+test('verifyParseResult: matched balance change → ok', () => {
+  // opening 1,000 + income 500 - expense 200 = closing 1,300
+  const txs = [
+    { direction: 'in',  amount: 50000,  balance: 150000 },
+    { direction: 'out', amount: 20000,  balance: 130000 }
+  ];
+  const v = verifyParseResult(txs);
+  assert(v.ok, `expected ok, got diff=${v.diff}`);
+});
+
+test('verifyParseResult: swapped direction → not ok', () => {
+  const txs = [
+    { direction: 'out', amount: 50000,  balance: 150000 },
+    { direction: 'in',  amount: 20000,  balance: 130000 }
+  ];
+  const v = verifyParseResult(txs);
+  assert(!v.ok, `expected fail, got diff=${v.diff}`);
+  assert(v.diff >= 40000, `expected diff>=40000, got ${v.diff}`);
+});
 
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;

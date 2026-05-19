@@ -789,7 +789,7 @@ Font:        IBM Plex Serif headings + Sans Thai body
 | Layer | Technology | Reason |
 |---|---|---|
 | Frontend | Vanilla JS + PWA | No framework lock-in, fast loading |
-| PDF parsing | pdf.js + parsers.js (primary) | Local-first, ออฟไลน์ได้, 183 tests |
+| PDF parsing | pdf.js + parsers.js (primary) | Local-first, ออฟไลน์ได้, 206 tests |
 | PDF fallback | Gemini API via user OAuth token | scope: `generative-language`; user consent ก่อนส่ง PDF; เมื่อ confidence < 60 |
 | Voice | Web Speech API + custom Thai NLP | Free, on-device |
 | Charts | Inline SVG (chart.js helper) | ไม่ต้องโหลด library, responsive ผ่าน viewBox |
@@ -913,14 +913,14 @@ finance-pwa/
 │   │                          renderAccountsSection() with share controls + recipient UI
 │   └── app.js              ← Entry point, routing, Firebase init, auth lifecycle
 ├── tests/
-│   └── run.mjs             ← 183 tests passing
+│   └── run.mjs             ← 206 tests passing
 └── CLAUDE.md               ← เอกสารนี้
 ```
 
 ### 11.2 Tests status
 
-- **183 tests passing** (utils, state/store, parsers, voice, crypto)
-- Test runner: `node tests/run.mjs`
+- **206 tests passing** (utils, state/store, parsers, voice, crypto)
+- Test runner: `node --import ./tests/loader.mjs tests/run.mjs` (loader mocks Firebase CDN imports สำหรับ Node.js)
 
 ### 11.3 Bug fixes — ทั้งหมดที่แก้แล้ว
 
@@ -988,7 +988,7 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Soft delete / two-stage delete for shared transactions
 - Two-way revoke detection (owner revoke → recipient UI clears)
 - Settings: shared account UI อยู่ติดกับแชร์บัญชี
-- 183 tests
+- 206 tests
 
 ⏳ **Pending implementation:**
 - Onboarding 3-screen (F1.7)
@@ -1162,6 +1162,11 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | Default accounts 4 ตัว (เงินสด/เงินฝากธนาคาร/การลงทุน/หนี้สิน) + เพิ่มเองได้ | user ต้องการ account type ที่ไม่ใช่แค่ bank จาก PDF |
 | 2026-05 | ลบบัญชี: 2 วิธี — ลบเฉพาะรายการ (บัญชีคงไว้) หรือ ลบทั้งบัญชีและรายการ | use case ต่างกัน: อยากเคลียร์ข้อมูล vs อยากลบบัญชีทิ้งจริงๆ |
 | 2026-05 | ATM cash balance: นับเฉพาะ ATM withdraw ไม่นับ transfer เข้า | transfer เข้าคือเงินที่อยู่ในธนาคารอยู่แล้ว ไม่ใช่เงินสดใหม่ |
+| 2026-05 | parser: ใช้ X-coordinate detectColumns() แยก withdrawal/deposit column แทน keyword-only | แก้ Bug income↔expense สลับใน KTB+BBL เมื่อ description ไม่มี keyword ชัดเจน |
+| 2026-05 | parser: isSkipRow() กรอง B/F, C/F, ยอดยกมา, Total ออกก่อน parse | แก้ Bug BBL B/F row ถูกอ่านเป็น expense |
+| 2026-05 | parser: tx.direction ('in'/'out') แทน column_hint; autoClassifyType() ใช้ direction เป็น primary signal | direction จาก column position แม่นกว่า keyword เพราะรู้ว่าอยู่ column ไหน |
+| 2026-05 | parser: verifyParseResult() cross-check balance arithmetic; ผล verification ส่งออกใน parsePDF() return | ใช้แทน/เสริม confidence score เดิม — detect income/expense swap ได้จาก balance inconsistency |
+| 2026-05 | tests/loader.mjs + loader-hooks.mjs: ESM loader mock Firebase CDN URLs สำหรับ Node.js test | firebase.js ใช้ https:// CDN ที่ Node.js ESM loader ไม่รองรับ; loader intercept และ return stub |
 | 2026-05 | Dashboard: แสดงเฉพาะบัญชีที่ active (ยอด≠0 / มาจาก PDF / user ตั้งชื่อ) | ป้องกัน default accounts ที่ไม่ได้ใช้ทำให้ dashboard รก |
 | 2026-05 | Account balance: คำนวณจาก transactions จริง (income+expense+transfer แยก account_id) | ยอดจาก statement อาจไม่ up-to-date และไม่รวม manual entries |
 | 2026-05 | PDF import: เลือกรายการแต่ละรายการได้ (partial import) + แสดง existing tx เปรียบเทียบตอนซ้ำ | ให้ user ตัดสินใจเองว่ารายการไหนซ้ำจริง แทนที่ระบบจะ auto-skip |

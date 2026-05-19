@@ -19,10 +19,17 @@
    เอามาแทนที่ไฟล์นี้ตอน integrate
    =================================================================== */
 
-import { getCurrentUser } from './firebase.js';
-import * as State from './state.js';
+// firebase และ state โหลด lazily เฉพาะใน parsePDF() เพื่อให้ test รันใน Node.js ได้
+let _firebase = null, _state = null, _pdfjs = null;
 
-let _pdfjs = null;
+async function getFirebase() {
+  if (!_firebase) _firebase = await import('./firebase.js');
+  return _firebase;
+}
+async function getState() {
+  if (!_state) _state = await import('./state.js');
+  return _state;
+}
 
 
 /* === Lazy-load pdf.js (local) ==================================== */
@@ -93,6 +100,8 @@ export async function parsePDF(file, password = null, onProgress = null) {
 
   // Auto-detect + upsert account เข้า state
   if (accountInfo.last4 && bank !== 'unknown') {
+    const State   = await getState();
+    const firebase = await getFirebase();
     const accountId = `bank:${bank}:${accountInfo.last4}`;
     if (!State.getAccount(accountId)) {
       State.addAccount({
@@ -102,7 +111,7 @@ export async function parsePDF(file, password = null, onProgress = null) {
         display_name:          `${bank.toUpperCase()} ...${accountInfo.last4}`,
         type:                  'bank',
         current_balance:       null,
-        owner:                 getCurrentUser()?.email || null
+        owner:                 firebase.getCurrentUser()?.email || null
       });
     }
   }
@@ -111,7 +120,8 @@ export async function parsePDF(file, password = null, onProgress = null) {
   const rawTransactions = parseTransactions(allRows, bank);
 
   // Auto-classify — ส่ง ownMasks เพื่อ detect โอนระหว่างบัญชีตัวเอง
-  const ownMasks = State.getAccounts()
+  const State2  = await getState();
+  const ownMasks = State2.getAccounts()
     .map(a => a.account_number_masked)
     .filter(Boolean);
   const transactions = rawTransactions.map(tx => ({
@@ -122,12 +132,18 @@ export async function parsePDF(file, password = null, onProgress = null) {
 
   step('เสร็จแล้ว');
 
+  const verification = verifyParseResult(transactions);
+  if (!verification.ok) {
+    console.warn('Parse verification failed:', verification);
+  }
+
   return {
     bank,
     accountInfo,
     transactions,
     pageCount:     pdfDoc.numPages,
     extractedText: fullText,
+    verification,
     errors:        []
   };
 }
@@ -249,67 +265,104 @@ const EN_MONTHS = {
 
 /* === Column detection (Withdrawal / Deposit / Balance) ========== */
 
-// หา X-position ของแต่ละ column จาก header row
-function detectColumns(rows) {
-  for (const row of rows) {
-    let withdrawalX = null, depositX = null, balanceX = null;
+/* หา X-position ของแต่ละ column จาก header row
+   ต้องมีอย่างน้อย 2 ใน 3 keyword (withdrawal/deposit/balance) ใน row เดียวกัน
+   Returns: { withdrawalX, depositX, balanceX } หรือ null ถ้าหาไม่เจอ */
+export function detectColumns(rows) {
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const row = rows[i];
+    const text = row.text;
+
+    const hasWithdrawal = /ถอน|withdrawal|debit/i.test(text);
+    const hasDeposit    = /ฝาก|deposit|credit/i.test(text);
+    const hasBalance    = /คงเหลือ|balance/i.test(text);
+
+    const score = (hasWithdrawal ? 1 : 0) + (hasDeposit ? 1 : 0) + (hasBalance ? 1 : 0);
+    if (score < 2) continue;
+
+    const cols = { withdrawalX: null, depositX: null, balanceX: null };
     for (const item of (row.items || [])) {
-      const t = (item.str || '').toLowerCase().trim();
-      if (/withdraw|debit|เดบิต|ถอน/.test(t))               withdrawalX = item.transform[4];
-      else if (/deposit|credit|เครดิต|ฝาก|เงินเข้า/.test(t)) depositX = item.transform[4];
-      else if (/balance|คงเหลือ/.test(t))                   balanceX  = item.transform[4];
+      const x   = item.transform[4];
+      const str = item.str || '';
+
+      if (cols.withdrawalX === null && /ถอน|withdrawal|debit/i.test(str)) {
+        cols.withdrawalX = x;
+      } else if (cols.depositX === null && /ฝาก|deposit|credit/i.test(str)
+                 && !/ถอน|withdrawal/i.test(str)) {
+        cols.depositX = x;
+      } else if (cols.balanceX === null && /คงเหลือ|balance/i.test(str)) {
+        cols.balanceX = x;
+      }
     }
-    if (withdrawalX !== null && depositX !== null) {
-      return { withdrawalX, depositX, balanceX };
+
+    if (cols.withdrawalX !== null && cols.depositX !== null) {
+      return cols;
     }
   }
   return null;
 }
 
-// ใช้ X-position แยก withdrawal / deposit / balance และคืนค่าทั้งหมดพร้อมกัน
-// pattern เดียวกับ AMT_RX แต่ anchor ทั้งสอง end เพื่อ match item เดียว
-const AMT_ITEM_RX = /^-?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})$/;
+/* แยก amount items ตาม column โดยใช้ X-coordinate
+   Returns: { withdrawal, deposit, balance } — raw number (บาท) หรือ null */
+function classifyAmountByColumn(items, cols) {
+  const AMT_ITEM_RX = /^-?(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})$/;
+  const amountItems = (items || []).filter(it => AMT_ITEM_RX.test((it.str || '').trim()));
 
-function parseRowAmounts(row, columns) {
-  if (!columns) return null;
-  const { withdrawalX, depositX, balanceX } = columns;
-  const wdMid = (withdrawalX + depositX) / 2;
-  const dbMid = balanceX != null ? (depositX + balanceX) / 2 : Infinity;
+  let withdrawal = null, deposit = null, balance = null;
 
-  let withdrawalAmt = null, depositAmt = null, balanceAmt = null;
+  for (const item of amountItems) {
+    const x     = item.transform[4];
+    const value = parseFloat(item.str.replace(/,/g, ''));
 
-  for (const item of (row.items || [])) {
-    const s = (item.str || '').trim();
-    if (!AMT_ITEM_RX.test(s)) continue;
-    const val = parseFloat(s.replace(/,/g, ''));
-    if (isNaN(val)) continue;
+    const distances = [
+      { col: 'withdrawal', d: Math.abs(x - cols.withdrawalX) },
+      { col: 'deposit',    d: Math.abs(x - cols.depositX) },
+      { col: 'balance',    d: cols.balanceX != null ? Math.abs(x - cols.balanceX) : Infinity }
+    ].sort((a, b) => a.d - b.d);
 
-    const x = item.transform[4];
-    if (x >= dbMid)       balanceAmt    = val;   // balance column
-    else if (x >= wdMid)  depositAmt    = val;   // deposit column
-    else                  withdrawalAmt = val;    // withdrawal column
+    const best = distances[0];
+    if (best.d > 80) continue;  // ไกลเกิน → skip (เลขสาขา, เลขอื่นๆ)
+
+    if (best.col === 'withdrawal' && withdrawal === null) withdrawal = value;
+    else if (best.col === 'deposit'    && deposit    === null) deposit    = value;
+    else if (best.col === 'balance'    && balance    === null) balance    = value;
   }
 
-  const txAmt = withdrawalAmt ?? depositAmt;
-  if (txAmt == null) return null;   // ไม่มี amount ใน withdrawal/deposit column
+  return { withdrawal, deposit, balance };
+}
 
-  return {
-    amount:      Math.abs(txAmt),
-    balance:     balanceAmt,
-    column_hint: depositAmt != null ? 'deposit' : 'withdrawal'
-  };
+/* === Skip-row detection ======================================== */
+
+const SKIP_ROW_KEYWORDS = [
+  /^B\/F$/i,
+  /^C\/F$/i,
+  /ยอดยกมา/,
+  /ยอดยกไป/,
+  /balance\s*brought\s*forward/i,
+  /balance\s*carried\s*forward/i,
+  /^total\b/i,
+  /^รวม\b/,
+  /จำนวนรายการ/,
+  /total\s*(no\.|number)/i,
+  /^\s*$/
+];
+
+export function isSkipRow(description) {
+  const d = (description || '').trim();
+  return SKIP_ROW_KEYWORDS.some(rx => rx.test(d));
 }
 
 
 export function parseTransactions(rows, bank) {
   const transactions = [];
-  const columns = detectColumns(rows);   // detect Withdrawal/Deposit column positions once
+  const cols = detectColumns(rows);
+  const useColumnMode = cols !== null;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const text = row.text;
 
-    // Skip rows ที่ดูเป็น header
+    // Skip header rows
     if (/(?:date|วันที่|description|รายการ|amount|จำนวน|balance|คงเหลือ)/i.test(text)
         && !DATE_RX.test(text)) continue;
 
@@ -332,19 +385,12 @@ export function parseTransactions(rows, bank) {
 
     let year = parseInt(dateMatch[3], 10);
     if (year < 100) year += (year > 43 ? 2500 : 2000); // 2-digit BE (67/68/69) vs CE (24/25/26)
-    if (year > 2500) year -= 543;          // Buddhist Era → CE
+    if (year > 2500) year -= 543;
 
-    // Sanity check
     if (month < 1 || month > 12 || day < 1 || day > 31) continue;
     if (year < 2000 || year > 2100) continue;
 
     const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-    // Extract amounts (must have commas or decimals — เลขโทร/ที่อยู่จะถูก reject)
-    const amountMatches = [...text.matchAll(AMT_RX)];
-    if (amountMatches.length === 0) continue;
-
-    const amounts = amountMatches.map(m => parseFloat(m[1].replace(/,/g, '')));
 
     // Description = ตัด date + amounts + time ออก
     let description = text;
@@ -352,31 +398,47 @@ export function parseTransactions(rows, bank) {
     description = description.replace(AMT_RX, ' ');
     description = description.replace(TIME_RX, ' ');
     description = description.replace(/\s+/g, ' ').trim();
-
-    // ตัดข้อความที่ไม่มีความหมาย
     description = description.replace(/^[\-\.\,\s]+|[\-\.\,\s]+$/g, '');
     if (description.length < 2) description = 'รายการ';
     if (description.length > 80) description = description.slice(0, 80) + '...';
 
-    // Determine amount + balance
-    // Priority: X-position columns (exact) → heuristic fallback (when column detect fails)
+    // Skip non-transaction rows (B/F, C/F, ยอดยกมา, Total, ...)
+    if (isSkipRow(description)) continue;
+
+    // Amount + direction detection
     let amount = 0;
     let balance = null;
-    let column_hint = null;
+    let direction = null;  // 'in' | 'out' | null
 
-    const colParsed = parseRowAmounts(row, columns);
-    if (colParsed) {
-      ({ amount, balance, column_hint } = colParsed);
+    if (useColumnMode) {
+      const colAmts = classifyAmountByColumn(row.items, cols);
+
+      if (colAmts.withdrawal !== null && colAmts.withdrawal > 0) {
+        amount    = colAmts.withdrawal;
+        direction = 'out';
+      } else if (colAmts.deposit !== null && colAmts.deposit > 0) {
+        amount    = colAmts.deposit;
+        direction = 'in';
+      }
+      balance = colAmts.balance;
+
+      if (amount === 0) continue;  // ไม่มี amount ใน withdrawal/deposit column → skip
     } else {
-      // Fallback heuristic — ใช้เมื่อ detectColumns ไม่สำเร็จ
+      // Fallback heuristic เมื่อ detectColumns ไม่สำเร็จ
+      const amountMatches = [...text.matchAll(AMT_RX)];
+      if (amountMatches.length === 0) continue;
+      const amounts = amountMatches.map(m => parseFloat(m[1].replace(/,/g, '')));
+
       if (amounts.length === 1) {
         amount = Math.abs(amounts[0]);
       } else if (amounts.length === 2) {
-        // ตัวสุดท้ายมักเป็น balance (ตามลำดับคอลัมน์: amount | balance)
-        amount  = Math.abs(amounts[0]);
-        balance = amounts[1];
+        const [a, b] = amounts;
+        if (Math.abs(a) > Math.abs(b)) {
+          balance = a; amount = Math.abs(b);
+        } else {
+          balance = b; amount = Math.abs(a);
+        }
       } else {
-        // 3+ amounts: ตัวสุดท้ายมัก balance
         balance = amounts[amounts.length - 1];
         for (let j = 0; j < amounts.length - 1; j++) {
           if (Math.abs(amounts[j]) > 0) { amount = Math.abs(amounts[j]); break; }
@@ -384,18 +446,17 @@ export function parseTransactions(rows, bank) {
       }
     }
 
-    // Skip ถ้า amount = 0 (น่าจะเป็น header row หรือ summary)
-    if (amount === 0 || amount > 10000000) continue;     // sanity cap 10M
+    if (amount === 0 || amount > 10000000) continue;
 
     transactions.push({
-      date: isoDate,
-      amount: Math.round(amount * 100),                 // satang
-      balance: balance != null ? Math.round(balance * 100) : null,
+      date:           isoDate,
+      amount:         Math.round(amount * 100),
+      balance:        balance != null ? Math.round(balance * 100) : null,
       description,
       bank,
-      raw_text: text,
-      column_hint,
-      source: 'import',
+      raw_text:       text,
+      direction,
+      source:         'import',
       user_classified: false
     });
   }
@@ -409,7 +470,28 @@ export function parseTransactions(rows, bank) {
 export function autoClassifyType(tx, ownAccountMasks = []) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
 
-  // 1. Transfer signals ชนะทุกอย่าง (ATM, CDM, บัตรเครดิต, โอนบัญชีตัวเอง)
+  // direction จาก column detection (primary signal)
+  if (tx.direction === 'in') {
+    if (/(?:cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) return 'transfer';
+    if (ownAccountMasks.some(mask => {
+      const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
+      return last4 && t.includes(last4);
+    })) return 'transfer';
+    return 'income';
+  }
+
+  if (tx.direction === 'out') {
+    if (/(?:atm|withdraw|ถอน|cdm)/i.test(t)) return 'transfer';
+    if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t)) return 'transfer';
+    if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) return 'transfer';
+    if (ownAccountMasks.some(mask => {
+      const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
+      return last4 && t.includes(last4);
+    })) return 'transfer';
+    return 'expense';
+  }
+
+  // Keyword fallback (direction === null — manual entry หรือ PDF ที่ detect column ไม่ได้)
   if (/(?:atm|withdraw|ถอน|cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) return 'transfer';
   if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t))  return 'transfer';
   if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) return 'transfer';
@@ -418,11 +500,6 @@ export function autoClassifyType(tx, ownAccountMasks = []) {
     return last4 && t.includes(last4);
   })) return 'transfer';
 
-  // 2. Column position (high confidence — จาก layout ของ PDF จริง)
-  if (tx.column_hint === 'deposit')    return 'income';
-  if (tx.column_hint === 'withdrawal') return 'expense';
-
-  // 3. Keyword fallback (สำหรับ statement ที่ detect column ไม่ได้)
   if (/(?:เงินเดือน|salary|payroll|bonus|deposit|รับโอน|โอนเข้า|เงินเข้า|รับเงิน|เครดิตเงิน|transfer\s*in|received|interest|ดอกเบี้ย|cashback|cash\s*back|refund|คืนเงิน|รับ\s)/i.test(t)) {
     return 'income';
   }
@@ -444,6 +521,33 @@ export function scoreParseResult(result) {
   if (zeroCount / result.transactions.length > 0.3) score -= 20;
   if (result.pageCount > 2 && result.transactions.length < 5) score -= 25;
   return Math.max(0, score);
+}
+
+
+/* === Parse result verification ================================
+   เปรียบเทียบ (deposits - withdrawals) กับ (closing - opening balance)
+   ถ้าไม่ตรงกัน → parser อาจอ่าน direction ผิด
+   Returns: { ok, opening, closing, computed, totalIn, totalOut, diff }
+================================================================ */
+export function verifyParseResult(transactions) {
+  const withBalance = transactions.filter(t => t.balance !== null);
+  if (withBalance.length < 2) {
+    return { ok: true, warning: 'insufficient_balance_data' };
+  }
+
+  const first   = withBalance[0];
+  const opening = first.direction === 'in'
+    ? first.balance - first.amount
+    : first.balance + first.amount;
+  const closing = withBalance[withBalance.length - 1].balance;
+
+  const totalIn  = transactions.filter(t => t.direction === 'in').reduce((s, t) => s + t.amount, 0);
+  const totalOut = transactions.filter(t => t.direction === 'out').reduce((s, t) => s + t.amount, 0);
+
+  const computed = opening + totalIn - totalOut;
+  const diff     = Math.abs(computed - closing);
+
+  return { ok: diff <= 100, opening, closing, computed, totalIn, totalOut, diff };
 }
 
 
