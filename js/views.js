@@ -359,25 +359,31 @@ const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', c
 function renderAccountRow(acct, globalThreshold) {
   const threshold = acct.threshold || globalThreshold;
   const balance = State.computeAccountBalance(acct.id);
-  const isWarn = balance < threshold
-    && acct.type !== 'cash'
+  const alertable = acct.type !== 'cash'
     && acct.type !== 'debt'
     && acct.type !== 'investment'
     && acct.type !== 'credit_card';
+  const isWarning = alertable && balance < threshold;
+  const isDanger  = isWarning && balance < threshold * 0.5;
+  const rowClass  = isDanger ? 'account-row--danger' : isWarning ? 'account-row--warning' : '';
   const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
 
   return `
-    <div class="acct ${isWarn ? 'warn' : ''}">
+    <div class="acct${rowClass ? ` ${rowClass}` : ''}">
       <div class="acct-icon ${acct.bank || acct.type}">${initial}</div>
       <div class="acct-body">
         <div class="acct-name">${escapeHtml(acct.display_name)}</div>
         ${acct.account_number_masked
           ? `<div class="acct-num">${escapeHtml(acct.account_number_masked)}</div>`
           : ''}
+        ${isWarning ? `
+        <div class="account-warning-text">
+          ${svgIcon('alert-triangle', { size: 12, stroke: 2 })}
+          ยอดต่ำกว่าเกณฑ์ (${formatBaht(threshold)} ฿)
+        </div>` : ''}
       </div>
       <div>
         <div class="acct-balance">${formatBaht(balance)} ฿</div>
-        ${isWarn ? `<div class="acct-warn-tag">⚠ ใกล้เกณฑ์</div>` : ''}
       </div>
     </div>
   `;

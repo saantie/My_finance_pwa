@@ -462,12 +462,24 @@ html, body {
   color: var(--ink);
   text-align: right;
 }
-.acct.warn .acct-balance { color: var(--clay); }
-.acct-warn-tag {
-  font-size: 10px;
+.account-row--warning {
+  border-left: 3px solid var(--clay);
+  padding-left: 13px;
+}
+.account-row--danger {
+  border-left: 3px solid #b03a2e;
+  background: rgba(176, 58, 46, 0.04);
+  padding-left: 13px;
+}
+.account-row--warning .acct-balance,
+.account-row--danger .acct-balance { color: var(--clay); }
+.account-warning-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   color: var(--clay);
   margin-top: 2px;
-  text-align: right;
 }
 
 .card-padded { padding: 4px 18px; }
