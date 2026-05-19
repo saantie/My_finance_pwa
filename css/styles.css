@@ -2369,7 +2369,95 @@ html[data-theme="pro"] .atm-badge {
   color: #1a3a5c;
 }
 
-/* Duplicate confirm bar ใน add modal */
+/* Duplicate dialog overlay (แทน confirm bar เดิม) */
+.dup-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.15s;
+}
+.dup-dialog {
+  background: var(--surface, #fff);
+  border-radius: 16px;
+  padding: 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+.dup-dialog-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.dup-dialog-body {
+  background: var(--accent-soft, #fef3e7);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.dup-dialog-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.dup-dialog-match {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.dup-dialog-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dup-btn {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.1s;
+}
+.dup-btn-keep {
+  background: var(--primary, #e88e3c);
+  color: white;
+}
+.dup-btn-merge {
+  background: var(--rule, #efe5d4);
+  color: var(--ink);
+}
+.dup-btn-skip {
+  background: transparent;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+.dup-btn-keep:active  { opacity: 0.85; }
+.dup-btn-merge:active { background: #e0d4c0; }
+.dup-btn-skip:active  { color: var(--ink); }
+html[data-dark="1"] .dup-dialog {
+  background: #1e2235;
+}
+html[data-dark="1"] .dup-dialog-body {
+  background: #2a2820;
+}
+html[data-dark="1"] .dup-btn-merge {
+  background: #2d2d3a;
+  color: var(--ink);
+}
+
+/* Duplicate confirm bar ใน add modal (legacy — kept for reference) */
 .dup-confirm {
   margin: 0 16px 4px;
   padding: 12px 14px;

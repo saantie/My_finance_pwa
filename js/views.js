@@ -18,6 +18,7 @@ import {
   todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce
 } from './utils.js';
 import { cashflowForecast, dailyExpenseBars } from './chart.js';
+import { findPotentialDuplicates } from './duplicate-detector.js';
 import {
   signInWithGoogle, signOut as firebaseSignOut, getCurrentUser,
   updateSharedWith, migrateAccountToCloud
@@ -865,17 +866,15 @@ function showReviewModal(result, fileName) {
     unknown: 'ไม่รู้จัก'
   }[result.bank] || result.bank;
 
-  // ตรวจสอบรายการที่อาจซ้ำ — เก็บ existing tx ที่ match ไว้เพื่อแสดงเปรียบเทียบ
+  // ตรวจสอบรายการที่อาจซ้ำ — ใช้ findPotentialDuplicates เพื่อ description similarity ด้วย
   const existingTxs = State.getTransactions();
-  const dupMap = new Map(); // index → existing tx ที่ match
+  const dupMap = new Map(); // index → existing tx ที่ match (top candidate)
   result.transactions.forEach((tx, i) => {
-    const txTime = new Date(tx.date).getTime();
-    const match = existingTxs.find(ex =>
-      ex.deleted_by == null &&
-      ex.amount === tx.amount &&
-      Math.abs(new Date(ex.date).getTime() - txTime) <= 86400000
+    const candidates = findPotentialDuplicates(
+      { amount: tx.amount, date: tx.date, description: tx.description || '' },
+      existingTxs
     );
-    if (match) dupMap.set(i, match);
+    if (candidates.length > 0) dupMap.set(i, candidates[0].tx);
   });
 
   // Selection — รายการที่อาจซ้ำเริ่มต้นไม่ถูกเลือก, อื่นๆ เลือกทั้งหมด
@@ -1031,7 +1030,7 @@ function renderReviewRow(tx, idx, matchingTx, isSelected) {
       <div class="review-entry-info">
         <div class="entry-name">
           ${escapeHtml(tx.description || def.label)}
-          ${isDuplicate ? '<span class="dup-badge">อาจซ้ำ</span>' : ''}
+          ${isDuplicate ? `<span class="dup-badge">อาจซ้ำกับ ${formatShortDate(matchingTx.date)}</span>` : ''}
           ${isATM ? '<span class="atm-badge">→ เงินสด</span>' : ''}
         </div>
         <div class="entry-cat">${def.label}${tx.balance != null ? ` · คงเหลือ ${formatBaht(tx.balance)} ฿` : ''}</div>

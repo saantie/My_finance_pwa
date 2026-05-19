@@ -30,6 +30,7 @@ import {
 } from './utils.js';
 import { showToast } from './views.js';
 import { VoiceRecorder, parseIntent } from './voice.js';
+import { findPotentialDuplicates } from './duplicate-detector.js';
 
 const modal = () => document.getElementById('add-modal');
 
@@ -642,45 +643,49 @@ function pickAccount() {
 
 /* === Duplicate detection ======================================== */
 
-function hasDuplicate(amount, date) {
-  const dateTime = new Date(date).getTime();
-  return State.getTransactions().some(ex =>
-    ex.amount === amount &&
-    Math.abs(new Date(ex.date).getTime() - dateTime) <= 86400000
-  );
-}
+/**
+ * แสดง dialog รายการคล้ายกัน
+ * @returns {Promise<'keep_both'|'merge'|'skip'>}
+ */
+function showDuplicateDialog(candidates, newTx) {
+  return new Promise(resolve => {
+    document.querySelector('.dup-dialog-overlay')?.remove();
 
-function showDupConfirm(onConfirm) {
-  const m = modal();
-  m.querySelector('.dup-confirm')?.remove();
+    const top = candidates[0].tx;
+    const topDesc  = escapeHtml(top.description || '');
+    const topAmt   = formatBaht(top.amount);
+    const topDate  = formatShortDate(top.date);
 
-  const bar = document.createElement('div');
-  bar.className = 'dup-confirm';
-  bar.innerHTML = `
-    <div class="dup-confirm-msg">
-      ${svgIcon('alert-triangle', { size: 15, stroke: 2 })}
-      พบรายการจำนวนนี้ในวันใกล้เคียง — บันทึกซ้ำหรือไม่?
-    </div>
-    <div class="dup-confirm-btns">
-      <button class="dup-btn-cancel">ยกเลิก</button>
-      <button class="dup-btn-save">บันทึกต่อ</button>
-    </div>
-  `;
+    const overlay = document.createElement('div');
+    overlay.className = 'dup-dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dup-dialog">
+        <div class="dup-dialog-title">รายการนี้คล้ายกับที่เคยบันทึก</div>
+        <div class="dup-dialog-body">
+          <div class="dup-dialog-label">คล้ายกับ:</div>
+          <div class="dup-dialog-match">${topDesc} · ${topAmt} ฿ · ${topDate}</div>
+        </div>
+        <div class="dup-dialog-btns">
+          <button class="dup-btn dup-btn-keep">เก็บทั้งคู่</button>
+          <button class="dup-btn dup-btn-merge">บันทึกแทน (ลบเดิม)</button>
+          <button class="dup-btn dup-btn-skip">ข้ามรายการนี้</button>
+        </div>
+      </div>
+    `;
 
-  const topbar = m.querySelector('.add-topbar');
-  topbar.insertAdjacentElement('afterend', bar);
+    document.body.appendChild(overlay);
 
-  bar.querySelector('.dup-btn-cancel').addEventListener('click', () => bar.remove());
-  bar.querySelector('.dup-btn-save').addEventListener('click', () => {
-    bar.remove();
-    onConfirm();
+    const close = result => { overlay.remove(); resolve(result); };
+    overlay.querySelector('.dup-btn-keep').addEventListener('click', () => close('keep_both'));
+    overlay.querySelector('.dup-btn-merge').addEventListener('click', () => close('merge'));
+    overlay.querySelector('.dup-btn-skip').addEventListener('click', () => close('skip'));
   });
 }
 
 
 /* === Save ======================================================= */
 
-function save() {
+async function save() {
   if (draft.amount <= 0) {
     showToast('ใส่จำนวนเงินก่อน');
     return;
@@ -716,30 +721,37 @@ function save() {
   if (draft.frequency === 'today' || draft.frequency === 'past') {
     const txDate = draft.frequency === 'past' ? draft.first_due : draft.date;
 
-    function doSave() {
-      State.addTransaction({
-        type: draft.type,
-        amount: draft.amount,
-        group: draft.group,
-        category,
-        description,
-        account_from: draft.type !== 'income' ? draft.account_id : null,
-        account_to: draft.type === 'income' ? draft.account_id : null,
-        date: txDate,
-        source: 'manual',
-        user_classified: true
-      });
-      haptic([5, 30, 50]);
-      showToast('บันทึกแล้ว');
-      closeAddModal();
+    const newTxData = {
+      type: draft.type,
+      amount: draft.amount,
+      group: draft.group,
+      category,
+      description,
+      account_from: draft.type !== 'income' ? draft.account_id : null,
+      account_to: draft.type === 'income' ? draft.account_id : null,
+      date: txDate,
+      source: 'manual',
+      user_classified: true
+    };
+
+    const candidates = findPotentialDuplicates(
+      { amount: draft.amount, date: txDate, description },
+      State.getTransactions()
+    );
+
+    if (candidates.length > 0) {
+      const proceed = await showDuplicateDialog(candidates, newTxData);
+      if (proceed === 'skip') return;
+      if (proceed === 'merge') {
+        State.deleteTransaction(candidates[0].tx.id);
+      }
+      // 'keep_both' → fall through
     }
 
-    if (hasDuplicate(draft.amount, txDate)) {
-      showDupConfirm(doSave);
-      return;
-    }
-
-    doSave();
+    State.addTransaction(newTxData);
+    haptic([5, 30, 50]);
+    showToast('บันทึกแล้ว');
+    closeAddModal();
     return;
   }
 

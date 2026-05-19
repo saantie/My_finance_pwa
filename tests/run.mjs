@@ -723,6 +723,121 @@ test('verifyParseResult: swapped direction → not ok', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// DUPLICATE DETECTOR
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nduplicate-detector.js');
+
+const { similarity, daysBetween, findPotentialDuplicates } =
+  await import('../js/duplicate-detector.js');
+
+// similarity
+test('similarity: identical strings → 1', () => {
+  eq(similarity('ค่าไฟ MEA', 'ค่าไฟ MEA'), 1);
+});
+test('similarity: case-insensitive identical → 1', () => {
+  eq(similarity('Starbucks', 'starbucks'), 1);
+});
+test('similarity: substring → 0.9', () => {
+  eq(similarity('ค่าไฟ', 'ค่าไฟ MEA'), 0.9);
+});
+test('similarity: reverse substring → 0.9', () => {
+  eq(similarity('ค่าไฟ MEA', 'ค่าไฟ'), 0.9);
+});
+test('similarity: empty both → 1', () => {
+  eq(similarity('', ''), 1);
+});
+test('similarity: one empty → 0', () => {
+  eq(similarity('', 'abc'), 0);
+});
+test('similarity: completely different → 0', () => {
+  assert(similarity('กาแฟ', 'ค่าเช่า') < 0.5);
+});
+
+// daysBetween
+test('daysBetween: same date → 0', () => {
+  eq(daysBetween('2026-05-01', '2026-05-01'), 0);
+});
+test('daysBetween: 3 days apart', () => {
+  eq(daysBetween('2026-05-01', '2026-05-04'), 3);
+});
+test('daysBetween: order-independent', () => {
+  eq(daysBetween('2026-05-10', '2026-05-03'), 7);
+});
+
+// findPotentialDuplicates
+const EXISTING = [
+  { id: 'a', amount: 120000, date: '2026-05-01', description: 'ค่าไฟ MEA', deleted_by: null },
+  { id: 'b', amount: 500000, date: '2026-05-01', description: 'ค่าเช่า',   deleted_by: null },
+  { id: 'c', amount: 120000, date: '2026-05-01', description: 'ค่าไฟ MEA', deleted_by: 'someone@example.com' },  // soft-deleted
+];
+
+test('findPotentialDuplicates: same amount + date + desc → found', () => {
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-01', description: 'ค่าไฟ MEA' },
+    EXISTING
+  );
+  eq(r.length, 1);
+  eq(r[0].tx.id, 'a');
+  eq(r[0].score, 1);
+});
+
+test('findPotentialDuplicates: same amount + 5 day diff + same desc → found', () => {
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-06', description: 'ค่าไฟ MEA' },
+    EXISTING
+  );
+  eq(r.length, 1);
+  eq(r[0].tx.id, 'a');
+});
+
+test('findPotentialDuplicates: amount diff > 100 satang → not found', () => {
+  const r = findPotentialDuplicates(
+    { amount: 121500, date: '2026-05-01', description: 'ค่าไฟ MEA' },
+    EXISTING
+  );
+  eq(r.length, 0);
+});
+
+test('findPotentialDuplicates: soft-deleted not returned', () => {
+  // id 'c' matches but is soft-deleted → only 'a' should match
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-01', description: 'ค่าไฟ MEA' },
+    EXISTING
+  );
+  assert(r.every(c => c.tx.id !== 'c'), 'soft-deleted tx must be excluded');
+});
+
+test('findPotentialDuplicates: > 7 day diff → not found', () => {
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-10', description: 'ค่าไฟ MEA' },
+    EXISTING
+  );
+  eq(r.length, 0);
+});
+
+test('findPotentialDuplicates: returns at most 3', () => {
+  const many = Array.from({ length: 10 }, (_, i) => ({
+    id: `x${i}`, amount: 120000, date: '2026-05-01',
+    description: 'ค่าไฟ MEA', deleted_by: null
+  }));
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-01', description: 'ค่าไฟ MEA' },
+    many
+  );
+  assert(r.length <= 3, `expected ≤ 3, got ${r.length}`);
+});
+
+test('findPotentialDuplicates: low similarity → not found', () => {
+  const r = findPotentialDuplicates(
+    { amount: 120000, date: '2026-05-01', description: 'ค่ากาแฟ' },
+    EXISTING,
+    0.7
+  );
+  eq(r.length, 0);
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
 // ADD.JS — source checks (no window.prompt, openAccountPickerModal exported)
 // ═══════════════════════════════════════════════════════════════════════
 console.log('\nadd.js');
