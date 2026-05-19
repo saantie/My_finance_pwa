@@ -1601,6 +1601,64 @@ html, body {
   font-weight: 600;
 }
 
+/* Profile card (Settings top) */
+.profile-card {
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 18px 18px 14px;
+  margin: 0 0 16px;
+  box-shadow: 0 1px 0 rgba(80, 60, 30, 0.04);
+}
+.profile-level-name {
+  font-size: var(--ts-base);
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.profile-xp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.profile-xp-cur {
+  font-size: var(--ts-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.profile-xp-next {
+  font-size: var(--ts-xs);
+  color: var(--ink-faint);
+}
+.profile-xp-bar {
+  height: 6px;
+  background: var(--rule);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.profile-xp-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+.profile-coins-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.profile-coin {
+  font-size: var(--ts-sm);
+  color: var(--ink-soft);
+}
+.profile-streak {
+  font-size: var(--ts-sm);
+  color: var(--ink-soft);
+  margin-left: auto;
+}
+
 .privacy-footer {
   margin-top: 22px;
   padding: 14px 16px;

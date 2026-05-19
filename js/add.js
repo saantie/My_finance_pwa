@@ -28,7 +28,8 @@ import {
   formatBaht, formatLongDate, formatShortDate, todayISO, calc,
   bahtToSatang, haptic
 } from './utils.js';
-import { showToast } from './views.js';
+import { showToast, showCoinToast } from './views.js';
+import { claimDailyCoin } from './gamification.js';
 import { VoiceRecorder, parseIntent } from './voice.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
 
@@ -751,6 +752,8 @@ async function save() {
     State.addTransaction(newTxData);
     haptic([5, 30, 50]);
     showToast('บันทึกแล้ว');
+    const reward = claimDailyCoin();
+    if (reward) showCoinToast(reward);
     closeAddModal();
     return;
   }

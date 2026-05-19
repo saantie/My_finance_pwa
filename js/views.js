@@ -15,10 +15,11 @@ import * as Recurring from './recurring.js';
 import { svgIcon, CATEGORIES, getCategory } from './icons.js';
 import {
   formatBaht, formatLongDate, formatShortDate, formatTime,
-  todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce
+  todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce, haptic
 } from './utils.js';
 import { cashflowForecast, dailyExpenseBars } from './chart.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
+import { getLevelInfo } from './gamification.js';
 import {
   signInWithGoogle, signOut as firebaseSignOut, getCurrentUser,
   updateSharedWith, migrateAccountToCloud
@@ -1124,9 +1125,36 @@ export function renderSettings(container) {
   ];
   const curThemeName = THEME_SWATCHES.find(t => t.val === theme)?.name || 'Diary';
 
+  const progress  = State.getUserProgress();
+  const levelInfo = getLevelInfo(progress.xp);
+  const pctBar    = Math.round(levelInfo.progress * 100);
+  const xpToNext  = levelInfo.next ? levelInfo.next.xp - progress.xp : 0;
+
   container.innerHTML = `
     <div class="app-bar">
       <h1 class="title">ตั้งค่า</h1>
+    </div>
+
+    <!-- Profile card -->
+    <div class="profile-card">
+      <div class="profile-level-name">${escapeHtml(levelInfo.current.name)}</div>
+      <div class="profile-xp-row">
+        <span class="profile-xp-cur">${progress.xp.toLocaleString()} XP</span>
+        ${levelInfo.next
+          ? `<span class="profile-xp-next">อีก ${xpToNext.toLocaleString()} XP → Level ${levelInfo.next.level}</span>`
+          : `<span class="profile-xp-next">เลเวลสูงสุด 🏆</span>`}
+      </div>
+      <div class="profile-xp-bar">
+        <div class="profile-xp-fill" style="width: ${pctBar}%"></div>
+      </div>
+      <div class="profile-coins-row">
+        <span class="profile-coin">🥉 ${progress.coins.bronze}</span>
+        <span class="profile-coin">🥈 ${progress.coins.silver}</span>
+        <span class="profile-coin">🥇 ${progress.coins.gold}</span>
+        ${progress.streak_days > 0
+          ? `<span class="profile-streak">🔥 ทำมาแล้ว ${progress.streak_days} วัน</span>`
+          : ''}
+      </div>
     </div>
 
     <!-- ชื่อที่แสดงในบัญชีแชร์ -->
@@ -1953,4 +1981,18 @@ export function showToast(message) {
   el.textContent = message;
   container.appendChild(el);
   setTimeout(() => el.remove(), 3000);
+}
+
+/** Toast เล็กๆ หลังได้เหรียญ/level up — ไม่มี toast กรณี streak reset */
+export function showCoinToast(reward) {
+  if (!reward) return;
+  const COIN_LABEL = { bronze: '🥉 ทองแดง', silver: '🥈 เงิน', gold: '🥇 ทอง' };
+  const label = COIN_LABEL[reward.coin] || '';
+  const bonusTxt = reward.bonusXP ? ` ✨ (+${reward.bonusXP} milestone)` : '';
+  showToast(`${label} +${reward.xp} XP${bonusTxt}`);
+  if (reward.levelUp) {
+    const info = getLevelInfo(State.getUserProgress().xp);
+    setTimeout(() => showToast(`⬆️ Level ${reward.newLevel}: ${info.current.name}`), 400);
+  }
+  haptic([10, 30]);
 }

@@ -47,6 +47,12 @@ function makeDefaultAccount(def) {
   };
 }
 
+const DEFAULT_USER_PROGRESS = {
+  xp: 0, level: 1, streak_days: 0,
+  last_coin_date: null, last_streak_date: null,
+  coins: { bronze: 0, silver: 0, gold: 0 }
+};
+
 const DEFAULT_STATE = {
   transactions: [],
   accounts: DEFAULT_ACCOUNTS.map(makeDefaultAccount),
@@ -57,8 +63,19 @@ const DEFAULT_STATE = {
     text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
     language: 'th',
     display_name: ''             // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)
-  }
+  },
+  userProgress: { ...DEFAULT_USER_PROGRESS }
 };
+
+// XP thresholds only — avoids circular import with gamification.js
+const _LEVEL_XP = [0, 200, 500, 1000, 2000, 3500, 5000, 8000];
+function _xpToLevel(xp) {
+  let l = 1;
+  for (let i = 1; i < _LEVEL_XP.length; i++) {
+    if (xp >= _LEVEL_XP[i]) l = i + 1;
+  }
+  return l;
+}
 
 
 /* === Internal state ============================================= */
@@ -84,7 +101,12 @@ function loadFromStorage() {
     return {
       transactions: parsed.transactions || [],
       accounts,
-      settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) }
+      settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
+      userProgress: {
+        ...DEFAULT_USER_PROGRESS,
+        ...(parsed.userProgress || {}),
+        coins: { ...DEFAULT_USER_PROGRESS.coins, ...(parsed.userProgress?.coins || {}) }
+      }
     };
   } catch (e) {
     console.warn('Failed to load state, using default', e);
@@ -106,7 +128,8 @@ function saveToStorage() {
       transactions: _state.transactions.filter(t =>
         !receivedIds.has(t.account_from) && !receivedIds.has(t.account_to)
       ),
-      settings: _state.settings
+      settings: _state.settings,
+      userProgress: _state.userProgress
     }));
   } catch (e) {
     console.error('Failed to save state', e);
@@ -343,6 +366,23 @@ export function setSetting(key, value) {
 }
 
 
+/* === Gamification: User Progress ================================ */
+
+export function getUserProgress() {
+  return { ..._state.userProgress };
+}
+
+export function updateUserProgress(patch) {
+  _state.userProgress = {
+    ..._state.userProgress,
+    ...patch,
+    coins: { ..._state.userProgress.coins, ...(patch.coins || {}) }
+  };
+  _state.userProgress.level = _xpToLevel(_state.userProgress.xp);
+  saveToStorage();
+}
+
+
 /* === Computed / derived ========================================= */
 
 /** รายการที่ยังไม่ถูกลบ — base filter สำหรับ computed functions ทั้งหมด */
@@ -570,7 +610,12 @@ export function importJSON(json) {
     _state = {
       transactions: parsed.transactions,
       accounts: parsed.accounts,
-      settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) }
+      settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
+      userProgress: {
+        ...DEFAULT_USER_PROGRESS,
+        ...(parsed.userProgress || {}),
+        coins: { ...DEFAULT_USER_PROGRESS.coins, ...(parsed.userProgress?.coins || {}) }
+      }
     };
     notify();
     return true;
