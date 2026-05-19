@@ -1416,15 +1416,13 @@ export function renderSettings(container) {
       try {
         State.updateAccount(accountId, { shared_with: newList });
         if (account.storage === 'local') {
-          const cloudAccount = { ...account, shared_with: newList, owner: ownerEmail };
           const txs = State.getTransactions()
             .filter(t => t.account_from === accountId || t.account_to === accountId);
-          await migrateAccountToCloud(cloudAccount, txs);
+          await migrateAccountToCloud({ ...account, shared_with: newList, owner: ownerEmail }, txs);
           State.updateAccount(accountId, { storage: 'cloud', owner: ownerEmail });
           State.subscribeSharedAccounts();
-        } else {
-          await updateSharedWith(accountId, newList);
         }
+        await updateSharedWith(accountId, newList);
         showToast(`แชร์บัญชีกับ ${email} แล้ว`);
         renderSettings(container);
       } catch (e) {
@@ -1445,8 +1443,13 @@ export function renderSettings(container) {
       try {
         // อัปเดต Firestore ก่อนเสมอ — ผู้รับ query array-contains จะหมดสิทธิ์ทันที
         await updateSharedWith(accountId, newList);
-        State.updateAccount(accountId, { shared_with: newList });
-        showToast(newList.length === 0 ? 'หยุดแชร์แล้ว' : `ลบ ${email} ออกแล้ว`);
+        if (newList.length === 0) {
+          State.updateAccount(accountId, { storage: 'local', shared_with: [] });
+          showToast('หยุดแชร์แล้ว — ข้อมูลยังอยู่บน cloud');
+        } else {
+          State.updateAccount(accountId, { shared_with: newList });
+          showToast(`ลบ ${email} ออกแล้ว`);
+        }
         renderSettings(container);
       } catch (e) {
         console.error('[share] remove failed', e);
@@ -1561,7 +1564,7 @@ function renderAccountsSection() {
     investment: 'การลงทุน', debt: 'หนี้สิน'
   };
 
-  // Google account card — sign in / sign out (แสดงที่ด้านบนของ section)
+  // Google account card — sign in / sign out
   const googleCard = currentUser
     ? `<div class="card" style="margin-bottom:8px">
         <div class="setting-row">
@@ -1585,7 +1588,7 @@ function renderAccountsSection() {
   const myAccounts = accounts.filter(a => !(a.storage === 'cloud' && a.owner && a.owner !== myEmail));
   const sharedAccounts = accounts.filter(a => a.storage === 'cloud' && a.owner && a.owner !== myEmail);
 
-  // แต่ละบัญชีของฉัน — รวม share panel ไว้ในการ์ดเดียวกัน
+  // แต่ละบัญชีของฉัน
   const acctCards = myAccounts.map(acct => {
     const balance = State.computeAccountBalance(acct.id);
     const typeLabel = TYPE_LABEL[acct.type] || acct.type;
@@ -1616,18 +1619,19 @@ function renderAccountsSection() {
 
     return `
       <div class="card" style="margin-bottom:6px;overflow:hidden">
-        <div class="acct-manage-row" style="border-bottom:none">
-          <div class="acct-icon ${acct.bank || acct.type}" style="width:36px;height:36px;font-size:10px;flex-shrink:0">${initial}</div>
-          <div class="acct-manage-info">
+        <div class="setting-row">
+          <div class="acct-icon ${acct.bank || acct.type}" style="width:36px;height:36px;font-size:10px;flex-shrink:0;margin-right:10px">${initial}</div>
+          <div style="flex:1;min-width:0">
             <div class="setting-label" style="font-size:14px">
               ${escapeHtml(acct.display_name)}
-              ${isShared ? '<span class="badge-shared">แชร์</span>' : ''}
+              ${isShared ? '<span class="badge-shared">แชร์แล้ว</span>' : ''}
             </div>
             <div class="setting-sub">${typeLabel} · ${formatBaht(balance)} ฿</div>
           </div>
-          <div class="acct-manage-btns">
-            ${canShare ? `<button class="acct-mgr-btn ${isShared ? 'share-active' : ''}" data-action="toggle-share"
-                    data-account-id="${escapeHtml(acct.id)}" title="แชร์">${svgIcon('share', { size: 15, stroke: 2 })}</button>` : ''}
+          <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+            ${canShare ? `<button class="setting-seg-btn ${isShared ? 'active' : ''}"
+                    data-action="toggle-share"
+                    data-account-id="${escapeHtml(acct.id)}">แชร์บัญชีนี้</button>` : ''}
             <button class="acct-mgr-btn" data-action="edit-account" data-account-id="${escapeHtml(acct.id)}"
                     title="แก้ไข">${svgIcon('edit', { size: 15, stroke: 2 })}</button>
             <button class="acct-mgr-btn danger" data-action="delete-account" data-account-id="${escapeHtml(acct.id)}"
