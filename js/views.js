@@ -33,6 +33,237 @@ const SQUIGGLE = `<svg class="squiggle" viewBox="0 0 200 12" preserveAspectRatio
 
 
 /* ===================================================================
+   HERO CARD (B+A style) — spending pace vs last month
+   =================================================================== */
+
+let _heroChartInstance = null;
+let _ChartClass        = null;
+let _heroChartPayload  = null;  // ข้อมูลสำหรับ initHeroChart ที่เรียกหลัง DOM insert
+
+/** คืน yearMonth ก่อนหน้า เช่น "2026-05" → "2026-04" */
+function prevYearMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * สร้าง array cumulative spending % รายวัน ความยาว chartDays
+ * วันที่ > limitToDay จะเป็น null (ยังไม่มาถึง)
+ */
+function buildDailyCumulative(ym, totalAvail, chartDays, limitToDay = null) {
+  const byDate = {};
+  for (const t of State.getTransactions()) {
+    if (t.deleted_by != null) continue;
+    if (!t.date.startsWith(ym) || t.type !== 'expense') continue;
+    byDate[t.date] = (byDate[t.date] || 0) + t.amount;
+  }
+  const result = [];
+  let cum = 0;
+  for (let d = 1; d <= chartDays; d++) {
+    if (limitToDay !== null && d > limitToDay) {
+      result.push(null);
+    } else {
+      const key = `${ym}-${String(d).padStart(2, '0')}`;
+      cum += byDate[key] || 0;
+      result.push(totalAvail > 0 ? Math.round(cum / totalAvail * 100) : 0);
+    }
+  }
+  return result;
+}
+
+/** HTML string สำหรับ Hero Card ใหม่ */
+function renderHeroCard() {
+  const today = todayISO();
+  const ym    = today.slice(0, 7);
+  const pYm   = prevYearMonth(ym);
+
+  const curr = State.getMonthSummaryWithCarry(ym);
+  const prev = State.getMonthSummaryWithCarry(pYm);
+
+  const dayOfMonth  = parseInt(today.slice(8, 10));
+  const daysInMonth = new Date(parseInt(today.slice(0, 4)), parseInt(today.slice(5, 7)), 0).getDate();
+  const [py, pm]    = pYm.split('-').map(Number);
+  const prevDaysInMonth = new Date(py, pm, 0).getDate();
+
+  const totalAvailable = curr.opening + curr.income;
+  const spentAmount    = curr.expense;
+  const remaining      = totalAvailable - spentAmount;
+  const spentPct       = totalAvailable > 0 ? Math.round(spentAmount / totalAvailable * 100) : 0;
+
+  const prevTotalAvail    = prev.opening + prev.income;
+  const prevSpentAtSameDay = prevTotalAvail > 0
+    ? Math.round((prev.expense / prevDaysInMonth) * dayOfMonth / prevTotalAvail * 100)
+    : 0;
+
+  const diffPct = prevSpentAtSameDay - spentPct; // บวก = ใช้ช้ากว่า
+
+  const amountColor = spentPct >= 90 ? '#A32D2D' : spentPct >= 70 ? '#854F0B' : '#3B6D11';
+
+  let verdictHtml;
+  if (diffPct > 0) {
+    verdictHtml = `<span class="verdict-good">ใช้ช้ากว่าเดือนที่แล้ว ${diffPct}% — ดีมาก</span>`;
+  } else if (diffPct < 0) {
+    verdictHtml = `<span class="verdict-warn">ใช้เร็วกว่าเดือนที่แล้ว ${Math.abs(diffPct)}%</span>`;
+  } else {
+    verdictHtml = `<span class="verdict-neutral">ใช้ในอัตราเดียวกับเดือนที่แล้ว</span>`;
+  }
+
+  _heroChartPayload = { ym, pYm, daysInMonth, prevDaysInMonth, dayOfMonth, totalAvailable, prevTotalAvail };
+
+  const clampedSpent = Math.min(spentPct, 100);
+  const clampedPrev  = Math.min(prevSpentAtSameDay, 100);
+
+  return `
+    <div class="hero-card">
+
+      <!-- 1. ตัวเลขหลัก -->
+      <div class="hero-card-main">
+        <div class="hero-card-label">ตอนนี้คุณเหลือ</div>
+        <div class="hero-card-amount" style="color:${amountColor}">${formatBaht(remaining)} <span class="hero-card-unit">฿</span></div>
+      </div>
+
+      <!-- 2. Legend -->
+      <div class="hero-card-legend">
+        <span class="hero-legend-item"><span class="hero-legend-line curr"></span>เดือนนี้</span>
+        <span class="hero-legend-item"><span class="hero-legend-line prev"></span>เดือนที่แล้ว</span>
+      </div>
+
+      <!-- 3. Area chart -->
+      <div class="hero-chart-wrap">
+        <canvas id="heroAreaChart"></canvas>
+      </div>
+
+      <!-- 4. Date labels -->
+      <div class="hero-date-labels">
+        <span>1</span><span>7</span><span>14</span><span>21</span><span>28</span>
+      </div>
+
+      <!-- 5. Divider -->
+      <div class="hero-rule"></div>
+
+      <!-- 6. Pace bar -->
+      <div class="hero-pace">
+        <div class="hero-pace-row">
+          <span class="hero-pace-spent">ใช้ไปแล้ว ${formatBaht(spentAmount)} ฿</span>
+          <span class="hero-pace-target">เป้าสิ้นเดือน ${formatBaht(totalAvailable)} ฿ (100%)</span>
+        </div>
+        <div class="pace-track">
+          <div class="pace-fill" style="width:${clampedSpent}%">
+            ${spentPct > 10 ? `<span class="pace-pct">${spentPct}%</span>` : ''}
+            <div class="pace-cursor"></div>
+          </div>
+          ${clampedPrev > 0 ? `
+          <div class="pace-prev-mark" style="left:${clampedPrev}%">
+            <div class="pace-prev-tick"></div>
+            <span class="pace-prev-label">เดือนที่แล้ว ${prevSpentAtSameDay}%</span>
+          </div>` : ''}
+        </div>
+        <div class="pace-ends">
+          <span>0 ฿</span>
+          <span>${formatBaht(totalAvailable)} ฿</span>
+        </div>
+      </div>
+
+      <!-- 7. Verdict row -->
+      <div class="hero-verdict">
+        ${verdictHtml}
+        <span class="verdict-date">วันที่ ${dayOfMonth}/${daysInMonth}</span>
+      </div>
+
+      <!-- 8. Breakdown 2 คอลัมน์ -->
+      <div class="hero-breakdown">
+        <div class="breakdown-col">
+          <div class="breakdown-lbl">ยอดที่มีทั้งหมด</div>
+          <div class="breakdown-val">${formatBaht(totalAvailable)} ฿</div>
+          <div class="breakdown-sub">รายรับ + ยกมา</div>
+        </div>
+        <div class="breakdown-col breakdown-right">
+          <div class="breakdown-lbl">คงเหลือ</div>
+          <div class="breakdown-val">${formatBaht(remaining)} ฿</div>
+          <div class="breakdown-sub">${100 - spentPct}% ของทั้งหมด</div>
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+/** Init / re-init Chart.js บน canvas #heroAreaChart หลัง DOM insert */
+async function initHeroChart() {
+  const canvas = document.getElementById('heroAreaChart');
+  if (!canvas || !_heroChartPayload) return;
+
+  if (!_ChartClass) {
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/chart.js/auto/+esm');
+      _ChartClass = mod.Chart;
+    } catch (e) {
+      console.warn('[hero] Chart.js load failed:', e);
+      return;
+    }
+  }
+
+  if (_heroChartInstance) { _heroChartInstance.destroy(); _heroChartInstance = null; }
+
+  const c = document.getElementById('heroAreaChart');
+  if (!c) return;  // canvas อาจหายถ้า navigate ออกระหว่าง import
+
+  const { ym, pYm, daysInMonth, dayOfMonth, totalAvailable, prevTotalAvail } = _heroChartPayload;
+
+  const currentCurve = buildDailyCumulative(ym,  totalAvailable, daysInMonth, dayOfMonth);
+  const prevCurve    = buildDailyCumulative(pYm, prevTotalAvail, daysInMonth);
+  const labels = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  _heroChartInstance = new _ChartClass(c, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'เดือนนี้',
+          data: currentCurve,
+          borderColor: '#3B6D11',
+          backgroundColor: 'rgba(59,109,17,0.09)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 2,
+          spanGaps: false,
+        },
+        {
+          label: 'เดือนที่แล้ว',
+          data: prevCurve,
+          borderColor: '#C8C4B6',
+          backgroundColor: 'transparent',
+          borderDash: [5, 3],
+          fill: false,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 1.5,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '—'}%` },
+        },
+      },
+      scales: {
+        x: { display: false },
+        y: { display: false, min: 0 },
+      },
+      animation: { duration: 400 },
+    },
+  });
+}
+
+
+/* ===================================================================
    DASHBOARD VIEW
    =================================================================== */
 export function renderDashboard(container) {
@@ -44,19 +275,6 @@ export function renderDashboard(container) {
   const accounts = State.getAccounts();
   const threshold = State.getSettings().threshold_satang;
 
-  // === Hero card ===
-  const netSign = monthSummary.net >= 0 ? '+' : '−';
-  const monthLabel = monthNameTH(todayDate);
-
-  const prevYearMonth = (() => {
-    const d = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
-  const lastMonthSummary = State.getMonthSummary(prevYearMonth);
-  const pctChange = lastMonthSummary.expense > 0
-    ? Math.round((monthSummary.expense - lastMonthSummary.expense) / lastMonthSummary.expense * 100)
-    : null;
-
   container.innerHTML = `
     <!-- Page header (date as diary opening) -->
     <div class="page-header">
@@ -67,35 +285,8 @@ export function renderDashboard(container) {
 
     ${SQUIGGLE}
 
-    <!-- Hero: month net -->
-    <div class="hero">
-      <div class="hero-label">เดือนนี้คุณ${monthSummary.net >= 0 ? 'เหลือ' : 'ใช้เกิน'}</div>
-      <div class="hero-amount ${monthSummary.net >= 0 ? 'positive' : 'negative'}">
-        <span class="sign">${netSign}</span>
-        <span class="num">${formatBaht(Math.abs(monthSummary.net))}</span>
-        <span class="unit">฿</span>
-      </div>
-      <svg class="hero-underline" viewBox="0 0 300 6" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <path d="M5 3 Q 75 0, 150 3 T 295 3"/>
-      </svg>
-      ${pctChange !== null ? `
-      <div class="hero-sub">
-        ${Math.abs(pctChange)}% ${pctChange <= 0 ? 'น้อยกว่า' : 'มากกว่า'}เดือนก่อน
-      </div>` : ''}
-
-      <!-- Mini stats -->
-      <div class="mini-stats">
-        <div class="mini-stat">
-          <span class="lbl">รายรับ</span>
-          <span class="val income">+${formatBaht(monthSummary.income)} ฿</span>
-        </div>
-        <div class="mini-divider"></div>
-        <div class="mini-stat">
-          <span class="lbl">รายจ่าย</span>
-          <span class="val expense">−${formatBaht(monthSummary.expense)} ฿</span>
-        </div>
-      </div>
-    </div>
+    <!-- Hero: spending pace card (B+A style) -->
+    ${renderHeroCard()}
 
     <!-- Today entries — ต่อจาก hero card -->
     <div class="section">
@@ -162,6 +353,9 @@ export function renderDashboard(container) {
   container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
     document.querySelector('.nav-item[data-view="settings"]')?.click();
   });
+
+  // init Hero Area Chart หลัง DOM พร้อม
+  requestAnimationFrame(() => initHeroChart());
 }
 
 

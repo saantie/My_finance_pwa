@@ -473,6 +473,192 @@ html, body {
 .mini-divider { background: var(--rule); height: 24px; }
 
 
+/* ================================================================
+   Hero Card B+A — spending pace vs last month
+================================================================ */
+.hero-card {
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 18px 18px 14px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 0 rgba(80,60,30,.04), 0 8px 24px -12px rgba(80,60,30,.16);
+}
+
+/* 1. Main number */
+.hero-card-main { margin-bottom: 10px; }
+.hero-card-label {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+.hero-card-amount {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.hero-card-unit { font-size: 20px; font-weight: 500; }
+
+/* 2. Legend */
+.hero-card-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+.hero-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.hero-legend-line {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+}
+.hero-legend-line.curr { background: #3B6D11; }
+.hero-legend-line.prev {
+  background: transparent;
+  border-top: 2px dashed #C8C4B6;
+  height: 0;
+}
+
+/* 3. Area chart canvas wrapper */
+.hero-chart-wrap {
+  height: 72px;
+  position: relative;
+}
+
+/* 4. Date labels */
+.hero-date-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0 10px;
+}
+.hero-date-labels span { font-size: 10px; color: var(--ink-faint); }
+
+/* 5. Divider */
+.hero-rule {
+  height: .5px;
+  background: var(--rule);
+  margin: 0 0 12px;
+}
+
+/* 6. Pace bar */
+.hero-pace { margin-bottom: 10px; }
+.hero-pace-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+.hero-pace-spent { font-size: 13px; font-weight: 500; color: var(--ink); }
+.hero-pace-target { font-size: 11px; color: var(--ink-faint); text-align: right; }
+
+.pace-track {
+  position: relative;
+  height: 20px;
+  background: var(--rule-soft);
+  border-radius: 999px;
+  overflow: visible;
+  margin-bottom: 18px;
+}
+.pace-fill {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  background: #3B6D11;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  min-width: 20px;
+  transition: width 0.5s ease;
+}
+.pace-pct {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pace-cursor {
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 28px;
+  background: #fff;
+  border: 2px solid #3B6D11;
+  border-radius: 3px;
+}
+
+/* เส้นแนวตั้งเดือนที่แล้ว */
+.pace-prev-mark {
+  position: absolute;
+  top: -4px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.pace-prev-tick {
+  width: 1.5px;
+  height: 28px;
+  background: var(--ink-faint);
+  margin: 0 auto;
+}
+.pace-prev-label {
+  display: block;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  text-align: center;
+  margin-top: 3px;
+  transform: translateX(-50%);
+}
+
+.pace-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+/* 7. Verdict */
+.hero-verdict {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.verdict-good    { color: #3B6D11; font-weight: 500; }
+.verdict-warn    { color: #854F0B; font-weight: 500; }
+.verdict-neutral { color: var(--ink-faint); }
+.verdict-date    { color: var(--ink-faint); white-space: nowrap; }
+
+/* 8. Breakdown */
+.hero-breakdown {
+  display: flex;
+  border-top: .5px solid var(--rule);
+  padding-top: 10px;
+}
+.breakdown-col { flex: 1; }
+.breakdown-right {
+  text-align: right;
+  border-left: .5px solid var(--rule);
+  padding-left: 10px;
+}
+.breakdown-lbl { font-size: 11px; color: var(--ink-faint); margin-bottom: 2px; }
+.breakdown-val { font-size: 14px; font-weight: 600; color: var(--ink); }
+.breakdown-sub { font-size: 10px; color: var(--ink-faint); margin-top: 1px; }
+
+
 /* Account list */
 .acct {
   display: flex;
