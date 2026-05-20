@@ -519,10 +519,10 @@ html, body {
   height: 2px;
   border-radius: 1px;
 }
-.hero-legend-line.curr { background: #3B6D11; }
+.hero-legend-line.curr { background: var(--terracotta); }
 .hero-legend-line.prev {
   background: transparent;
-  border-top: 2px dashed #C8C4B6;
+  border-top: 2px dashed var(--ink-faint);
   height: 0;
 }
 
@@ -571,7 +571,7 @@ html, body {
   position: absolute;
   left: 0; top: 0;
   height: 100%;
-  background: #3B6D11;
+  background: var(--terracotta);
   border-radius: 999px;
   display: flex;
   align-items: center;
@@ -594,7 +594,7 @@ html, body {
   width: 5px;
   height: 28px;
   background: #fff;
-  border: 2px solid #3B6D11;
+  border: 2px solid var(--terracotta);
   border-radius: 3px;
 }
 
@@ -637,7 +637,7 @@ html, body {
   margin-bottom: 12px;
   gap: 8px;
 }
-.verdict-good    { color: #3B6D11; font-weight: 500; }
+.verdict-good    { color: var(--sage); font-weight: 500; }
 .verdict-warn    { color: #854F0B; font-weight: 500; }
 .verdict-neutral { color: var(--ink-faint); }
 .verdict-date    { color: var(--ink-faint); white-space: nowrap; }

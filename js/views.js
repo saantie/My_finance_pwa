@@ -209,6 +209,21 @@ async function initHeroChart() {
   const c = document.getElementById('heroAreaChart');
   if (!c) return;  // canvas อาจหายถ้า navigate ออกระหว่าง import
 
+  // อ่านสีจาก CSS vars ณ เวลา render (เปลี่ยนตามธีม + dark mode)
+  const cs = getComputedStyle(document.documentElement);
+  const primaryHex = cs.getPropertyValue('--terracotta').trim() || '#e88563';
+  const prevLineHex = cs.getPropertyValue('--ink-faint').trim()  || '#b3a596';
+
+  // แปลง hex → rgba (รองรับ #rrggbb และ #rgb)
+  function hexRgba(hex, a) {
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
   const { ym, pYm, daysInMonth, dayOfMonth, totalAvailable, prevTotalAvail } = _heroChartPayload;
 
   const currentCurve = buildDailyCumulative(ym,  totalAvailable, daysInMonth, dayOfMonth);
@@ -223,8 +238,8 @@ async function initHeroChart() {
         {
           label: 'เดือนนี้',
           data: currentCurve,
-          borderColor: '#3B6D11',
-          backgroundColor: 'rgba(59,109,17,0.09)',
+          borderColor: primaryHex,
+          backgroundColor: hexRgba(primaryHex, 0.10),
           fill: true,
           tension: 0.4,
           pointRadius: 0,
@@ -234,7 +249,7 @@ async function initHeroChart() {
         {
           label: 'เดือนที่แล้ว',
           data: prevCurve,
-          borderColor: '#C8C4B6',
+          borderColor: prevLineHex,
           backgroundColor: 'transparent',
           borderDash: [5, 3],
           fill: false,
