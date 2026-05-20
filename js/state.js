@@ -506,6 +506,10 @@ export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
 export function getOpeningBalance(yearMonth) {
   const cutoff = yearMonth + '-01';
 
+  // ถ้าไม่มีรายการก่อนเดือนนี้เลย → เดือนแรกสุด → ยกมา 0
+  const hasHistory = activeTxs().some(t => t.date < cutoff);
+  if (!hasHistory) return 0;
+
   // ยอดรวมปัจจุบันของทุกบัญชี (ใช้ logic เดียวกับ dashboard)
   const totalCurrent = getAccounts().reduce((s, acct) => {
     const bal = acct.type === 'cash'

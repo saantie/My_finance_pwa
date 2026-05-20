@@ -435,17 +435,17 @@ function renderEntryRow(tx) {
   const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
   const isDeleted = tx.deleted_by != null;
 
-  // Account badge
-  let acctBadge = '';
+  // Account line (แยกบรรทัดใต้หมวด — อ่านง่ายกว่า badge เล็กๆ)
+  let acctLine = '';
   if (isTransfer && tx.account_from && tx.account_to) {
     const fromName = State.getAccount(tx.account_from)?.display_name || tx.account_from;
     const toName   = State.getAccount(tx.account_to)?.display_name   || tx.account_to;
-    acctBadge = `<span class="entry-acct-badge">${escapeHtml(shortAcctName(fromName))} → ${escapeHtml(shortAcctName(toName))}</span>`;
+    acctLine = `<div class="entry-acct-line">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>`;
   } else {
     const acctId = isIncome ? tx.account_to : tx.account_from;
     const acct = acctId ? State.getAccount(acctId) : null;
     if (acct) {
-      acctBadge = `<span class="entry-acct-badge">${escapeHtml(shortAcctName(acct.display_name))}</span>`;
+      acctLine = `<div class="entry-acct-line">${escapeHtml(acct.display_name)}</div>`;
     }
   }
 
@@ -463,7 +463,8 @@ function renderEntryRow(tx) {
       </div>
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
-        <div class="entry-cat">${def.label}${acctBadge}</div>
+        <div class="entry-cat">${def.label}</div>
+        ${acctLine}
         ${authorNote}
       </div>
       <div class="entry-right">
@@ -546,7 +547,11 @@ export function renderList(container) {
 
     <div class="month-carry-header">
       <span class="month-carry-title">${monthLabel}</span>
-      <span class="month-carry-balance">ยกมา ${formatBaht(carry.opening)} → คงเหลือ ${formatBaht(carry.closing)}</span>
+      <span class="month-carry-balance">
+        ยกมา ${formatBaht(carry.opening)}
+        <span class="month-carry-net ${carry.income - carry.expense >= 0 ? 'positive' : 'negative'}">${carry.income - carry.expense >= 0 ? '+' : '−'}${formatBaht(Math.abs(carry.income - carry.expense))}</span>
+        คงเหลือ ${formatBaht(carry.closing)}
+      </span>
     </div>
 
     ${groups.length === 0
@@ -1166,6 +1171,24 @@ function showCashOverrideDialog(cashAcct) {
     </div>
   `;
   document.body.appendChild(overlay);
+
+  // ปรับตำแหน่ง overlay เมื่อแป้นพิมพ์โผล่
+  if (window.visualViewport) {
+    const adjustForKeyboard = () => {
+      const vv = window.visualViewport;
+      overlay.style.height = vv.height + 'px';
+      overlay.style.top = vv.offsetTop + 'px';
+    };
+    adjustForKeyboard();
+    window.visualViewport.addEventListener('resize', adjustForKeyboard);
+    window.visualViewport.addEventListener('scroll', adjustForKeyboard);
+    const origRemoveOverlay = overlay.remove.bind(overlay);
+    overlay.remove = () => {
+      window.visualViewport.removeEventListener('resize', adjustForKeyboard);
+      window.visualViewport.removeEventListener('scroll', adjustForKeyboard);
+      origRemoveOverlay();
+    };
+  }
 
   const input = overlay.querySelector('#cash-override-input');
   input.focus();

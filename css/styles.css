@@ -739,15 +739,22 @@ html, body {
   font-size: var(--ts-base);
   color: var(--ink);
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .entry-cat {
   font-size: var(--ts-xs);
   color: var(--ink-faint);
   margin-top: 2px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
+}
+.entry-acct-line {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .entry-amt {
   font-size: var(--ts-base);
@@ -1465,16 +1472,17 @@ html, body {
 .month-carry-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 6px 16px;
-  background: var(--paper);
-  border-bottom: 0.5px solid var(--rule);
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  align-items: baseline;
+  padding: 8px 16px 6px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  margin-bottom: 12px;
 }
-.month-carry-title { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
-.month-carry-balance { font-size: 12px; color: var(--ink); }
+.month-carry-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.month-carry-balance { font-size: 12px; color: var(--ink-faint); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.month-carry-net { font-size: 12px; font-weight: 600; padding: 0 3px; }
+.month-carry-net.positive { color: var(--sage); }
+.month-carry-net.negative { color: var(--clay); }
 
 .day-group { margin-bottom: 22px; }
 .day-head {
@@ -2941,20 +2949,7 @@ html[data-dark="1"] .chip.active {
   white-space: nowrap;
 }
 
-.entry-acct-badge {
-  display: inline-block;
-  font-size: 10px;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 0.5px solid var(--rule);
-  border-radius: 4px;
-  padding: 0 5px;
-  line-height: 16px;
-  white-space: nowrap;
-}
-html[data-dark="1"] .entry-acct-badge {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.12);
+html[data-dark="1"] .entry-acct-line {
   color: var(--ink-faint);
 }
 
