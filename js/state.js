@@ -494,6 +494,40 @@ export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
 }
 
 /**
+ * ยอดรวมทุกบัญชีก่อนต้นเดือน yearMonth (opening balance)
+ * cash account ใช้ getEffectiveCashBalance แทนการนับ tx ย้อนหลัง
+ * @param {string} yearMonth "YYYY-MM"
+ */
+export function getOpeningBalance(yearMonth) {
+  const cutoff = yearMonth + '-01';
+  const txBefore = activeTxs().filter(t => t.date < cutoff);
+
+  return getAccounts().reduce((total, acct) => {
+    if (acct.type === 'cash') {
+      return total + getEffectiveCashBalance(acct.id);
+    }
+    const balance = txBefore
+      .filter(t => t.account_from === acct.id || t.account_to === acct.id)
+      .reduce((sum, t) => {
+        if (t.type === 'income'  && t.account_to   === acct.id) return sum + t.amount;
+        if (t.type === 'expense' && t.account_from === acct.id) return sum - t.amount;
+        return sum;
+      }, 0);
+    return total + balance;
+  }, 0);
+}
+
+/**
+ * สรุปยอดเดือน พร้อม opening/closing carry
+ * @returns { opening, income, expense, closing }
+ */
+export function getMonthSummaryWithCarry(yearMonth) {
+  const opening = getOpeningBalance(yearMonth);
+  const { income, expense } = getMonthSummary(yearMonth);
+  return { opening, income, expense, closing: opening + income - expense };
+}
+
+/**
  * Top categories ในเดือนที่ระบุ (เฉพาะรายจ่าย)
  * @returns array ของ { group, total, count, percent }
  */

@@ -491,6 +491,8 @@ export function renderList(container) {
   const monthLabel = `${monthNameTH(mDate)} ${ceToBe(mDate.getFullYear())}`;
   const isCurrentMonth = listState.month === todayISO().slice(0, 7);
 
+  const carry = State.getMonthSummaryWithCarry(listState.month);
+
   container.innerHTML = `
     <div class="app-bar">
       <h1 class="title">บันทึกทั้งหมด</h1>
@@ -512,6 +514,11 @@ export function renderList(container) {
       <button class="chip ${listState.filter === 'expense' ? 'active' : ''}" data-filter="expense">รายจ่าย</button>
       <button class="chip ${listState.filter === 'income' ? 'active' : ''}" data-filter="income">รายรับ</button>
       <button class="chip ${listState.filter === 'transfer' ? 'active' : ''}" data-filter="transfer">โอน</button>
+    </div>
+
+    <div class="month-carry-header">
+      <span class="month-carry-title">${monthLabel}</span>
+      <span class="month-carry-balance">ยกมา ${formatBaht(carry.opening)} → คงเหลือ ${formatBaht(carry.closing)}</span>
     </div>
 
     ${groups.length === 0
