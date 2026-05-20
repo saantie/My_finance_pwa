@@ -495,26 +495,35 @@ export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
 
 /**
  * ยอดรวมทุกบัญชีก่อนต้นเดือน yearMonth (opening balance)
- * cash account ใช้ getEffectiveCashBalance แทนการนับ tx ย้อนหลัง
+ *
+ * คำนวณโดย: เอา current balance ทุกบัญชี แล้วลบ income/expense
+ * ที่เกิดตั้งแต่ต้น yearMonth เป็นต้นไป (ย้อนกลับ)
+ * — วิธีนี้รับประกันว่า closing(M) === opening(M+1) เสมอ
+ *   และใช้ current_balance / balance anchor เดียวกับ computeAccountBalance
+ *
  * @param {string} yearMonth "YYYY-MM"
  */
 export function getOpeningBalance(yearMonth) {
   const cutoff = yearMonth + '-01';
-  const txBefore = activeTxs().filter(t => t.date < cutoff);
 
-  return getAccounts().reduce((total, acct) => {
-    if (acct.type === 'cash') {
-      return total + getEffectiveCashBalance(acct.id);
-    }
-    const balance = txBefore
-      .filter(t => t.account_from === acct.id || t.account_to === acct.id)
-      .reduce((sum, t) => {
-        if (t.type === 'income'  && t.account_to   === acct.id) return sum + t.amount;
-        if (t.type === 'expense' && t.account_from === acct.id) return sum - t.amount;
-        return sum;
-      }, 0);
-    return total + balance;
+  // ยอดรวมปัจจุบันของทุกบัญชี (ใช้ logic เดียวกับ dashboard)
+  const totalCurrent = getAccounts().reduce((s, acct) => {
+    const bal = acct.type === 'cash'
+      ? getEffectiveCashBalance(acct.id)
+      : computeAccountBalance(acct.id);
+    return s + bal;
   }, 0);
+
+  // หัก income / บวกคืน expense ที่เกิดตั้งแต่ cutoff เป็นต้นไป
+  // (transfers ไม่นับ — เท่ากันทั้งสองบัญชีจึงตัดกันเองที่ portfolio level)
+  let futureIncome = 0, futureExpense = 0;
+  for (const t of activeTxs()) {
+    if (t.date < cutoff) continue;
+    if (t.type === 'income')  futureIncome  += t.amount;
+    else if (t.type === 'expense') futureExpense += t.amount;
+  }
+
+  return totalCurrent - futureIncome + futureExpense;
 }
 
 /**

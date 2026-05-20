@@ -130,7 +130,9 @@ export function renderDashboard(container) {
       <div class="card card-padded">
         ${(() => {
           const visible = accounts.filter(a => {
-            const bal = State.computeAccountBalance(a.id);
+            const bal = a.type === 'cash'
+              ? State.getEffectiveCashBalance(a.id)
+              : State.computeAccountBalance(a.id);
             return bal !== 0 || a.bank || a.user_renamed;
           });
           if (!visible.length) return `<div class="empty" style="padding:20px 12px;"><div class="desc">— ยังไม่มีบัญชี กด <strong>จัดการ</strong> เพื่อเพิ่ม —</div></div>`;
@@ -224,7 +226,8 @@ function renderSpendingChart() {
 ================================================================ */
 function renderForecastChart() {
   const accounts = State.getAccounts();
-  const totalBalance = accounts.reduce((s, a) => s + State.computeAccountBalance(a.id), 0);
+  const totalBalance = accounts.reduce((s, a) =>
+    s + (a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id)), 0);
   const threshold = State.getSettings().threshold_satang;
 
   // ดึง recurring forecast 30 วัน
@@ -358,7 +361,9 @@ const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', c
 
 function renderAccountRow(acct, globalThreshold) {
   const threshold = acct.threshold || globalThreshold;
-  const balance = State.computeAccountBalance(acct.id);
+  const balance = acct.type === 'cash'
+    ? State.getEffectiveCashBalance(acct.id)
+    : State.computeAccountBalance(acct.id);
   const alertable = acct.type !== 'cash'
     && acct.type !== 'debt'
     && acct.type !== 'investment'
@@ -412,6 +417,15 @@ function shortName(email) {
   return email.split('@')[0];
 }
 
+function shortAcctName(name) {
+  if (!name) return '';
+  // ตัดคำซ้ำซ้อน เช่น "เงินสด" หรือ "กสิกร ...1234" → "1234"
+  // แสดงแค่ส่วนท้าย (หลัง space) ถ้าชื่อยาวกว่า 8 ตัวอักษร
+  if (name.length <= 8) return name;
+  const parts = name.trim().split(/\s+/);
+  return parts[parts.length - 1] || name;
+}
+
 function renderEntryRow(tx) {
   const def = getCategory(tx.group);
   const time = formatTime(tx.createdAt || tx.date);
@@ -420,6 +434,20 @@ function renderEntryRow(tx) {
   const sign = isIncome ? '+' : (isTransfer ? '↔' : '−');
   const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
   const isDeleted = tx.deleted_by != null;
+
+  // Account badge
+  let acctBadge = '';
+  if (isTransfer && tx.account_from && tx.account_to) {
+    const fromName = State.getAccount(tx.account_from)?.display_name || tx.account_from;
+    const toName   = State.getAccount(tx.account_to)?.display_name   || tx.account_to;
+    acctBadge = `<span class="entry-acct-badge">${escapeHtml(shortAcctName(fromName))} → ${escapeHtml(shortAcctName(toName))}</span>`;
+  } else {
+    const acctId = isIncome ? tx.account_to : tx.account_from;
+    const acct = acctId ? State.getAccount(acctId) : null;
+    if (acct) {
+      acctBadge = `<span class="entry-acct-badge">${escapeHtml(shortAcctName(acct.display_name))}</span>`;
+    }
+  }
 
   const authorNote = isDeleted
     ? `<div class="entry-author">ลบโดย ${escapeHtml(shortName(tx.deleted_by))}</div>`
@@ -435,7 +463,7 @@ function renderEntryRow(tx) {
       </div>
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
-        <div class="entry-cat">${def.label}</div>
+        <div class="entry-cat">${def.label}${acctBadge}</div>
         ${authorNote}
       </div>
       <div class="entry-right">
@@ -1690,7 +1718,9 @@ function renderAccountsSection() {
 
   // แต่ละบัญชีของฉัน
   const acctCards = myAccounts.map(acct => {
-    const balance = State.computeAccountBalance(acct.id);
+    const balance = acct.type === 'cash'
+      ? State.getEffectiveCashBalance(acct.id)
+      : State.computeAccountBalance(acct.id);
     const typeLabel = TYPE_LABEL[acct.type] || acct.type;
     const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
     const isShared = (acct.shared_with || []).length > 0;
