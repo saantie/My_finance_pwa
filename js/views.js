@@ -1081,6 +1081,15 @@ function confirmImport(result) {
 
   State.addTransactionsBatch(cleanTxs);
   showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย`);
+
+  // ตรวจว่ามี cash account ที่ยังไม่มี override — ถ้ามี ATM ใน batch ให้ถาม
+  const hasAtm = cleanTxs.some(t =>
+    t.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(t.description || '')
+  );
+  if (hasAtm) {
+    const cashAcct = State.getAccounts().find(a => a.type === 'cash' && !a.override_date);
+    if (cashAcct) showCashOverrideDialog(cashAcct);
+  }
 }
 
 function bankDisplayName(bank) {
@@ -1089,6 +1098,56 @@ function bankDisplayName(bank) {
     bay: 'กรุงศรี', ttb: 'ทหารไทย', gsb: 'ออมสิน', baac: 'ธ.ก.ส.',
     ghb: 'ธอส.', cimb: 'CIMB', uob: 'UOB', tisco: 'TISCO', kkp: 'เกียรตินาคิน'
   })[bank] || bank;
+}
+
+
+/** Dialog ถามยอดเงินสดจริงในมือ — แสดงหลัง PDF import มี ATM / หรือกด แก้ไข ใน settings */
+function showCashOverrideDialog(cashAcct) {
+  const existing = cashAcct.cash_balance_override != null
+    ? (cashAcct.cash_balance_override / 100).toFixed(0)
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="acct-modal">
+      <div class="acct-modal-head">เงินสดในมือตอนนี้</div>
+      <div class="acct-modal-body">
+        <div class="setting-sub" style="margin-bottom:14px;line-height:1.5">
+          พบรายการถอน ATM — ตอนนี้มีเงินสดในมือจริงๆ เท่าไหร่?<br>
+          (ใส่ยอดปัจจุบัน เพื่อให้ยอดคงเหลือถูกต้อง)
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="cash-override-input" type="number" inputmode="decimal"
+            placeholder="0" value="${existing}"
+            style="flex:1;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;font-size:18px;background:var(--surface);color:var(--ink);text-align:right">
+          <span style="font-size:16px;color:var(--ink-faint)">฿</span>
+        </div>
+      </div>
+      <div class="acct-modal-footer" style="display:flex;gap:8px">
+        <button class="cancel" id="cash-override-skip" style="flex:1">ข้ามก่อน</button>
+        <button class="confirm" id="cash-override-save" style="flex:2">บันทึก</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#cash-override-input');
+  input.focus();
+  input.select();
+
+  overlay.querySelector('#cash-override-skip').addEventListener('click', () => overlay.remove());
+
+  overlay.querySelector('#cash-override-save').addEventListener('click', () => {
+    const val = parseFloat(input.value);
+    if (isNaN(val) || val < 0) {
+      showToast('ใส่จำนวนเงินให้ถูกต้อง');
+      return;
+    }
+    State.setCashOverride(cashAcct.id, Math.round(val * 100), todayISO());
+    showToast('บันทึกยอดเงินสดแล้ว');
+    overlay.remove();
+  });
 }
 
 
@@ -1571,6 +1630,14 @@ export function renderSettings(container) {
       showDeleteAccountDialog(acct, container);
     });
   });
+
+  // แก้ไขยอดเงินสดเริ่มต้น (cash override)
+  container.querySelectorAll('[data-action="edit-cash-override"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const acct = State.getAccount(btn.dataset.accountId);
+      if (acct) showCashOverrideDialog(acct);
+    });
+  });
 }
 
 
@@ -1653,6 +1720,14 @@ function renderAccountsSection() {
               ${isShared ? '<span class="badge-shared">แชร์แล้ว</span>' : ''}
             </div>
             <div class="setting-sub">${typeLabel} · ${formatBaht(balance)} ฿</div>
+            ${acct.type === 'cash' && acct.override_date ? `
+            <div class="setting-sub" style="font-size:11px;margin-top:2px;display:flex;align-items:center;gap:4px">
+              ยอดเริ่มต้น: ${formatBaht(acct.cash_balance_override)} ฿ (${formatShortDate(acct.override_date)})
+              <button class="setting-action-btn"
+                      style="font-size:11px;padding:2px 8px;margin-left:2px"
+                      data-action="edit-cash-override"
+                      data-account-id="${escapeHtml(acct.id)}">แก้ไข</button>
+            </div>` : ''}
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
             ${canShare ? `<button class="setting-seg-btn ${isShared ? 'active' : ''}"

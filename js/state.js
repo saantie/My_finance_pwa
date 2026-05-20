@@ -43,7 +43,9 @@ function makeDefaultAccount(def) {
     user_renamed: false,
     owner: null,
     storage: 'local',
-    shared_with: []
+    shared_with: [],
+    cash_balance_override: null,
+    override_date: null
   };
 }
 
@@ -317,7 +319,9 @@ export function addAccount(account) {
     user_renamed: false,
     owner: account.owner || null,
     storage: account.storage || 'local',
-    shared_with: account.shared_with || []
+    shared_with: account.shared_with || [],
+    cash_balance_override: account.cash_balance_override ?? null,
+    override_date: account.override_date ?? null
   };
   _state.accounts.push(newAcct);
   notify();
@@ -433,6 +437,40 @@ export function computeAccountBalance(accountId) {
     if (t.account_from === accountId) return sum - t.amount;
     return sum;
   }, openingBal);
+}
+
+/**
+ * ยอดคงเหลือของ cash account โดยคำนึงถึง override ที่ user ตั้งไว้
+ * ถ้ามี override → นับจาก override_date เป็นต้นไป + ยอดเปลี่ยนแปลงหลัง override
+ * ถ้าไม่มี override → ใช้ computeAccountBalance เดิม
+ */
+export function getEffectiveCashBalance(accountId) {
+  const acct = getAccount(accountId);
+  if (!acct || acct.type !== 'cash') return 0;
+  if (acct.cash_balance_override !== null && acct.override_date) {
+    const afterOverride = activeTxs()
+      .filter(t =>
+        t.date >= acct.override_date &&
+        (t.account_from === accountId || t.account_to === accountId)
+      )
+      .reduce((sum, t) => {
+        if (t.type === 'income'   && t.account_to   === accountId) return sum + t.amount;
+        if (t.type === 'expense'  && t.account_from === accountId) return sum - t.amount;
+        if (t.type === 'transfer' && t.account_to   === accountId) return sum + t.amount;
+        if (t.type === 'transfer' && t.account_from === accountId) return sum - t.amount;
+        return sum;
+      }, 0);
+    return acct.cash_balance_override + afterOverride;
+  }
+  return computeAccountBalance(accountId);
+}
+
+/** ตั้ง override ยอดเงินสดจริง ณ วันที่ระบุ (หน่วย satang) */
+export function setCashOverride(accountId, amount, date) {
+  updateAccount(accountId, {
+    cash_balance_override: amount,
+    override_date: date
+  });
 }
 
 /**
