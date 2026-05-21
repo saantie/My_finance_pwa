@@ -15,7 +15,7 @@ import * as Recurring from './recurring.js';
 import { svgIcon, CATEGORIES, getCategory } from './icons.js';
 import {
   formatBaht, formatLongDate, formatShortDate, formatTime,
-  todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce, haptic
+  todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce, haptic, offsetDateISO
 } from './utils.js';
 import { cashflowForecast, dailyExpenseBars } from './chart.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';

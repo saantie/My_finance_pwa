@@ -63,6 +63,13 @@ export function parseLocalDate(iso) {
   return new Date(y, m - 1, d);
 }
 
+/** เลื่อนวัน ISO โดย offset วัน (บวก/ลบ) */
+export function offsetDateISO(iso, days) {
+  const d = parseLocalDate(iso);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** ค.ศ. → พ.ศ. */
 export function ceToBe(year) {
   return year + 543;
