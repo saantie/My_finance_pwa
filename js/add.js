@@ -196,14 +196,14 @@ function render() {
     <div class="add-amount">
       <div class="add-amount-label">ใส่จำนวน</div>
       <div class="add-amount-row">
-        <button class="voice-btn-large" data-action="voice" aria-label="พูดเพื่อบันทึก">
-          ${svgIcon('mic', { size: 40, stroke: 1.6 })}
-        </button>
+        <div class="voice-btn-spacer"></div>
         <div class="add-amount-value" data-type="${draft.type}">
           <span class="num">${escapeHtml(amountDisplay)}</span>
           <span class="unit">฿</span>
         </div>
-        <div class="voice-btn-spacer"></div>
+        <button class="voice-btn-large" data-action="voice" aria-label="พูดเพื่อบันทึก">
+          ${svgIcon('mic', { size: 40, stroke: 1.6 })}
+        </button>
       </div>
       ${draft.expression && /[+\-*/]/.test(draft.expression)
         ? `<div class="add-calc-hint">= ${escapeHtml(draft.expression)}</div>`
