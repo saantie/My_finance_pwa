@@ -321,8 +321,8 @@ export function renderDashboard(container) {
     <!-- Spending chart: 14 วันล่าสุด -->
     ${renderSpendingChart()}
 
-    <!-- Cashflow forecast: 30 วันข้างหน้า -->
-    ${renderForecastChart()}
+    <!-- Cashflow forecast: 30 วันข้างหน้า (Chart.js) -->
+    ${renderForecastCard()}
 
     <!-- Upcoming recurring/scheduled -->
     ${renderUpcomingSection()}
@@ -369,8 +369,11 @@ export function renderDashboard(container) {
     document.querySelector('.nav-item[data-view="settings"]')?.click();
   });
 
-  // init Hero Area Chart หลัง DOM พร้อม
-  requestAnimationFrame(() => initHeroChart());
+  // init charts หลัง DOM พร้อม
+  requestAnimationFrame(() => {
+    initHeroChart();
+    initForecastChart();
+  });
 }
 
 
@@ -427,12 +430,261 @@ function renderSpendingChart() {
 }
 
 
-/* === Helper: cashflow forecast chart (30 วันข้างหน้า) =========
-   เป้าหมาย: เห็นว่าเงินจะเหลือเท่าไหร่ในอีก 30 วัน
-   - เริ่มจาก current balance รวม
-   - ลบ recurring/scheduled ที่จะเกิดขึ้น
-   - เส้นเฉลี่ยจากรายจ่ายเฉลี่ย 14 วันล่าสุด (เผื่อใช้จ่ายต่อ)
-================================================================ */
+/* === Forecast Card (Chart.js) — 30 วันข้างหน้า ================ */
+
+let _forecastChartInstance = null;
+let _forecastChartPayload  = null;
+
+/** คำนวณข้อมูล forecast 30 วัน */
+function getForecastData() {
+  const today = todayISO();
+
+  // ยอดรวมทุกบัญชี ณ ปัจจุบัน
+  const startBalance = State.getAccounts().reduce((s, a) =>
+    s + (a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id)), 0);
+
+  // ค่าใช้จ่ายเฉลี่ยรายวัน จาก 30 วันที่ผ่านมา (satang)
+  const past30Start = offsetDateISO(today, -30);
+  const txs = State.getTransactions().filter(t => t.deleted_by == null);
+  const pastExpenses = txs.filter(t =>
+    t.type === 'expense' && t.date >= past30Start && t.date < today
+  );
+  const avgDailyExpense = pastExpenses.reduce((s, t) => s + t.amount, 0) / 30;
+
+  // Recurring/scheduled ใน 30 วันข้างหน้า จาก recurring.js
+  const schedule = Recurring.getForecast(30);
+  const schedByDate = {};
+  for (const r of schedule) {
+    (schedByDate[r.date] = schedByDate[r.date] || []).push(r);
+  }
+
+  // สร้าง days array
+  const days = [];
+  let running = startBalance;
+  for (let i = 0; i < 30; i++) {
+    const date = offsetDateISO(today, i);
+    const recurring = schedByDate[date] || [];
+    const recurringNet = recurring.reduce((s, r) =>
+      s + (r.type === 'income' ? r.amount : -r.amount), 0);
+    // วันแรก (i=0) ไม่หักค่าใช้จ่ายเฉลี่ย — แสดงยอดเริ่มต้น
+    running = i === 0
+      ? running + recurringNet
+      : running - avgDailyExpense + recurringNet;
+    days.push({
+      date,
+      balance: Math.round(running),
+      hasRecurring: recurring.length > 0,
+      recurringItems: recurring,
+    });
+  }
+
+  return { days, avgDailyExpense, startBalance };
+}
+
+/** HTML card สำหรับ forecast — chart init ผ่าน initForecastChart() */
+function renderForecastCard() {
+  const { days, avgDailyExpense } = getForecastData();
+  const threshold   = State.getSettings().threshold_satang;
+  const minBalance  = Math.min(...days.map(d => d.balance));
+  const dangerDays  = days.filter(d => d.balance < threshold);
+
+  _forecastChartPayload = { days, threshold, avgDailyExpense };
+
+  const xLabels = days.map((d, i) => {
+    if (i === 0) return 'วันนี้';
+    const day = parseInt(d.date.slice(8, 10));
+    return day % 7 === 0 ? String(day) : '';
+  });
+
+  return `
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">เงินใน 30 วันข้างหน้า</h2>
+      </div>
+      <div class="card forecast-card">
+
+        <div class="forecast-stats">
+          <div class="forecast-stat">
+            <div class="forecast-stat-label">ยอดวันนี้</div>
+            <div class="forecast-stat-value ok">${formatBaht(days[0]?.balance ?? 0)} ฿</div>
+          </div>
+          <div class="forecast-stat">
+            <div class="forecast-stat-label">คาดต่ำสุดใน 30 วัน</div>
+            <div class="forecast-stat-value ${minBalance < threshold ? 'danger' : 'ok'}">
+              ${formatBaht(minBalance)} ฿
+            </div>
+          </div>
+        </div>
+
+        <div class="forecast-legend">
+          <span class="fl-item"><span class="fl-line primary"></span>ยอดคาดการณ์</span>
+          <span class="fl-item"><span class="fl-dash danger"></span>เกณฑ์ ${formatBaht(threshold)} ฿</span>
+          <span class="fl-item"><span class="fl-dot primary"></span>วันนี้</span>
+          ${dangerDays.length > 0 ? `<span class="fl-item"><span class="fl-dot danger"></span>เกณฑ์เตือน</span>` : ''}
+        </div>
+
+        <div class="forecast-chart-wrap">
+          <canvas id="forecastChart30"
+            aria-label="กราฟยอดเงินคาดการณ์ 30 วัน เริ่มต้น ${formatBaht(days[0]?.balance ?? 0)} บาท ต่ำสุด ${formatBaht(minBalance)} บาท">
+          </canvas>
+        </div>
+
+        ${dangerDays.length > 0 ? `
+        <div class="forecast-warning">
+          ⚠️ คาดว่ายอดจะต่ำกว่าเกณฑ์ ${dangerDays.length} วัน
+          (เริ่มวันที่ ${dangerDays[0].date.slice(8, 10)}/${dangerDays[0].date.slice(5, 7)})
+        </div>` : ''}
+
+        <div class="forecast-note">
+          <div class="forecast-note-text">
+            อิงจาก<b>รายการประจำ</b>ที่ตั้งไว้ + ค่าใช้จ่ายเฉลี่ย <b>${formatBaht(avgDailyExpense)} ฿/วัน</b>
+            (30 วันที่ผ่านมา) — เป็นการคาดการณ์เท่านั้น
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+/** Init / re-init Chart.js บน #forecastChart30 หลัง DOM insert */
+async function initForecastChart() {
+  const canvas = document.getElementById('forecastChart30');
+  if (!canvas || !_forecastChartPayload) return;
+
+  if (!_ChartClass) {
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/chart.js/auto/+esm');
+      _ChartClass = mod.Chart;
+    } catch (e) {
+      console.warn('[forecast] Chart.js load failed:', e);
+      return;
+    }
+  }
+
+  if (_forecastChartInstance) { _forecastChartInstance.destroy(); _forecastChartInstance = null; }
+
+  const c = document.getElementById('forecastChart30');
+  if (!c) return;
+
+  // อ่านสีตามธีม ณ เวลา render
+  const cs = getComputedStyle(document.documentElement);
+  const primaryHex  = cs.getPropertyValue('--terracotta').trim() || '#e88563';
+  const inkFaintHex = cs.getPropertyValue('--ink-faint').trim()  || '#b3a596';
+
+  function hexRgba(hex, a) {
+    let hx = hex.replace('#', '');
+    if (hx.length === 3) hx = hx.split('').map(x => x + x).join('');
+    const r = parseInt(hx.slice(0, 2), 16);
+    const g = parseInt(hx.slice(2, 4), 16);
+    const b = parseInt(hx.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  const { days, threshold } = _forecastChartPayload;
+
+  const balanceData    = days.map(d => Math.round(d.balance / 100));       // → บาท
+  const thresholdData  = Array(30).fill(Math.round(threshold / 100));
+  const recurringData  = days.map(d => d.hasRecurring ? Math.round(d.balance / 100) : null);
+
+  const xLabels = days.map((d, i) => {
+    if (i === 0) return 'วันนี้';
+    const day = parseInt(d.date.slice(8, 10));
+    return day % 7 === 0 ? String(day) : '';
+  });
+
+  _forecastChartInstance = new _ChartClass(c, {
+    type: 'line',
+    data: {
+      labels: xLabels,
+      datasets: [
+        {
+          label: 'ยอดคาดการณ์',
+          data: balanceData,
+          borderColor: primaryHex,
+          borderWidth: 2.5,
+          backgroundColor: hexRgba(primaryHex, 0.08),
+          fill: true,
+          pointRadius: days.map((_, i) => i === 0 ? 5 : 0),
+          pointHoverRadius: 5,
+          pointBackgroundColor: days.map((_, i) => i === 0 ? primaryHex : 'transparent'),
+          tension: 0.3,
+        },
+        {
+          label: 'เกณฑ์ต่ำสุด',
+          data: thresholdData,
+          borderColor: '#A32D2D',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+        },
+        {
+          label: 'รายการประจำ',
+          data: recurringData,
+          borderColor: 'transparent',
+          backgroundColor: inkFaintHex,
+          pointRadius: 5,
+          pointHoverRadius: 6,
+          showLine: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => {
+              const d = days[ctx[0].dataIndex];
+              return `วันที่ ${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`;
+            },
+            label: ctx => {
+              if (ctx.dataset.label === 'รายการประจำ' && ctx.parsed.y == null) return null;
+              if (ctx.dataset.label === 'เกณฑ์ต่ำสุด')
+                return `เกณฑ์: ${ctx.parsed.y.toLocaleString()} ฿`;
+              if (ctx.dataset.label === 'ยอดคาดการณ์')
+                return `คาดการณ์: ${ctx.parsed.y.toLocaleString()} ฿`;
+              return ctx.parsed.y != null
+                ? `รายการประจำ: ${ctx.parsed.y.toLocaleString()} ฿`
+                : null;
+            },
+            afterBody: ctx => {
+              const d = days[ctx[0].dataIndex];
+              if (!d.hasRecurring) return [];
+              return d.recurringItems.map(r =>
+                `  ${r.type === 'income' ? '+' : '-'}${formatBaht(r.amount)} ${r.description}`
+              );
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.04)', drawTicks: false },
+          border: { display: false },
+          ticks: { font: { size: 10 }, color: inkFaintHex, maxRotation: 0 },
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)', drawTicks: false },
+          border: { display: false },
+          ticks: {
+            font: { size: 10 },
+            color: inkFaintHex,
+            callback: v => v >= 1000 ? `${Math.round(v / 1000)}k` : v,
+          },
+          min: 0,
+        },
+      },
+    },
+  });
+}
+
+/* === เดิม: SVG-based forecast (ถูกแทนที่โดย renderForecastCard ด้านบน) === */
 function renderForecastChart() {
   const accounts = State.getAccounts();
   const totalBalance = accounts.reduce((s, a) =>

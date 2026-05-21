@@ -2381,6 +2381,72 @@ html, body {
 }
 
 
+/* === Forecast Card (Chart.js) ================================== */
+.forecast-card { padding: 16px; }
+
+.forecast-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.forecast-stat {
+  background: var(--paper);
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 0.5px solid var(--rule);
+}
+.forecast-stat-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 2px; }
+.forecast-stat-value { font-size: 14px; font-weight: 600; color: var(--ink); }
+.forecast-stat-value.ok     { color: var(--sage); }
+.forecast-stat-value.danger { color: #A32D2D; }
+
+.forecast-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.fl-item { display: flex; align-items: center; gap: 4px; }
+.fl-line { width: 14px; height: 2px; border-radius: 1px; }
+.fl-line.primary { background: var(--terracotta); }
+.fl-dash { width: 14px; height: 0; }
+.fl-dash.danger { border-top: 2px dashed #A32D2D; }
+.fl-dot { width: 8px; height: 8px; border-radius: 50%; }
+.fl-dot.primary { background: var(--terracotta); }
+.fl-dot.danger  { background: #A32D2D; }
+
+.forecast-chart-wrap {
+  position: relative;
+  height: 200px;
+  margin-bottom: 10px;
+}
+
+.forecast-warning {
+  font-size: 12px;
+  color: #A32D2D;
+  background: rgba(163, 45, 45, 0.08);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+}
+
+.forecast-note {
+  padding: 8px 10px;
+  background: var(--paper);
+  border-left: 2px solid var(--rule);
+  border-radius: 0 8px 8px 0;
+}
+.forecast-note-text {
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.6;
+}
+.forecast-note-text b { color: var(--ink-soft); font-weight: 500; }
+
+
 /* === Forecast insight (under chart) ============================ */
 .forecast-insight {
   display: flex;
