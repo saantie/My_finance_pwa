@@ -949,6 +949,7 @@ export function bindEntryActions(container) {
       const id = editBtn.dataset.txId;
       const tx = State.getTransactions().find(t => t.id === id);
       if (!tx) return;
+      history.pushState({ view: 'modal', modal: 'edit' }, '', '#edit');
       const { openEditModal } = await import('./add.js');
       openEditModal(tx);
     }

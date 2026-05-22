@@ -19,6 +19,8 @@ import { initFirebase, onAuthStateChanged, subscribeAccountsSharedWithMe } from 
 
 /* === Globals ==================================================== */
 let currentView = 'dashboard';
+let _backPressedOnce = false;
+let _backTimer = null;
 
 const VIEW_RENDERERS = {
   dashboard: renderDashboard,
@@ -28,28 +30,82 @@ const VIEW_RENDERERS = {
 };
 
 
-/* === View switching ============================================= */
+/* === Rendering ================================================== */
 
-function switchView(viewName) {
+function renderView(viewName, params = {}) {
   if (!VIEW_RENDERERS[viewName]) return;
   currentView = viewName;
 
-  // Update nav active state
   document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === viewName);
   });
 
-  // Render
-  renderCurrentView();
-  // Scroll กลับขึ้น top เมื่อเปลี่ยน view
+  const container = document.getElementById('view');
+  if (container) VIEW_RENDERERS[viewName](container, params);
   window.scrollTo(0, 0);
 }
 
 function renderCurrentView() {
-  const container = document.getElementById('view');
-  if (!container) return;
-  const renderer = VIEW_RENDERERS[currentView];
-  if (renderer) renderer(container);
+  renderView(currentView);
+}
+
+
+/* === View switching (History API) =============================== */
+
+function switchView(viewName) {
+  if (!VIEW_RENDERERS[viewName]) return;
+
+  if (viewName !== 'dashboard') {
+    history.pushState({ view: viewName }, '', `#${viewName}`);
+  } else {
+    history.replaceState({ view: 'dashboard' }, '', '#');
+  }
+
+  renderView(viewName);
+}
+
+
+/* === Back button handler (Android / History API) ================ */
+
+function setupBackHandler() {
+  window.addEventListener('popstate', (e) => {
+    const targetView = e.state?.view ?? 'dashboard';
+
+    // Modal เปิดอยู่ → back ปิด modal ทันที (ไม่ต้อง navigate)
+    const addModal = document.getElementById('add-modal');
+    if (addModal && !addModal.classList.contains('hidden')) {
+      closeAddModal();
+      return;
+    }
+
+    if (targetView === 'modal') {
+      // กรณีที่ไม่ได้จับ modal ด้านบน (edge case)
+      closeAddModal();
+      return;
+    }
+
+    if (targetView === 'dashboard') {
+      // re-push ทันทีเพื่อป้องกัน browser ออกจากแอป
+      history.pushState({ view: 'dashboard' }, '', '#');
+
+      if (_backPressedOnce) {
+        clearTimeout(_backTimer);
+        _backPressedOnce = false;
+        history.go(-history.length);  // exit PWA
+        return;
+      }
+
+      _backPressedOnce = true;
+      showToast('กดย้อนกลับอีกครั้งเพื่อออกจากแอป');
+      _backTimer = setTimeout(() => { _backPressedOnce = false; }, 2000);
+
+    } else {
+      // กลับไป view ก่อนหน้าในแอป
+      _backPressedOnce = false;
+      clearTimeout(_backTimer);
+      renderView(targetView, e.state?.params ?? {});
+    }
+  });
 }
 
 
@@ -60,22 +116,23 @@ function setupNav() {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
 
-  // FAB → open add modal
-  document.getElementById('fab')?.addEventListener('click', openAddModal);
-
-  // Back button (Android) → ปิด modal ถ้าเปิดอยู่
-  window.addEventListener('popstate', () => {
-    if (!document.getElementById('add-modal').classList.contains('hidden')) {
-      closeAddModal();
-    }
+  // FAB → push history + open add modal
+  document.getElementById('fab')?.addEventListener('click', () => {
+    history.pushState({ view: 'modal', modal: 'add' }, '', '#add');
+    openAddModal();
   });
 
-  // ESC key → ปิด modal
+  // ESC key → ปิด modal ผ่าน history.back (popstate จัดการ)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !document.getElementById('add-modal').classList.contains('hidden')) {
-      closeAddModal();
+    if (e.key === 'Escape') {
+      const addModal = document.getElementById('add-modal');
+      if (addModal && !addModal.classList.contains('hidden')) {
+        history.back();
+      }
     }
   });
+
+  setupBackHandler();
 }
 
 
@@ -210,7 +267,8 @@ function init() {
   State.subscribe(() => renderCurrentView());
   Recurring.subscribe(() => renderCurrentView());
 
-  // 6. Initial render
+  // 6. Initial render — ตั้ง history state เริ่มต้นก่อน
+  history.replaceState({ view: 'dashboard' }, '', '#');
   switchView('dashboard');
 
   // 7. PWA service worker

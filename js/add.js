@@ -347,7 +347,12 @@ function bindEvents() {
   const el = modal();
   if (!el) return;
 
-  el.querySelector('[data-action="close"]')?.addEventListener('click', closeAddModal);
+  el.querySelector('[data-action="close"]')?.addEventListener('click', () => {
+    // ถ้า history state เป็น modal → back ให้ popstate จัดการปิด
+    // ถ้าไม่ใช่ (เช่น เปิดผ่าน edit โดยไม่ push state) → ปิดตรงๆ
+    if (history.state?.view === 'modal') history.back();
+    else closeAddModal();
+  });
   el.querySelector('[data-action="save"]')?.addEventListener('click', save);
   el.querySelector('[data-action="voice"]')?.addEventListener('click', startVoice);
   el.querySelector('[data-action="pick-account"]')?.addEventListener('click', pickAccount);
