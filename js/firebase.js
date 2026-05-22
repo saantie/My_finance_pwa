@@ -303,7 +303,10 @@ export function subscribeAccountsSharedWithMe(email, callback) {
       collection(_db, 'shared_accounts'),
       where('shared_with', 'array-contains', email)
     );
-    return onSnapshot(q, snapshot => {
+    return onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+      // ข้าม cache — รับเฉพาะข้อมูลจาก server เท่านั้น
+      // เพื่อให้สถานะการแชร์สะท้อนความเป็นจริงล่าสุดทุกครั้งที่ sign in
+      if (snapshot.metadata.fromCache) return;
       const accounts = [];
       snapshot.forEach(docSnap => accounts.push(docSnap.data()));
       callback(accounts);
