@@ -116,14 +116,10 @@ function setupNav() {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
 
-  // FAB → push history + open add modal (with auto-voice on dashboard)
+  // FAB → push history + open add modal with auto-voice
   document.getElementById('fab')?.addEventListener('click', () => {
     history.pushState({ view: 'modal', modal: 'add' }, '', '#add');
-    if (currentView === 'dashboard') {
-      openAddModalWithVoice();
-    } else {
-      openAddModal();
-    }
+    openAddModalWithVoice();
   });
 
   // ESC key → ปิด modal ผ่าน history.back (popstate จัดการ)
