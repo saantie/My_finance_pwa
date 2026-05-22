@@ -25,7 +25,7 @@ export class VoiceRecorder {
     this.recognition = new Recognition();
     this.recognition.lang = 'th-TH';        // ภาษาไทย
     this.recognition.interimResults = true;  // ได้ partial results ระหว่างพูด
-    this.recognition.continuous = false;
+    this.recognition.continuous = true;   // ไม่ตัดเองตอนเว้นจังหวะ — add.js คุมการหยุดด้วย silence timer
     this.recognition.maxAlternatives = 1;
 
     this._listening = false;

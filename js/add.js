@@ -464,10 +464,12 @@ function startVoice(autoClose = false) {
 
   let finalText = '';
   let speechDetected = false;
+  const SILENCE_MS = 2000;  // หยุดฟังหลังเงียบ 2 วิ — ให้เว้นจังหวะระหว่างคำได้
 
   // FAB auto-voice: ปิดถ้าไม่มีเสียงภายใน 3.5 วินาที เพื่อกลับไปพิมพ์ปกติ
   // ปุ่มไมค์ manual: ไม่ตั้ง timer — ผู้ใช้ตั้งใจพูด ให้เวลาตามธรรมชาติของ recognition
   let noSpeechTimer = null;
+  let silenceTimer = null;
   if (autoClose) {
     noSpeechTimer = setTimeout(() => {
       if (!speechDetected) close();
@@ -476,6 +478,7 @@ function startVoice(autoClose = false) {
 
   const close = () => {
     if (noSpeechTimer) clearTimeout(noSpeechTimer);
+    if (silenceTimer) clearTimeout(silenceTimer);
     recorder.stop();
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   };
@@ -492,7 +495,10 @@ function startVoice(autoClose = false) {
       if (noSpeechTimer) clearTimeout(noSpeechTimer);
       transcriptEl.textContent = transcript;
       promptEl.textContent = 'กำลังฟัง...';
-      if (isFinal) finalText = transcript;
+      if (transcript) finalText = transcript;   // เก็บ transcript ล่าสุดเสมอ (ไม่รอ isFinal)
+      // reset silence timer — หยุดฟังเมื่อเงียบครบ SILENCE_MS หลังพูด
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => recorder.stop(), SILENCE_MS);
     },
     (err) => {
       const errMsg = {
