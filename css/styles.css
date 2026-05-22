@@ -2382,7 +2382,7 @@ html, body {
 
 
 /* === Forecast Card (Chart.js) ================================== */
-.forecast-card { padding: 16px; }
+.forecast-card { padding: 16px; overflow: hidden; }
 
 .forecast-stats {
   display: grid;
@@ -2421,8 +2421,10 @@ html, body {
 .forecast-chart-wrap {
   position: relative;
   height: 200px;
+  overflow: hidden;
   margin-bottom: 10px;
 }
+.forecast-chart-wrap canvas { display: block; max-width: 100%; }
 
 .forecast-warning {
   font-size: 12px;
