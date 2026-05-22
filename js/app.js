@@ -14,7 +14,7 @@ import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
-import { initFirebase, onAuthStateChanged, subscribeAccountsSharedWithMe } from './firebase.js';
+import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, subscribeAccountsSharedWithMe } from './firebase.js';
 
 
 /* === Globals ==================================================== */
@@ -223,11 +223,11 @@ function init() {
     initFirebase();
     let _sharedWithMeUnsub = null;
     let _lastEmail = null;
-    onAuthStateChanged(user => {
+    onAuthStateChanged(async user => {
       if (_sharedWithMeUnsub) { _sharedWithMeUnsub(); _sharedWithMeUnsub = null; }
       if (user) {
         _lastEmail = user.email;
-        // ปิด listeners เก่าทั้งหมดก่อน — เพื่อ sync ใหม่สะอาดทุกครั้งที่ sign in
+        // ปิด listeners เก่า + ล้าง received accounts ออกจาก memory และ localStorage
         State.unsubscribeAll();
         State.clearReceivedAccounts(user.email);
         // เปิด listeners สำหรับ cloud accounts ของตัวเองทันที
@@ -236,7 +236,15 @@ function init() {
         State.retryPendingSync().then(count => {
           if (count > 0) showToast(`sync ${count} รายการที่ค้างไว้สำเร็จ`);
         }).catch(console.error);
-        // Subscribe บัญชีที่คนอื่นแชร์ให้เรา — เมื่อ Firestore ตอบกลับ merge + re-subscribe
+        // Fetch สถานะการแชร์จาก server โดยตรง (ไม่ใช้ cache) — ล้างบัญชีที่ถูกยกเลิกแชร์ทันที
+        try {
+          const serverAccounts = await fetchAccountsSharedWithMe(user.email);
+          State.mergeSharedAccounts(serverAccounts);
+          State.subscribeSharedAccounts();
+        } catch (e) {
+          console.warn('[auth] initial sharing fetch failed', e);
+        }
+        // Real-time listener สำหรับการเปลี่ยนแปลงหลังจากนี้
         _sharedWithMeUnsub = subscribeAccountsSharedWithMe(user.email, accounts => {
           State.mergeSharedAccounts(accounts);
           State.subscribeSharedAccounts();

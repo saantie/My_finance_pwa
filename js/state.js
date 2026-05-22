@@ -862,6 +862,10 @@ export function clearReceivedAccounts(myEmail) {
       !removedIds.has(t.account_from) && !removedIds.has(t.account_to)
     );
     notify();
+  } else {
+    // ไม่มีอะไรลบจาก memory แต่ยังต้อง clean localStorage
+    // กรณีข้อมูลค้างอยู่ใน localStorage จาก session เก่าหรือ bug
+    saveToStorage();
   }
 }
 

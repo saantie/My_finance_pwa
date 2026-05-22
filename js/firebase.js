@@ -31,6 +31,7 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  getDocsFromServer,
   onSnapshot,
   writeBatch,
   serverTimestamp,
@@ -296,6 +297,18 @@ export async function migrateAccountToCloud(account, transactions) {
 
 
 /* === 13. subscribeAccountsSharedWithMe ========================= */
+
+/** One-shot server fetch — ดึงบัญชีที่แชร์ให้เราจาก server โดยตรง (ไม่ใช้ cache) */
+export async function fetchAccountsSharedWithMe(email) {
+  const q = query(
+    collection(_db, 'shared_accounts'),
+    where('shared_with', 'array-contains', email)
+  );
+  const snapshot = await getDocsFromServer(q);
+  const accounts = [];
+  snapshot.forEach(docSnap => accounts.push(docSnap.data()));
+  return accounts;
+}
 
 export function subscribeAccountsSharedWithMe(email, callback) {
   try {
