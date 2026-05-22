@@ -2006,6 +2006,8 @@ html, body {
   transform: translateX(-50%);
   z-index: 200;
   pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - 32px);
 }
 .toast {
   background: var(--ink);
