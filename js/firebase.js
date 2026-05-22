@@ -221,7 +221,9 @@ export function subscribeSharedAccount(accountId, callback, onError) {
           upserted.push(change.doc.data()); // added | modified — รวม soft-deleted ด้วย
         }
       });
-      callback(upserted, removedIds);
+      // full set ของ doc IDs ปัจจุบันใน Firestore — ใช้ reconcile จับ hard-delete ที่เกิดตอน offline
+      const allIds = snapshot.docs.map(d => d.id);
+      callback(upserted, removedIds, allIds);
     }, e => {
       console.error('[firebase] subscribeSharedAccount snapshot error', e);
       if (onError) onError(e);

@@ -856,7 +856,7 @@ export function subscribeSharedAccounts() {
     if (acct.storage !== 'cloud') continue;
     if (_sharedListeners.has(acct.id)) continue;
     const accountId = acct.id;
-    const unsub = subscribeSharedAccount(accountId, (upserted, removedIds) => {
+    const unsub = subscribeSharedAccount(accountId, (upserted, removedIds, allIds) => {
       // Merge/update transactions (รวม soft-deleted)
       upserted.forEach(rtx => {
         const idx = _state.transactions.findIndex(t => t.id === rtx.id);
@@ -867,6 +867,17 @@ export function subscribeSharedAccounts() {
       // ลบ hard-deleted transactions ออกจาก local
       if (removedIds.length > 0) {
         _state.transactions = _state.transactions.filter(t => !removedIds.includes(t.id));
+      }
+
+      // Reconcile: ลบ tx ของบัญชีนี้ที่ไม่มีใน Firestore แล้ว (hard-deleted ตอน offline)
+      // ยกเว้น pending_sync ที่ยัง push ขึ้น Firestore ไม่สำเร็จ
+      if (Array.isArray(allIds)) {
+        const liveIds = new Set(allIds);
+        _state.transactions = _state.transactions.filter(t => {
+          const belongsToAccount = t.account_from === accountId || t.account_to === accountId;
+          if (belongsToAccount && !liveIds.has(t.id) && !t.pending_sync) return false;
+          return true;
+        });
       }
 
       // อัปเดต current_balance จาก transaction ล่าสุดที่มี balance field
