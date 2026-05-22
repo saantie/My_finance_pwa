@@ -127,10 +127,13 @@ export function getAccessToken() {
 export function onAuthStateChanged(callback) {
   try {
     return fbOnAuthStateChanged(_auth, user => {
-      callback(user
+      // ตั้ง _currentUser ทุกครั้งที่ auth state เปลี่ยน — สำคัญสำหรับกรณี
+      // session restore ตอน page reload/reopen ที่ signInWithGoogle ไม่ถูกเรียก
+      // ถ้าไม่ตั้ง getCurrentUser() จะคืน null ทั้งที่ user ลงชื่อเข้าใช้อยู่
+      _currentUser = user
         ? { email: user.email, displayName: user.displayName, uid: user.uid }
-        : null
-      );
+        : null;
+      callback(_currentUser);
     });
   } catch (e) {
     console.error('[firebase] onAuthStateChanged failed', e);
