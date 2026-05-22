@@ -313,6 +313,18 @@ export async function fetchAccountsSharedWithMe(email) {
   return accounts;
 }
 
+/** One-shot server fetch — ดึงบัญชีที่เราเป็นเจ้าของและแชร์ไว้ (owner == email) */
+export async function fetchAccountsOwnedByMe(email) {
+  const q = query(
+    collection(_db, 'shared_accounts'),
+    where('owner', '==', email)
+  );
+  const snapshot = await getDocsFromServer(q);
+  const accounts = [];
+  snapshot.forEach(docSnap => accounts.push(docSnap.data()));
+  return accounts;
+}
+
 export function subscribeAccountsSharedWithMe(email, callback) {
   try {
     const q = query(

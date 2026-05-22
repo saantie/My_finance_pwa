@@ -704,9 +704,24 @@ export function importJSON(json) {
   try {
     const parsed = JSON.parse(json);
     if (!parsed.transactions || !parsed.accounts) throw new Error('Invalid format');
+    // เก็บ cloud accounts (บัญชีแชร์) ปัจจุบันไว้ — backup ไม่มี cloud accounts (exportJSON กรองออก)
+    // ถ้าไม่เก็บ การ restore จะลบสถานะแชร์ออกจาก local ขณะที่ Firestore ยังมีอยู่ = orphan
+    const cloudAccounts = _state.accounts.filter(a => a.storage === 'cloud');
+    const cloudIds = new Set(cloudAccounts.map(a => a.id));
+    const cloudTxs = _state.transactions.filter(t =>
+      cloudIds.has(t.account_from) || cloudIds.has(t.account_to)
+    );
     _state = {
-      transactions: parsed.transactions,
-      accounts: parsed.accounts,
+      transactions: [
+        ...parsed.transactions.filter(t =>
+          !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
+        ),
+        ...cloudTxs
+      ],
+      accounts: [
+        ...parsed.accounts.filter(a => !cloudIds.has(a.id)),
+        ...cloudAccounts
+      ],
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
         ...DEFAULT_USER_PROGRESS,
@@ -779,6 +794,51 @@ export function mergeSharedAccounts(remoteAccounts) {
     // กรณีที่บัญชีรับแชร์ค้างอยู่ใน localStorage จาก bug เก่า
     saveToStorage();
   }
+}
+
+/**
+ * กู้คืนบัญชีที่เราเป็นเจ้าของและแชร์ไว้ จาก Firestore กลับเข้า local state
+ * แก้กรณี restore backup (ที่ไม่มี cloud accounts) ทำให้สถานะแชร์หายจาก local
+ * ขณะที่ Firestore ยังมีอยู่ → owner มองไม่เห็น/revoke ไม่ได้ + recipient เห็นค้าง
+ */
+export function restoreOwnedAccounts(remoteAccounts) {
+  const myEmail = getCurrentUser()?.email;
+  if (!myEmail) return;
+  let changed = false;
+  for (const ra of remoteAccounts) {
+    if (ra.owner !== myEmail) continue;
+    const idx = _state.accounts.findIndex(a => a.id === ra.id);
+    if (idx === -1) {
+      // บัญชีหายจาก local (เช่นหลัง restore backup) → เพิ่มกลับเป็น cloud account
+      _state.accounts.push({
+        id: ra.id,
+        bank: ra.bank ?? null,
+        account_number_masked: ra.account_number_masked ?? '',
+        display_name: ra.display_name || 'บัญชีที่แชร์',
+        type: ra.type || 'bank',
+        current_balance: 0,
+        threshold: ra.threshold ?? 0,
+        detected_at: new Date().toISOString(),
+        user_renamed: false,
+        owner: myEmail,
+        storage: 'cloud',
+        shared_with: ra.shared_with || [],
+        cash_balance_override: null,
+        override_date: null
+      });
+      changed = true;
+    } else {
+      // มีอยู่แล้ว → sync สถานะแชร์ให้ตรงกับ Firestore
+      const a = _state.accounts[idx];
+      const needUpdate = a.storage !== 'cloud' || a.owner !== myEmail ||
+        JSON.stringify(a.shared_with || []) !== JSON.stringify(ra.shared_with || []);
+      if (needUpdate) {
+        _state.accounts[idx] = { ...a, storage: 'cloud', owner: myEmail, shared_with: ra.shared_with || [] };
+        changed = true;
+      }
+    }
+  }
+  if (changed) notify();
 }
 
 export function subscribeSharedAccounts() {

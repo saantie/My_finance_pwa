@@ -29,6 +29,7 @@ export const query           = () => ({});
 export const where           = () => ({});
 export const addDoc          = async () => ({});
 export const getDocs         = async () => ({ docs: [], forEach: () => {} });
+export const getDocsFromServer = async () => ({ docs: [], forEach: () => {} });
 export const getDoc          = async () => ({ exists: () => false, data: () => ({}) });
 export default {};
 `;

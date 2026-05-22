@@ -14,7 +14,7 @@ import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
-import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, subscribeAccountsSharedWithMe } from './firebase.js';
+import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe } from './firebase.js';
 
 
 /* === Globals ==================================================== */
@@ -236,10 +236,16 @@ function init() {
         State.retryPendingSync().then(count => {
           if (count > 0) showToast(`sync ${count} รายการที่ค้างไว้สำเร็จ`);
         }).catch(console.error);
-        // Fetch สถานะการแชร์จาก server โดยตรง (ไม่ใช้ cache) — ล้างบัญชีที่ถูกยกเลิกแชร์ทันที
+        // Fetch สถานะการแชร์จาก server โดยตรง (ไม่ใช้ cache)
+        // - sharedWithMe: ล้างบัญชีที่ถูกยกเลิกแชร์ทันที
+        // - ownedByMe: กู้คืนบัญชีที่เราแชร์ไว้ กรณี restore backup ทำให้สถานะแชร์หาย
         try {
-          const serverAccounts = await fetchAccountsSharedWithMe(user.email);
-          State.mergeSharedAccounts(serverAccounts);
+          const [sharedWithMe, ownedByMe] = await Promise.all([
+            fetchAccountsSharedWithMe(user.email),
+            fetchAccountsOwnedByMe(user.email)
+          ]);
+          State.mergeSharedAccounts(sharedWithMe);
+          State.restoreOwnedAccounts(ownedByMe);
           State.subscribeSharedAccounts();
         } catch (e) {
           console.warn('[auth] initial sharing fetch failed', e);
