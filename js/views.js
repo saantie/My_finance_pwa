@@ -1879,13 +1879,29 @@ export function renderSettings(container) {
       </div>
     </div>
 
-    <div class="signoff" style="margin-top: 32px;">— v1.0 · diary mode —</div>
+    <div class="signoff" style="margin-top: 32px;">— v1.0 · diary mode —<br><span id="sw-version" style="font-size:11px;opacity:0.7"></span></div>
 
     <!-- Hidden file input สำหรับ import JSON -->
     <input id="json-file-input" type="file" accept="application/json" hidden>
   `;
 
   // === Bind events ===
+
+  // แสดงเวอร์ชันจาก Service Worker
+  const swVersionEl = container.querySelector('#sw-version');
+  if (swVersionEl) {
+    const sw = navigator.serviceWorker?.controller;
+    if (sw) {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => { swVersionEl.textContent = ''; }, 1500);
+      channel.port1.onmessage = (e) => {
+        clearTimeout(timer);
+        if (e.data?.version) swVersionEl.textContent = e.data.version;
+      };
+      sw.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+    }
+  }
+
   container.querySelector('[data-action="export-json"]')?.addEventListener('click', () => {
     const json = State.exportJSON();
     const blob = new Blob([json], { type: 'application/json' });
