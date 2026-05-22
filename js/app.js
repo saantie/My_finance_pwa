@@ -232,6 +232,10 @@ function init() {
         State.clearReceivedAccounts(user.email);
         // เปิด listeners สำหรับ cloud accounts ของตัวเองทันที
         State.subscribeSharedAccounts();
+        // Retry transactions ที่ push ไม่สำเร็จขณะ sign out
+        State.retryPendingSync().then(count => {
+          if (count > 0) showToast(`sync ${count} รายการที่ค้างไว้สำเร็จ`);
+        }).catch(console.error);
         // Subscribe บัญชีที่คนอื่นแชร์ให้เรา — เมื่อ Firestore ตอบกลับ merge + re-subscribe
         _sharedWithMeUnsub = subscribeAccountsSharedWithMe(user.email, accounts => {
           State.mergeSharedAccounts(accounts);
