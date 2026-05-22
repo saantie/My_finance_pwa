@@ -118,17 +118,20 @@ function loadFromStorage() {
 
 function saveToStorage() {
   try {
-    // บัญชีที่รับแชร์มา (_received: true) ห้าม persist ลง localStorage
-    // เพื่อให้ revocation มีผลทันทีในการเปิดแอปครั้งถัดไป
-    // บัญชีของเจ้าของเอง (storage: 'cloud' แต่ไม่มี _received) ยัง save ได้ปกติ
-    // เพราะ subscribeSharedAccounts() ต้องอ่าน list นี้เพื่อ subscribe Firestore
-    const receivedIds = new Set(
-      _state.accounts.filter(a => a._received === true).map(a => a.id)
+    const myEmail = getCurrentUser()?.email;
+    // ห้าม persist บัญชีที่รับแชร์มา — dual condition เพื่อป้องกัน edge case:
+    // 1. _received: true  — path ปกติ
+    // 2. storage='cloud' + owner ≠ myEmail — defense-in-depth กรณี _received ไม่ถูกตั้ง
+    const excludedIds = new Set(
+      _state.accounts.filter(a =>
+        a._received === true ||
+        (myEmail && a.storage === 'cloud' && a.owner !== myEmail)
+      ).map(a => a.id)
     );
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      accounts: _state.accounts.filter(a => !receivedIds.has(a.id)),
+      accounts: _state.accounts.filter(a => !excludedIds.has(a.id)),
       transactions: _state.transactions.filter(t =>
-        !receivedIds.has(t.account_from) && !receivedIds.has(t.account_to)
+        !excludedIds.has(t.account_from) && !excludedIds.has(t.account_to)
       ),
       settings: _state.settings,
       userProgress: _state.userProgress
@@ -769,7 +772,13 @@ export function mergeSharedAccounts(remoteAccounts) {
       changed = true;
     }
   }
-  if (changed) notify();
+  if (changed) {
+    notify(); // re-render + saveToStorage
+  } else {
+    // ไม่มีอะไรเปลี่ยนใน memory แต่ยังต้องล้าง localStorage
+    // กรณีที่บัญชีรับแชร์ค้างอยู่ใน localStorage จาก bug เก่า
+    saveToStorage();
+  }
 }
 
 export function subscribeSharedAccounts() {
