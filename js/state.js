@@ -158,6 +158,15 @@ function notify() {
   });
 }
 
+/** ทำเครื่องหมาย transaction ว่ายังไม่ได้ sync ขึ้น Firestore */
+function _markPendingSync(txId) {
+  const idx = _state.transactions.findIndex(t => t.id === txId);
+  if (idx !== -1 && !_state.transactions[idx].pending_sync) {
+    _state.transactions[idx] = { ..._state.transactions[idx], pending_sync: true };
+    saveToStorage();
+  }
+}
+
 
 /* === Read API =================================================== */
 
@@ -226,7 +235,7 @@ export function addTransaction(tx) {
   const acctId = tx.account_from || tx.account_to;
   const acct = acctId ? getAccount(acctId) : null;
   if (acct?.storage === 'cloud') {
-    pushTransaction(acct.id, newTx).catch(console.error);
+    pushTransaction(acct.id, newTx).catch(() => _markPendingSync(newTx.id));
   }
   return newTx;
 }
@@ -264,7 +273,7 @@ export function updateTransaction(id, patch) {
   const acctId = updated.account_from || updated.account_to;
   const acct = acctId ? getAccount(acctId) : null;
   if (acct?.storage === 'cloud') {
-    pushTransaction(acct.id, updated).catch(console.error);
+    pushTransaction(acct.id, updated).catch(() => _markPendingSync(updated.id));
   }
   return updated;
 }
@@ -845,4 +854,31 @@ export function clearReceivedAccounts(myEmail) {
     );
     notify();
   }
+}
+
+/**
+ * Retry push transactions ที่ push ไม่สำเร็จขณะ sign out
+ * เรียกหลัง sign in — คืนจำนวนรายการที่ sync สำเร็จ
+ */
+export async function retryPendingSync() {
+  const pending = _state.transactions.filter(t => t.pending_sync === true);
+  if (pending.length === 0) return 0;
+
+  let synced = 0;
+  for (const tx of pending) {
+    const acctId = tx.account_from || tx.account_to;
+    const acct = acctId ? getAccount(acctId) : null;
+    if (acct?.storage !== 'cloud') continue;
+    try {
+      const { pending_sync, ...txData } = tx;
+      await pushTransaction(acct.id, txData);
+      const idx = _state.transactions.findIndex(t => t.id === tx.id);
+      if (idx !== -1) delete _state.transactions[idx].pending_sync;
+      synced++;
+    } catch (e) {
+      console.error('[sync] retry failed', tx.id, e);
+    }
+  }
+  if (synced > 0) saveToStorage();
+  return synced;
 }
