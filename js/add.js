@@ -95,7 +95,7 @@ export function openAddModal(prefill = null) {
 export function openAddModalWithVoice() {
   openAddModal();
   // รอให้ modal render ก่อนค่อยเปิด overlay
-  setTimeout(startVoice, 120);
+  setTimeout(() => startVoice(true), 120);
 }
 
 /** เปิด modal โดย pre-fill จาก transaction ที่มีอยู่ (edit mode) */
@@ -361,7 +361,7 @@ function bindEvents() {
     else closeAddModal();
   });
   el.querySelector('[data-action="save"]')?.addEventListener('click', save);
-  el.querySelector('[data-action="voice"]')?.addEventListener('click', startVoice);
+  el.querySelector('[data-action="voice"]')?.addEventListener('click', () => startVoice(false));
   el.querySelector('[data-action="pick-account"]')?.addEventListener('click', pickAccount);
 
   // Type segmented
@@ -434,7 +434,7 @@ function bindEvents() {
 
 /* === Voice input ================================================ */
 
-function startVoice() {
+function startVoice(autoClose = false) {
   const recorder = new VoiceRecorder();
   if (!recorder.supported) {
     showToast('เบราว์เซอร์ไม่รองรับเสียง — ใช้ Chrome');
@@ -465,13 +465,17 @@ function startVoice() {
   let finalText = '';
   let speechDetected = false;
 
-  // ปิดอัตโนมัติถ้าไม่มีเสียงภายใน 2 วินาที
-  const noSpeechTimer = setTimeout(() => {
-    if (!speechDetected) close();
-  }, 2000);
+  // FAB auto-voice: ปิดถ้าไม่มีเสียงภายใน 3.5 วินาที เพื่อกลับไปพิมพ์ปกติ
+  // ปุ่มไมค์ manual: ไม่ตั้ง timer — ผู้ใช้ตั้งใจพูด ให้เวลาตามธรรมชาติของ recognition
+  let noSpeechTimer = null;
+  if (autoClose) {
+    noSpeechTimer = setTimeout(() => {
+      if (!speechDetected) close();
+    }, 3500);
+  }
 
   const close = () => {
-    clearTimeout(noSpeechTimer);
+    if (noSpeechTimer) clearTimeout(noSpeechTimer);
     recorder.stop();
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   };
@@ -485,7 +489,7 @@ function startVoice() {
   recorder.start(
     ({ transcript, isFinal }) => {
       speechDetected = true;          // มีเสียงแล้ว — ยกเลิก no-speech timer
-      clearTimeout(noSpeechTimer);
+      if (noSpeechTimer) clearTimeout(noSpeechTimer);
       transcriptEl.textContent = transcript;
       promptEl.textContent = 'กำลังฟัง...';
       if (isFinal) finalText = transcript;

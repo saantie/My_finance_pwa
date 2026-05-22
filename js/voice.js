@@ -25,7 +25,7 @@ export class VoiceRecorder {
     this.recognition = new Recognition();
     this.recognition.lang = 'th-TH';        // ภาษาไทย
     this.recognition.interimResults = true;  // ได้ partial results ระหว่างพูด
-    this.recognition.continuous = true;
+    this.recognition.continuous = false;
     this.recognition.maxAlternatives = 1;
 
     this._listening = false;
@@ -53,8 +53,6 @@ export class VoiceRecorder {
         if (e.results[i].isFinal) isFinal = true;
       }
       onUpdate && onUpdate({ transcript: transcript.trim(), isFinal });
-      // หยุดฟังหลังได้ final result (continuous=true ไม่หยุดเอง)
-      if (isFinal) this.stop();
     };
 
     this.recognition.onerror = (e) => {
