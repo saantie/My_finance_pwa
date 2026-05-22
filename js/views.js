@@ -887,7 +887,7 @@ function shortAcctName(name) {
   return parts[parts.length - 1] || name;
 }
 
-function renderEntryRow(tx) {
+function renderEntryRow(tx, decimals = 0) {
   const def = getCategory(tx.group);
   const time = formatTime(tx.createdAt || tx.date);
   const isIncome = tx.type === 'income';
@@ -929,7 +929,7 @@ function renderEntryRow(tx) {
         ${authorNote}
       </div>
       <div class="entry-right">
-        <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
+        <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount, { decimals })} ฿</div>
         <div class="entry-actions">
           ${isDeleted ? '' : `<button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 13, stroke: 2 })}</button>`}
           <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}" title="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 13, stroke: 2 })}</button>
@@ -1106,7 +1106,7 @@ function renderDayGroup(g) {
         </div>
       </div>
       <div class="card card-padded">
-        ${g.transactions.map(t => renderEntryRow(t)).join('')}
+        ${g.transactions.map(t => renderEntryRow(t, 2)).join('')}
       </div>
     </div>
   `;
