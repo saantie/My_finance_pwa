@@ -463,8 +463,15 @@ function startVoice() {
   const promptEl = overlay.querySelector('.voice-prompt');
 
   let finalText = '';
+  let speechDetected = false;
+
+  // ปิดอัตโนมัติถ้าไม่มีเสียงภายใน 2 วินาที
+  const noSpeechTimer = setTimeout(() => {
+    if (!speechDetected) close();
+  }, 2000);
 
   const close = () => {
+    clearTimeout(noSpeechTimer);
     recorder.stop();
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   };
@@ -477,6 +484,8 @@ function startVoice() {
 
   recorder.start(
     ({ transcript, isFinal }) => {
+      speechDetected = true;          // มีเสียงแล้ว — ยกเลิก no-speech timer
+      clearTimeout(noSpeechTimer);
       transcriptEl.textContent = transcript;
       promptEl.textContent = 'กำลังฟัง...';
       if (isFinal) finalText = transcript;
