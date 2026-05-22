@@ -13,7 +13,7 @@
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
-import { openAddModal, closeAddModal } from './add.js';
+import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, subscribeAccountsSharedWithMe } from './firebase.js';
 
 
@@ -116,10 +116,14 @@ function setupNav() {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
 
-  // FAB → push history + open add modal
+  // FAB → push history + open add modal (with auto-voice on dashboard)
   document.getElementById('fab')?.addEventListener('click', () => {
     history.pushState({ view: 'modal', modal: 'add' }, '', '#add');
-    openAddModal();
+    if (currentView === 'dashboard') {
+      openAddModalWithVoice();
+    } else {
+      openAddModal();
+    }
   });
 
   // ESC key → ปิด modal ผ่าน history.back (popstate จัดการ)

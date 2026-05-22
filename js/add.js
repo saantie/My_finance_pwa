@@ -91,6 +91,13 @@ export function openAddModal(prefill = null) {
   haptic(8);
 }
 
+/** เปิด modal แล้วเริ่ม voice ทันที (FAB on Dashboard) */
+export function openAddModalWithVoice() {
+  openAddModal();
+  // รอให้ modal render ก่อนค่อยเปิด overlay
+  setTimeout(startVoice, 120);
+}
+
 /** เปิด modal โดย pre-fill จาก transaction ที่มีอยู่ (edit mode) */
 export function openEditModal(tx) {
   editingTxId = tx.id;
