@@ -959,9 +959,12 @@ export function bindEntryActions(container) {
       const tx = State.getTransactions().find(t => t.id === id);
       if (!tx) return;
       const desc = tx.description || getCategory(tx.group).label;
-      if (!confirm(`ลบ "${desc}"?`)) return;
+      // รายการที่ถูก soft-delete แล้ว → ลบถาวร (หายจริงจากทุกฝ่าย)
+      const isPermanent = tx.deleted_by != null;
+      const msg = isPermanent ? `ลบถาวร "${desc}"?\nรายการจะหายจากทุกฝ่าย` : `ลบ "${desc}"?`;
+      if (!confirm(msg)) return;
       State.deleteTransaction(id);
-      showToast('ลบรายการแล้ว');
+      showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
     }
   });
 }

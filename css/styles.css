@@ -3215,14 +3215,19 @@ html[data-dark="1"] .entry-acct-line {
   color: var(--ink-faint);
   margin-top: 1px;
 }
-.entry-deleted {
+/* รายการที่ soft-delete: จางเฉพาะเนื้อหา แต่ปุ่มลบถาวรยังกดได้ชัดเจน
+   (ฝ่ายที่สองกดเพื่อ hard delete ให้หายจริง) */
+.entry-deleted .entry-time,
+.entry-deleted .entry-icon,
+.entry-deleted .entry-body,
+.entry-deleted .entry-amt {
   opacity: 0.4;
 }
 .entry-deleted .entry-amt {
   text-decoration: line-through;
 }
 .entry-deleted .entry-actions {
-  display: none;
+  display: flex;
 }
 
 
