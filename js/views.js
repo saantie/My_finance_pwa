@@ -956,7 +956,10 @@ export function bindEntryActions(container) {
 
     if (delBtn) {
       const id = delBtn.dataset.txId;
-      const tx = State.getTransactions().find(t => t.id === id);
+      // ใช้ getState().transactions แทน getTransactions() เพราะ
+      // getTransactions() กรอง soft-deleted (deleted_by != null) ออก
+      // → หา transaction สีเทาไม่เจอ → if (!tx) return ก่อนเลย
+      const tx = State.getState().transactions.find(t => t.id === id);
       if (!tx) return;
       const desc = tx.description || getCategory(tx.group).label;
       // รายการที่ถูก soft-delete แล้ว → ลบถาวร (หายจริงจากทุกฝ่าย)
