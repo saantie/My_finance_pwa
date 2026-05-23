@@ -1751,28 +1751,6 @@ export function renderSettings(container) {
       </div>
     </div>
 
-    <!-- ชื่อที่แสดงในบัญชีแชร์ -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">บัญชีแชร์</h2>
-      </div>
-      <div class="card">
-        <div class="setting-row">
-          <div style="flex:1;min-width:0">
-            <div class="setting-label">ชื่อที่แสดงในรายการ</div>
-            <div class="setting-sub">แสดงใต้รายการในบัญชีที่แชร์ว่า "เพิ่มโดย ..."</div>
-          </div>
-        </div>
-        <div style="padding: 0 0 10px">
-          <input id="display-name-input" type="text"
-            value="${escapeHtml(displayName)}"
-            placeholder="ชื่อเล่น เช่น แม่, พ่อ, ปอ"
-            maxlength="30"
-            style="width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;font-size:15px;background:var(--surface);color:var(--ink);box-sizing:border-box">
-        </div>
-      </div>
-    </div>
-
     <!-- Appearance -->
     <div class="section">
       <div class="section-head">
@@ -1800,6 +1778,19 @@ export function renderSettings(container) {
             `).join('')}
           </div>
           <div class="theme-cur-name">${curThemeName}</div>
+        </div>
+
+        <!-- ขนาดตัวอักษร (ย้ายมาอยู่ในกลุ่มเดียวกับธีม) -->
+        <div class="appear-block">
+          <div class="appear-block-label">ขนาดตัวอักษร</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div class="setting-sub" style="margin:0">Normal · ใหญ่ · ใหญ่มาก</div>
+            <div class="text-size-picker" id="text-size-picker">
+              <button class="size-btn" data-size="normal" style="font-size:14px">ก</button>
+              <button class="size-btn" data-size="large"  style="font-size:17px">ก</button>
+              <button class="size-btn" data-size="xlarge" style="font-size:20px">ก</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1868,22 +1859,6 @@ export function renderSettings(container) {
 
     <!-- บัญชีของฉัน -->
     ${renderAccountsSection()}
-
-    <!-- Display settings -->
-    <div class="setting-section">
-      <div class="setting-section-title">การแสดงผล</div>
-      <div class="setting-row" style="align-items: center;">
-        <div>
-          <div class="setting-label">ขนาดตัวอักษร</div>
-          <div class="setting-sub">Normal 16px / ใหญ่ 18px / ใหญ่มาก 20px</div>
-        </div>
-        <div class="text-size-picker" id="text-size-picker">
-          <button class="size-btn" data-size="normal" style="font-size:14px">ก</button>
-          <button class="size-btn" data-size="large"  style="font-size:17px">ก</button>
-          <button class="size-btn" data-size="xlarge" style="font-size:20px">ก</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Privacy info -->
     <div class="privacy-footer" style="margin-top: 22px;">
@@ -2202,6 +2177,7 @@ function renderAccountsSection() {
   const accounts = State.getAccounts();
   const currentUser = getCurrentUser();
   const myEmail = currentUser?.email ?? null;
+  const displayName = State.getSettings().display_name || '';
 
   const TYPE_LABEL = {
     bank: 'เงินฝากธนาคาร', cash: 'เงินสด',
@@ -2315,6 +2291,24 @@ function renderAccountsSection() {
         </div>`).join('')}
     </div>` : '';
 
+  // card ชื่อที่แสดงในรายการ (ย้ายมาจาก section "บัญชีแชร์")
+  const displayNameCard = `
+    <div class="card" style="margin-bottom:8px">
+      <div class="setting-row" style="padding-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div class="setting-label">ชื่อที่แสดงในรายการ</div>
+          <div class="setting-sub">ชื่อที่แสดงใน "เพิ่มโดย ..." ในบัญชีที่แชร์</div>
+        </div>
+      </div>
+      <div style="padding: 0 0 10px">
+        <input id="display-name-input" type="text"
+          value="${escapeHtml(displayName)}"
+          placeholder="ชื่อเล่น เช่น แม่, พ่อ, ปอ"
+          maxlength="30"
+          style="width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;font-size:15px;background:var(--surface);color:var(--ink);box-sizing:border-box">
+      </div>
+    </div>`;
+
   return `
     <div class="section">
       <div class="section-head">
@@ -2322,6 +2316,7 @@ function renderAccountsSection() {
         <button class="section-action" data-action="add-account">+ เพิ่มบัญชี</button>
       </div>
       ${googleCard}
+      ${displayNameCard}
       ${acctCards || '<div class="card"><div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div></div>'}
       ${receivedSection}
     </div>`;
