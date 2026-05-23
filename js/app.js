@@ -141,10 +141,26 @@ function setupNav() {
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   // ใช้ window.load เพื่อไม่ block first paint
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => {
+  window.addEventListener('load', async () => {
+    try {
+      // updateViaCache: 'none' — บังคับเบราว์เซอร์ดึง sw.js สดทุกครั้ง (ไม่ใช้ HTTP cache)
+      // เพื่อให้ตรวจเจอ SW เวอร์ชันใหม่ทันที
+      const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+      reg.update();  // บังคับเช็คอัปเดตทันทีตอนเปิดแอป
+
+      // ถ้ามี SW ควบคุมอยู่แล้ว (เป็นการอัปเดต ไม่ใช่ติดตั้งครั้งแรก)
+      // เมื่อ SW ใหม่เข้าควบคุม → reload หนึ่งครั้งเพื่อใช้โค้ดใหม่ทันที
+      if (navigator.serviceWorker.controller) {
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloaded) return;
+          reloaded = true;
+          window.location.reload();
+        });
+      }
+    } catch (err) {
       console.warn('SW registration failed', err);
-    });
+    }
   });
 }
 
