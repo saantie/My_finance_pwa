@@ -896,6 +896,11 @@ function renderEntryRow(tx, decimals = 0) {
   const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
   const isDeleted = tx.deleted_by != null;
 
+  // ตรวจว่าเป็นรายการในบัญชีแชร์ (cloud account) หรือไม่
+  const acctIdForShared = tx.account_from || tx.account_to;
+  const acctForShared = acctIdForShared ? State.getAccount(acctIdForShared) : null;
+  const isShared = acctForShared?.storage === 'cloud';
+
   // Account line (แยกบรรทัดใต้หมวด — อ่านง่ายกว่า badge เล็กๆ)
   let acctLine = '';
   if (isTransfer && tx.account_from && tx.account_to) {
@@ -916,6 +921,11 @@ function renderEntryRow(tx, decimals = 0) {
         ? `<div class="entry-author">เพิ่มโดย ${escapeHtml(shortName(tx.created_by))}</div>`
         : '');
 
+  // สัญลักษณ์บัญชีแชร์ — ไอคอน users เล็กๆ หน้าหมวดหมู่
+  const sharedBadge = isShared
+    ? `<span class="shared-badge" title="บัญชีแชร์">${svgIcon('users', { size: 11, stroke: 2 })}</span>`
+    : '';
+
   return `
     <div class="entry${isDeleted ? ' entry-deleted' : ''}" data-tx-id="${tx.id}">
       <span class="entry-time">${time}</span>
@@ -924,7 +934,7 @@ function renderEntryRow(tx, decimals = 0) {
       </div>
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
-        <div class="entry-cat">${def.label}</div>
+        <div class="entry-cat">${sharedBadge}${def.label}</div>
         ${acctLine}
         ${authorNote}
       </div>
