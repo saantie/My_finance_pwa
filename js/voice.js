@@ -44,18 +44,14 @@ export class VoiceRecorder {
     }
     if (this._listening) return;
 
-    // continuous=true: ต้องสะสม final segment แยก และอ่านเฉพาะ result ใหม่จาก resultIndex
-    // มิฉะนั้นการ re-read ทั้ง array ทุก event จะทำให้ข้อความซ้ำ (Chrome ยิง final ซ้ำตอน stop)
-    let finalTranscript = '';
+    // ใช้เฉพาะ result ล่าสุดเสมอ — ไม่ accumulate ข้าม segments
+    // Chrome continuous mode บางครั้งยิง onresult ซ้ำหลายรอบด้วยข้อความเดิม
+    // การ accumulate ด้วย finalTranscript += ทำให้ข้อความซ้ำ 4 เท่า
+    // แก้: ดูเฉพาะ e.results[e.results.length - 1] (result ล่าสุด) เท่านั้น
     this.recognition.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const seg = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalTranscript += seg;
-        else interim += seg;
-      }
-      const transcript = (finalTranscript + interim).trim();
-      onUpdate && onUpdate({ transcript, isFinal: interim === '' && finalTranscript !== '' });
+      const latest = e.results[e.results.length - 1];
+      const transcript = latest[0].transcript.trim();
+      onUpdate && onUpdate({ transcript, isFinal: latest.isFinal });
     };
 
     this.recognition.onerror = (e) => {
