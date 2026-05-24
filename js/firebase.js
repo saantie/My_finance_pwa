@@ -87,7 +87,8 @@ export async function signInWithGoogle() {
 
     const result = await signInWithPopup(_auth, provider);
     const { email, displayName, uid } = result.user;
-    _accessToken = result._tokenResponse?.oauthAccessToken ?? null;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    _accessToken = credential?.accessToken ?? null;
     _currentUser = { email, displayName, uid };
 
     // ส่ง token ไปให้ drive.js (lazy import เพื่อหลีกเลี่ยง circular dep)

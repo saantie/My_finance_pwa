@@ -56,7 +56,8 @@ export async function requestDriveAccess() {
   if (currentUser?.email) provider.setCustomParameters({ login_hint: currentUser.email });
 
   const result = await signInWithPopup(auth, provider);
-  const token  = result._tokenResponse?.oauthAccessToken ?? null;
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const token  = credential?.accessToken ?? null;
   if (!token) throw new Error('Drive token ไม่พบใน response');
   setDriveToken(token);
   return token;
