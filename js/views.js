@@ -1861,12 +1861,19 @@ export function renderSettings(container) {
           </div>
           ${svgIcon('download', { size: 18, stroke: 2 })}
         </div>
-        <div class="setting-row" data-action="import-json">
+        <div class="setting-row" data-action="import-json" style="cursor:pointer">
           <div>
             <div class="setting-label">กู้คืนจากไฟล์</div>
             <div class="setting-sub">เลือกไฟล์ JSON ที่เคยสำรองไว้</div>
           </div>
           ${svgIcon('upload', { size: 18, stroke: 2 })}
+        </div>
+        <div class="setting-row" data-action="import-email-text" style="cursor:pointer">
+          <div>
+            <div class="setting-label">กู้คืนจาก Email</div>
+            <div class="setting-sub">วางข้อความที่คัดลอกจาก email สำรองข้อมูล</div>
+          </div>
+          ${svgIcon('mail', { size: 18, stroke: 2 })}
         </div>
         <div class="setting-row" data-action="reset-all" style="color: var(--clay);">
           <div>
@@ -1899,71 +1906,114 @@ export function renderSettings(container) {
 
   // === Bind events ===
 
-  // Email backup — ส่งไฟล์ backup ให้ตัวเองทาง Email (ไม่ต้องลงชื่อหรือตั้งค่าอะไร)
+  // Email backup — ฝังข้อมูล JSON ลงใน body ของ email โดยตรง (ไม่ต้องแนบไฟล์)
   container.querySelector('[data-action="email-backup"]')?.addEventListener('click', async () => {
     const json = State.exportJSON();
+    // minify: ตัด whitespace ออกเพื่อให้ URL สั้นที่สุด
+    const jsonMin = JSON.stringify(JSON.parse(json));
     const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-    const fileName = `finance-backup-${todayISO()}.json`;
-    const blob = new Blob([json], { type: 'application/json' });
-    const file = new File([blob], fileName, { type: 'application/json' });
+    const txCount = State.getTransactions().length;
 
-    // เนื้อหา email — บอกผู้ใช้ว่าข้อมูลอยู่ใน email ถ้าเครื่องหาย
-    const emailText = [
+    // หา email ผู้ใช้ (ถ้า sign in อยู่)
+    const { getCurrentUser } = await import('./firebase.js').catch(() => ({ getCurrentUser: () => null }));
+    const toEmail = getCurrentUser?.()?.email ?? '';
+
+    // === เนื้อหา email — ข้อมูล JSON ฝังอยู่ระหว่าง markers ===
+    const bodyLines = [
       '📦 สำรองข้อมูล Finance Diary',
-      `วันที่: ${dateStr}`,
+      `วันที่: ${dateStr}  |  จำนวนรายการ: ${txCount} รายการ`,
       '',
       'เก็บ email นี้ไว้ — ถ้าเครื่องหายหรือเปลี่ยนเครื่อง ข้อมูลไม่หาย',
       '',
       'วิธีกู้คืน:',
       '1. เปิด Finance Diary บนเครื่องใหม่',
-      '2. ไปที่ ตั้งค่า → ข้อมูล → กู้คืนจากไฟล์',
-      '3. เลือกไฟล์ที่แนบมากับ email นี้',
-    ].join('\n');
+      '2. ไปที่ ตั้งค่า → ข้อมูล → กู้คืนจาก Email',
+      '3. คัดลอกข้อความทั้งหมดจาก email นี้ แล้ววางในแอป',
+      '',
+      '(ข้อมูลด้านล่างนี้คือตัวข้อมูลสำรอง — อย่าแก้ไข)',
+      '===BACKUP_START===',
+      jsonMin,
+      '===BACKUP_END==='
+    ];
+    const bodyText = bodyLines.join('\n');
+    const subject = `📦 สำรองข้อมูล Finance Diary — ${dateStr}`;
 
-    let done = false;
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody   = encodeURIComponent(bodyText);
+    const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
 
-    // มือถือ: Web Share API (แชร์ไฟล์ไปยัง Gmail / Line / ฯลฯ ทันที)
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: `📦 สำรองข้อมูล Finance Diary — ${dateStr}`,
-          text: emailText,
-          files: [file]
-        });
-        done = true;
-      } catch (e) {
-        if (e.name === 'AbortError') return; // user กด cancel
-        // ถ้า share ล้มเหลวด้วยเหตุอื่น → fallback download
-      }
-    }
-
-    if (!done) {
-      // เดสก์ท็อปหรือ browser ไม่รองรับ: ดาวน์โหลดไฟล์ + เปิด mailto
-      const url = URL.createObjectURL(blob);
+    if (mailtoUrl.length <= 1_800_000) {
+      // ✅ ข้อมูลฝังใน email body — กดส่งเพียงอย่างเดียว ไม่ต้องแนบไฟล์
+      window.open(mailtoUrl, '_self');
+      showToast('เปิด email แล้ว — กดส่งเพื่อสำรอง');
+    } else {
+      // ⚠️ ข้อมูลมากเกินกว่าจะฝังใน URL (~1,800 ขึ้นไป) — ดาวน์โหลดไฟล์แทน
+      const fileName = `finance-backup-${todayISO()}.json`;
+      const blob = new Blob([json], { type: 'application/json' });
+      const dlUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = fileName;
+      a.href = dlUrl; a.download = fileName;
       document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a); URL.revokeObjectURL(dlUrl);
 
-      // เปิด email client พร้อม subject + body (ผู้ใช้แนบไฟล์ที่ดาวน์โหลดเอง)
-      const { getCurrentUser } = await import('./firebase.js').catch(() => ({ getCurrentUser: () => null }));
-      const toEmail = getCurrentUser?.()?.email ?? '';
-      const subject = encodeURIComponent(`📦 สำรองข้อมูล Finance Diary — ${dateStr}`);
-      const body = encodeURIComponent(
-        emailText + `\n\n⚠️ กรุณาแนบไฟล์ ${fileName} (เพิ่งดาวน์โหลดแล้ว) แล้วกดส่ง`
-      );
+      const fallbackBody = encodeURIComponent([
+        `📦 สำรองข้อมูล Finance Diary — ${dateStr}`,
+        '',
+        `ไฟล์ backup (${fileName}) ถูกดาวน์โหลดแล้ว`,
+        'กรุณาแนบไฟล์นั้นแล้วกดส่ง',
+        '',
+        'กู้คืน: ตั้งค่า → กู้คืนจากไฟล์'
+      ].join('\n'));
       setTimeout(() => {
-        window.open(`mailto:${toEmail}?subject=${subject}&body=${body}`, '_self');
+        window.open(`mailto:${toEmail}?subject=${encodedSubject}&body=${fallbackBody}`, '_self');
       }, 400);
-      done = true;
+      showToast(`ดาวน์โหลดไฟล์แล้ว — กรุณาแนบ ${fileName} แล้วกดส่ง`);
     }
 
-    // บันทึกวันที่สำรอง
     State.setSetting('last_email_backup', todayISO());
     const subEl = container.querySelector('#email-backup-sub');
     if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
-    if (done) showToast('สำรองข้อมูลเรียบร้อย ✓');
+  });
+
+  // กู้คืนจาก Email — วางข้อความจาก email body
+  container.querySelector('[data-action="import-email-text"]')?.addEventListener('click', () => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML = `
+      <div class="acct-modal" style="max-width:360px">
+        <div class="acct-modal-head">กู้คืนจาก Email</div>
+        <div class="acct-modal-body">
+          <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:var(--ink)">
+            เปิด email สำรองข้อมูล → เลือกข้อความทั้งหมด (Ctrl+A) → คัดลอก → วางที่นี่
+          </p>
+          <textarea id="email-paste-area"
+            placeholder="วางข้อความจาก email ที่นี่…"
+            style="width:100%;height:130px;padding:10px;border:1.5px solid var(--rule);border-radius:8px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box;color:var(--ink);background:var(--bg)"></textarea>
+        </div>
+        <div class="acct-modal-footer" style="gap:8px">
+          <button class="cancel" id="ei-cancel">ยกเลิก</button>
+          <button class="add-save" id="ei-ok" style="flex:1">กู้คืน</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#ei-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#ei-ok').addEventListener('click', () => {
+      const text = overlay.querySelector('#email-paste-area').value.trim();
+      if (!text) { showToast('กรุณาวางข้อความก่อน'); return; }
+
+      // แยก JSON จากระหว่าง markers — ถ้าไม่เจอ markers ลอง parse ทั้งก้อน
+      let jsonStr = text;
+      const m = text.match(/===BACKUP_START===\r?\n?([\s\S]*?)\r?\n?===BACKUP_END===/);
+      if (m) jsonStr = m[1].trim();
+
+      if (State.importJSON(jsonStr)) {
+        showToast('กู้คืนข้อมูลเรียบร้อย ✓');
+        overlay.remove();
+      } else {
+        showToast('ไม่พบข้อมูลสำรองในข้อความ — ลองคัดลอกใหม่');
+      }
+    });
   });
 
   // แสดงเวอร์ชันจาก Service Worker
