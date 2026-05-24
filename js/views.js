@@ -1906,68 +1906,77 @@ export function renderSettings(container) {
 
   // === Bind events ===
 
-  // Email backup — ฝังข้อมูล JSON ลงใน body ของ email โดยตรง (ไม่ต้องแนบไฟล์)
+  // Email backup
+  // มือถือ: Web Share API → แนบไฟล์จริงใน Gmail/Mail
+  // เดสก์ท็อป: mailto: พร้อม JSON ฝังใน body (browser ไม่มี API แนบไฟล์)
   container.querySelector('[data-action="email-backup"]')?.addEventListener('click', async () => {
     const json = State.exportJSON();
-    // minify: ตัด whitespace ออกเพื่อให้ URL สั้นที่สุด
-    const jsonMin = JSON.stringify(JSON.parse(json));
+    const jsonMin = JSON.stringify(JSON.parse(json)); // minify
     const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     const txCount = State.getTransactions().length;
+    const fileName = `finance-backup-${todayISO()}.json`;
+    const subject  = `📦 สำรองข้อมูล Finance Diary — ${dateStr}`;
 
-    // หา email ผู้ใช้ (ถ้า sign in อยู่)
     const { getCurrentUser } = await import('./firebase.js').catch(() => ({ getCurrentUser: () => null }));
     const toEmail = getCurrentUser?.()?.email ?? '';
 
-    // === เนื้อหา email — ข้อมูล JSON ฝังอยู่ระหว่าง markers ===
+    // === เนื้อหา email สำหรับ body-text (เดสก์ท็อป) หรือ text ใน share (มือถือ) ===
     const bodyLines = [
       '📦 สำรองข้อมูล Finance Diary',
-      `วันที่: ${dateStr}  |  จำนวนรายการ: ${txCount} รายการ`,
+      `วันที่: ${dateStr}  |  รายการ: ${txCount} รายการ`,
       '',
       'เก็บ email นี้ไว้ — ถ้าเครื่องหายหรือเปลี่ยนเครื่อง ข้อมูลไม่หาย',
       '',
-      'วิธีกู้คืน:',
-      '1. เปิด Finance Diary บนเครื่องใหม่',
-      '2. ไปที่ ตั้งค่า → ข้อมูล → กู้คืนจาก Email',
-      '3. คัดลอกข้อความทั้งหมดจาก email นี้ แล้ววางในแอป',
+      'กู้คืน: ตั้งค่า → ข้อมูล → กู้คืนจาก Email (วางข้อความ)',
+      '        หรือ ตั้งค่า → ข้อมูล → กู้คืนจากไฟล์ (ถ้ามีไฟล์แนบ)',
       '',
-      '(ข้อมูลด้านล่างนี้คือตัวข้อมูลสำรอง — อย่าแก้ไข)',
+      '— ข้อมูลสำรอง (อย่าแก้ไข) —',
       '===BACKUP_START===',
       jsonMin,
       '===BACKUP_END==='
     ];
     const bodyText = bodyLines.join('\n');
-    const subject = `📦 สำรองข้อมูล Finance Diary — ${dateStr}`;
 
+    // ── มือถือ: ลองแนบไฟล์จริงผ่าน Web Share API ──────────────────
+    const blob = new Blob([json], { type: 'application/json' });
+    const file = new File([blob], fileName, { type: 'application/json' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ title: subject, text: bodyText, files: [file] });
+        // share สำเร็จ (user ไม่ cancel)
+        State.setSetting('last_email_backup', todayISO());
+        const subEl = container.querySelector('#email-backup-sub');
+        if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
+        showToast('สำรองข้อมูลเรียบร้อย ✓');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // user กด cancel
+        // share ล้มเหลวด้วยสาเหตุอื่น → fallback mailto: ด้านล่าง
+      }
+    }
+
+    // ── เดสก์ท็อป / fallback: mailto: พร้อม JSON ใน body ──────────
     const encodedSubject = encodeURIComponent(subject);
-    const encodedBody   = encodeURIComponent(bodyText);
+    const encodedBody    = encodeURIComponent(bodyText);
     const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
 
     if (mailtoUrl.length <= 1_800_000) {
-      // ✅ ข้อมูลฝังใน email body — กดส่งเพียงอย่างเดียว ไม่ต้องแนบไฟล์
+      // ✅ ข้อมูลฝังใน body — กดส่งเดียวจบ ไม่ต้องแนบไฟล์
       window.open(mailtoUrl, '_self');
       showToast('เปิด email แล้ว — กดส่งเพื่อสำรอง');
     } else {
-      // ⚠️ ข้อมูลมากเกินกว่าจะฝังใน URL (~1,800 ขึ้นไป) — ดาวน์โหลดไฟล์แทน
-      const fileName = `finance-backup-${todayISO()}.json`;
-      const blob = new Blob([json], { type: 'application/json' });
+      // ⚠️ ข้อมูลมากเกิน URL limit — ดาวน์โหลดไฟล์ + เปิด email
       const dlUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = dlUrl; a.download = fileName;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(dlUrl);
 
-      const fallbackBody = encodeURIComponent([
-        `📦 สำรองข้อมูล Finance Diary — ${dateStr}`,
-        '',
-        `ไฟล์ backup (${fileName}) ถูกดาวน์โหลดแล้ว`,
-        'กรุณาแนบไฟล์นั้นแล้วกดส่ง',
-        '',
-        'กู้คืน: ตั้งค่า → กู้คืนจากไฟล์'
-      ].join('\n'));
-      setTimeout(() => {
-        window.open(`mailto:${toEmail}?subject=${encodedSubject}&body=${fallbackBody}`, '_self');
-      }, 400);
-      showToast(`ดาวน์โหลดไฟล์แล้ว — กรุณาแนบ ${fileName} แล้วกดส่ง`);
+      const simpleBody = encodeURIComponent(
+        `📦 สำรองข้อมูล Finance Diary — ${dateStr}\n\nไฟล์ ${fileName} ถูกดาวน์โหลดแล้ว\nกรุณาแนบไฟล์นั้นแล้วกดส่ง`
+      );
+      setTimeout(() => window.open(`mailto:${toEmail}?subject=${encodedSubject}&body=${simpleBody}`, '_self'), 400);
+      showToast(`ดาวน์โหลดแล้ว — แนบไฟล์ ${fileName} แล้วกดส่ง`);
     }
 
     State.setSetting('last_email_backup', todayISO());
