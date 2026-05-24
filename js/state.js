@@ -20,7 +20,7 @@ import {
   subscribeSharedAccount, getCurrentUser
 } from './firebase.js';
 
-const STORAGE_KEY = 'diary_finance_v1';
+const STORAGE_KEY = 'diary_finance_v2';
 
 /* === Default state ============================================== */
 const DEFAULT_ACCOUNTS = [
@@ -88,12 +88,80 @@ const _sharedListeners = new Map();
 
 /* === Persistence ================================================ */
 
+/**
+ * Compact transaction ก่อน save — ลดขนาด ~50%
+ * หลักการ: เก็บเฉพาะ field ที่ไม่ใช่ค่า default / null / empty
+ * In-memory object ยังเหมือนเดิมทุกอย่าง — compact เฉพาะที่ storage boundary
+ */
+function compactTx(tx) {
+  const c = {
+    id:   tx.id,
+    date: tx.date,
+    type: tx.type,           // เก็บเสมอ (เป็น required field)
+    amt:  tx.amount,         // ย่อชื่อ key (ประหยัด 4 bytes)
+  };
+  // Timestamps: ISO string → Unix ms (24 bytes → 13 bytes × 2 = ประหยัด 22 bytes)
+  c.ca = tx.createdAt ? new Date(tx.createdAt).getTime() : Date.now();
+  c.ua = tx.updatedAt ? new Date(tx.updatedAt).getTime() : Date.now();
+
+  // Optional fields — ใส่เฉพาะที่ไม่ใช่ค่า default หรือ null/empty
+  if (tx.balance   != null)          c.bal  = tx.balance;
+  if (tx.group && tx.group !== 'other') c.grp = tx.group;
+  else                               c.grp  = 'other';   // always keep group
+  if (tx.description)                c.ds   = tx.description;
+  if (tx.account_from)               c.af   = tx.account_from;
+  if (tx.account_to)                 c.at   = tx.account_to;
+  if (tx.source && tx.source !== 'manual') c.src = tx.source;
+  if (tx.user_classified === false)  c.uc   = false;  // default=true เก็บเฉพาะ false
+  if (tx.created_by)                 c.cb   = tx.created_by;
+  if (tx.created_by_name)            c.cn   = tx.created_by_name;
+  if (tx.deleted_by)                 c.db   = tx.deleted_by;
+  if (tx.pending_sync)               c.ps   = true;
+  // ไม่เก็บ: category (คำนวณจาก group ผ่าน CATEGORIES ได้)
+  //          bank     (ไม่ถูกใช้ในการแสดงผล icon ใดๆ — ใช้ account.bank แทน)
+  return c;
+}
+
+/**
+ * Expand compacted transaction กลับเป็น full object สำหรับใช้งานใน memory
+ */
+function expandTx(c) {
+  return {
+    id:               c.id,
+    date:             c.date,
+    type:             c.type  || 'expense',
+    amount:           c.amt   ?? c.amount ?? 0,   // รองรับ field เก่า (amount) ด้วย
+    balance:          c.bal   ?? c.balance ?? null,
+    category:         '',                          // derive จาก group ตอนแสดงผล
+    group:            c.grp   || c.group   || 'other',
+    description:      c.ds    || c.description || '',
+    account_from:     c.af    || c.account_from  || null,
+    account_to:       c.at    || c.account_to    || null,
+    bank:             c.bank  || null,             // รองรับ field เก่า
+    source:           c.src   || c.source  || 'manual',
+    user_classified:  c.uc    ?? c.user_classified ?? true,
+    created_by:       c.cb    || c.created_by       || null,
+    created_by_name:  c.cn    || c.created_by_name  || null,
+    deleted_by:       c.db    || c.deleted_by        || null,
+    ...(c.ps || c.pending_sync ? { pending_sync: true } : {}),
+    // Timestamps: Unix ms → ISO string
+    createdAt: c.ca
+      ? new Date(c.ca).toISOString()
+      : (c.createdAt || new Date().toISOString()),
+    updatedAt: c.ua
+      ? new Date(c.ua).toISOString()
+      : (c.updatedAt || new Date().toISOString()),
+  };
+}
+
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
-    const accounts = parsed.accounts && parsed.accounts.length ? parsed.accounts : DEFAULT_STATE.accounts;
+    const accounts = parsed.accounts && parsed.accounts.length
+      ? parsed.accounts
+      : DEFAULT_STATE.accounts;
     // Migration: เพิ่ม default accounts ที่ยังไม่มี
     for (const def of DEFAULT_ACCOUNTS) {
       if (!accounts.find(a => a.id === def.id)) {
@@ -101,7 +169,7 @@ function loadFromStorage() {
       }
     }
     return {
-      transactions: parsed.transactions || [],
+      transactions: (parsed.transactions || []).map(expandTx),
       accounts,
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
@@ -130,9 +198,9 @@ function saveToStorage() {
     );
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       accounts: _state.accounts.filter(a => !excludedIds.has(a.id)),
-      transactions: _state.transactions.filter(t =>
-        !excludedIds.has(t.account_from) && !excludedIds.has(t.account_to)
-      ),
+      transactions: _state.transactions
+        .filter(t => !excludedIds.has(t.account_from) && !excludedIds.has(t.account_to))
+        .map(compactTx),
       settings: _state.settings,
       userProgress: _state.userProgress
     }));
