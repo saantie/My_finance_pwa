@@ -1704,6 +1704,16 @@ export function renderSettings(container) {
   const settings = State.getSettings();
   const txCount = State.getTransactions().length;
   const acctCount = State.getAccounts().length;
+
+  // สถานะ email backup แสดงใต้ row
+  const _lastBackup = settings.last_email_backup;
+  let emailBackupSub;
+  if (!_lastBackup) {
+    emailBackupSub = 'แนะนำสำรองทุกสัปดาห์ — เก็บไว้ใน Email เครื่องหายข้อมูลไม่หาย';
+  } else {
+    const _days = Math.floor((Date.now() - new Date(_lastBackup).getTime()) / 86400000);
+    emailBackupSub = _days === 0 ? 'สำรองแล้ววันนี้ ✓' : `สำรองล่าสุด ${_days} วันที่แล้ว`;
+  }
   const theme       = settings.theme || 'diary';
   const darkMode    = settings.dark || false;
   const displayName = settings.display_name || '';
@@ -1834,30 +1844,20 @@ export function renderSettings(container) {
           <div class="setting-value">${acctCount} บัญชี</div>
         </div>
 
-        <!-- Google Drive backup -->
-        <div class="setting-row" data-action="drive-backup" style="cursor:pointer">
+        <!-- Email backup -->
+        <div class="setting-row" data-action="email-backup" style="cursor:pointer">
           <div>
-            <div class="setting-label">สำรองไป Google Drive</div>
-            <div class="setting-sub" id="drive-backup-sub">กำลังตรวจสอบ…</div>
+            <div class="setting-label">สำรองทาง Email</div>
+            <div class="setting-sub" id="email-backup-sub">${emailBackupSub}</div>
           </div>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.96A29 29 0 0023 12a29 29 0 00-.46-5.58z"/>
-            <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/>
-          </svg>
-        </div>
-        <div class="setting-row" data-action="drive-restore" style="cursor:pointer">
-          <div>
-            <div class="setting-label">กู้คืนจาก Google Drive</div>
-            <div class="setting-sub">โหลด backup ล่าสุดกลับมา</div>
-          </div>
-          ${svgIcon('upload', { size: 18, stroke: 2 })}
+          ${svgIcon('mail', { size: 18, stroke: 2 })}
         </div>
 
-        <!-- local JSON -->
-        <div class="setting-row" data-action="export-json">
+        <!-- local JSON download (สำรองรอง) -->
+        <div class="setting-row" data-action="export-json" style="cursor:pointer">
           <div>
-            <div class="setting-label">สำรองข้อมูล (JSON)</div>
-            <div class="setting-sub">ดาวน์โหลดไฟล์เก็บไว้ในเครื่อง</div>
+            <div class="setting-label">สำรองเป็นไฟล์</div>
+            <div class="setting-sub">ดาวน์โหลด JSON เก็บไว้ในเครื่อง</div>
           </div>
           ${svgIcon('download', { size: 18, stroke: 2 })}
         </div>
@@ -1887,7 +1887,7 @@ export function renderSettings(container) {
       <div class="text">
         <strong>ข้อมูลทั้งหมดอยู่ในเครื่องนี้</strong><br>
         ไม่มีการส่งข้อมูลไปยังเซิร์ฟเวอร์ใดๆ — ลบแอปข้อมูลหายทันที
-        แนะนำให้สำรองเป็นไฟล์ JSON เก็บไว้
+        แนะนำสำรองทาง Email ทุกสัปดาห์ เครื่องหายข้อมูลไม่หาย
       </div>
     </div>
 
@@ -1899,126 +1899,71 @@ export function renderSettings(container) {
 
   // === Bind events ===
 
-  // Google Drive — แสดงสถานะ backup ล่าสุด + ผูก events
-  (async () => {
-    const subEl = container.querySelector('#drive-backup-sub');
-    try {
-      const { getBackupInfo, hasDriveToken } = await import('./drive.js');
-      const driveEnabled = State.getSettings().drive_backup_enabled;
-      if (!hasDriveToken() || !driveEnabled) {
-        if (subEl) subEl.textContent = 'กดเพื่อเชื่อมต่อ Google Drive';
-        return;
-      }
-      const info = await getBackupInfo();
-      if (subEl) {
-        subEl.textContent = info?.modifiedTime
-          ? `สำรองล่าสุด: ${new Date(info.modifiedTime).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}`
-          : 'ยังไม่มี backup — กดเพื่อสำรองครั้งแรก';
-      }
-    } catch {
-      if (subEl) subEl.textContent = 'กดเพื่อเชื่อมต่อ Google Drive';
-    }
-  })();
+  // Email backup — ส่งไฟล์ backup ให้ตัวเองทาง Email (ไม่ต้องลงชื่อหรือตั้งค่าอะไร)
+  container.querySelector('[data-action="email-backup"]')?.addEventListener('click', async () => {
+    const json = State.exportJSON();
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const fileName = `finance-backup-${todayISO()}.json`;
+    const blob = new Blob([json], { type: 'application/json' });
+    const file = new File([blob], fileName, { type: 'application/json' });
 
-  /** แสดง dialog อธิบาย Drive backup + ขอ consent ก่อนดำเนินการ */
-  async function driveConsentDialog() {
-    return new Promise(resolve => {
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      overlay.innerHTML = `
-        <div class="acct-modal" style="max-width:340px">
-          <div class="acct-modal-head">สำรองข้อมูลไปยัง Google Drive</div>
-          <div class="acct-modal-body" style="font-size:14px;line-height:1.6;color:var(--ink)">
-            <p style="margin:0 0 10px">แอปจะอัปโหลดไฟล์ <strong>diary-finance-backup.json</strong>
-            ไปยัง Google Drive ของคุณ</p>
-            <ul style="margin:0 0 12px;padding-left:18px;color:var(--ink-soft)">
-              <li>ไฟล์อยู่ใน Drive <strong>ของคุณเท่านั้น</strong> — ไม่ผ่านเซิร์ฟเวอร์ของแอป</li>
-              <li>แอปเข้าถึงได้เฉพาะไฟล์ที่แอปสร้างเอง ไม่อ่านไฟล์อื่นใน Drive</li>
-              <li>ยกเลิกสิทธิ์ได้ตลอดเวลาที่ <a href="https://myaccount.google.com/permissions" target="_blank" style="color:var(--primary)">myaccount.google.com/permissions</a></li>
-            </ul>
-            <p style="margin:0;font-size:13px;color:var(--ink-faint)">
-              ต้องลงชื่อ Google เพื่ออนุญาต — popup จะเปิดขึ้น
-            </p>
-          </div>
-          <div class="acct-modal-footer" style="gap:8px">
-            <button class="cancel" id="drive-consent-cancel">ยกเลิก</button>
-            <button class="add-save" id="drive-consent-ok" style="flex:1">เชื่อมต่อและสำรอง</button>
-          </div>
-        </div>`;
-      document.body.appendChild(overlay);
-      overlay.querySelector('#drive-consent-cancel').addEventListener('click', () => {
-        overlay.remove(); resolve(false);
-      });
-      overlay.querySelector('#drive-consent-ok').addEventListener('click', () => {
-        overlay.remove(); resolve(true);
-      });
-    });
-  }
+    // เนื้อหา email — บอกผู้ใช้ว่าข้อมูลอยู่ใน email ถ้าเครื่องหาย
+    const emailText = [
+      '📦 สำรองข้อมูล Finance Diary',
+      `วันที่: ${dateStr}`,
+      '',
+      'เก็บ email นี้ไว้ — ถ้าเครื่องหายหรือเปลี่ยนเครื่อง ข้อมูลไม่หาย',
+      '',
+      'วิธีกู้คืน:',
+      '1. เปิด Finance Diary บนเครื่องใหม่',
+      '2. ไปที่ ตั้งค่า → ข้อมูล → กู้คืนจากไฟล์',
+      '3. เลือกไฟล์ที่แนบมากับ email นี้',
+    ].join('\n');
 
-  container.querySelector('[data-action="drive-backup"]')?.addEventListener('click', async () => {
-    const { uploadBackup, hasDriveToken, requestDriveAccess } = await import('./drive.js');
-    const driveEnabled = State.getSettings().drive_backup_enabled;
+    let done = false;
 
-    // ครั้งแรก หรือ token หาย → แสดง consent dialog ก่อน
-    if (!hasDriveToken() || !driveEnabled) {
-      const ok = await driveConsentDialog();
-      if (!ok) return;
+    // มือถือ: Web Share API (แชร์ไฟล์ไปยัง Gmail / Line / ฯลฯ ทันที)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await requestDriveAccess();
-        State.setSetting('drive_backup_enabled', true);
+        await navigator.share({
+          title: `📦 สำรองข้อมูล Finance Diary — ${dateStr}`,
+          text: emailText,
+          files: [file]
+        });
+        done = true;
       } catch (e) {
-        const msg = e?.message || '';
-        showToast(msg === 'popup_blocked'
-          ? 'Popup ถูกบล็อก — อนุญาต popup แล้วลองใหม่'
-          : `เชื่อมต่อไม่สำเร็จ: ${msg.slice(0, 50)}`);
-        return;
+        if (e.name === 'AbortError') return; // user กด cancel
+        // ถ้า share ล้มเหลวด้วยเหตุอื่น → fallback download
       }
     }
 
-    try {
-      showToast('กำลังสำรองข้อมูล…');
-      const json = State.exportJSON();
-      await uploadBackup(json);
-      showToast('สำรองข้อมูลไปยัง Google Drive สำเร็จ ✓');
-      const subEl = container.querySelector('#drive-backup-sub');
-      if (subEl) subEl.textContent = `สำรองล่าสุด: ${new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}`;
-    } catch (e) {
-      showToast(`สำรองไม่สำเร็จ: ${(e?.message || '').slice(0, 60)}`);
-      console.error('[drive] backup failed', e);
-    }
-  });
+    if (!done) {
+      // เดสก์ท็อปหรือ browser ไม่รองรับ: ดาวน์โหลดไฟล์ + เปิด mailto
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-  container.querySelector('[data-action="drive-restore"]')?.addEventListener('click', async () => {
-    const { downloadBackup, hasDriveToken, requestDriveAccess } = await import('./drive.js');
-
-    if (!hasDriveToken()) {
-      const ok = await driveConsentDialog();
-      if (!ok) return;
-      try {
-        await requestDriveAccess();
-      } catch (e) {
-        const msg = e?.message || '';
-        showToast(msg === 'popup_blocked'
-          ? 'Popup ถูกบล็อก — อนุญาต popup แล้วลองใหม่'
-          : `เชื่อมต่อไม่สำเร็จ: ${msg.slice(0, 50)}`);
-        return;
-      }
+      // เปิด email client พร้อม subject + body (ผู้ใช้แนบไฟล์ที่ดาวน์โหลดเอง)
+      const { getCurrentUser } = await import('./firebase.js').catch(() => ({ getCurrentUser: () => null }));
+      const toEmail = getCurrentUser?.()?.email ?? '';
+      const subject = encodeURIComponent(`📦 สำรองข้อมูล Finance Diary — ${dateStr}`);
+      const body = encodeURIComponent(
+        emailText + `\n\n⚠️ กรุณาแนบไฟล์ ${fileName} (เพิ่งดาวน์โหลดแล้ว) แล้วกดส่ง`
+      );
+      setTimeout(() => {
+        window.open(`mailto:${toEmail}?subject=${subject}&body=${body}`, '_self');
+      }, 400);
+      done = true;
     }
 
-    try {
-      showToast('กำลังโหลด backup…');
-      const json = await downloadBackup();
-      if (!json) { showToast('ไม่พบ backup ใน Google Drive'); return; }
-      if (!confirm('กู้คืนข้อมูลจาก Google Drive?\nข้อมูลปัจจุบันในเครื่องจะถูกแทนที่')) return;
-      if (State.importJSON(json)) {
-        showToast('กู้คืนจาก Google Drive สำเร็จ ✓');
-      } else {
-        showToast('ไฟล์ backup ไม่รองรับ');
-      }
-    } catch (e) {
-      showToast(`กู้คืนไม่สำเร็จ: ${(e?.message || '').slice(0, 60)}`);
-      console.error('[drive] restore failed', e);
-    }
+    // บันทึกวันที่สำรอง
+    State.setSetting('last_email_backup', todayISO());
+    const subEl = container.querySelector('#email-backup-sub');
+    if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
+    if (done) showToast('สำรองข้อมูลเรียบร้อย ✓');
   });
 
   // แสดงเวอร์ชันจาก Service Worker

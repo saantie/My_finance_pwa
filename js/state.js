@@ -64,7 +64,8 @@ const DEFAULT_STATE = {
     dark: false,                 // dark mode
     text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
     language: 'th',
-    display_name: ''             // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)
+    display_name: '',            // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)
+    last_email_backup: null      // YYYY-MM-DD วันที่สำรอง email ล่าสุด
   },
   userProgress: { ...DEFAULT_USER_PROGRESS }
 };

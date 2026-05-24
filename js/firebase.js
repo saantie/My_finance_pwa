@@ -81,20 +81,11 @@ export function initFirebase() {
 export async function signInWithGoogle() {
   try {
     const provider = new GoogleAuthProvider();
-    // เพิ่ม drive.file scope เพื่อให้ backup Google Drive ทำงานได้
-    // drive.file เป็น non-sensitive scope — ไม่ต้อง OAuth verification
-    provider.addScope('https://www.googleapis.com/auth/drive.file');
-
     const result = await signInWithPopup(_auth, provider);
     const { email, displayName, uid } = result.user;
     const credential = GoogleAuthProvider.credentialFromResult(result);
     _accessToken = credential?.accessToken ?? null;
     _currentUser = { email, displayName, uid };
-
-    // ส่ง token ไปให้ drive.js (lazy import เพื่อหลีกเลี่ยง circular dep)
-    if (_accessToken) {
-      import('./drive.js').then(m => m.setDriveToken(_accessToken)).catch(() => {});
-    }
 
     return { email, displayName, uid, accessToken: _accessToken };
   } catch (e) {
