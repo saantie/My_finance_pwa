@@ -2366,6 +2366,8 @@ export function renderSettings(container) {
         await updateSharedWith(accountId, newList);
         if (newList.length === 0) {
           State.updateAccount(accountId, { storage: 'local', shared_with: [] });
+          // ปิด Firestore listener ที่ค้างอยู่สำหรับบัญชีนี้ทันที
+          State.subscribeSharedAccounts();
           showToast('หยุดแชร์แล้ว — ข้อมูลยังอยู่บน cloud');
         } else {
           State.updateAccount(accountId, { shared_with: newList });

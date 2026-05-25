@@ -904,6 +904,9 @@ export function mergeSharedAccounts(remoteAccounts) {
  * กู้คืนบัญชีที่เราเป็นเจ้าของและแชร์ไว้ จาก Firestore กลับเข้า local state
  * แก้กรณี restore backup (ที่ไม่มี cloud accounts) ทำให้สถานะแชร์หายจาก local
  * ขณะที่ Firestore ยังมีอยู่ → owner มองไม่เห็น/revoke ไม่ได้ + recipient เห็นค้าง
+ *
+ * หลักการ: storage='cloud' เฉพาะบัญชีที่กำลังแชร์จริง (shared_with.length > 0)
+ * บัญชีที่ unshare แล้ว (shared_with=[]) ต้องอยู่เป็น 'local' เสมอ — ห้าม push Firestore
  */
 export function restoreOwnedAccounts(remoteAccounts) {
   const myEmail = getCurrentUser()?.email;
@@ -911,9 +914,15 @@ export function restoreOwnedAccounts(remoteAccounts) {
   let changed = false;
   for (const ra of remoteAccounts) {
     if (ra.owner !== myEmail) continue;
+
+    // กำหนดว่าบัญชีนี้กำลังแชร์อยู่จริงหรือไม่
+    const isActivelyShared = (ra.shared_with?.length ?? 0) > 0;
+
     const idx = _state.accounts.findIndex(a => a.id === ra.id);
     if (idx === -1) {
-      // บัญชีหายจาก local (เช่นหลัง restore backup) → เพิ่มกลับเป็น cloud account
+      // บัญชีหายจาก local (เช่นหลัง restore backup)
+      // กู้คืนเฉพาะบัญชีที่ยังแชร์อยู่จริง — บัญชีที่ unshare แล้วไม่ต้องกู้คืน
+      if (!isActivelyShared) continue;
       _state.accounts.push({
         id: ra.id,
         bank: ra.bank ?? null,
@@ -926,19 +935,28 @@ export function restoreOwnedAccounts(remoteAccounts) {
         user_renamed: false,
         owner: myEmail,
         storage: 'cloud',
-        shared_with: ra.shared_with || [],
+        shared_with: ra.shared_with,
         cash_balance_override: null,
         override_date: null
       });
       changed = true;
     } else {
-      // มีอยู่แล้ว → sync สถานะแชร์ให้ตรงกับ Firestore
       const a = _state.accounts[idx];
-      const needUpdate = a.storage !== 'cloud' || a.owner !== myEmail ||
-        JSON.stringify(a.shared_with || []) !== JSON.stringify(ra.shared_with || []);
-      if (needUpdate) {
-        _state.accounts[idx] = { ...a, storage: 'cloud', owner: myEmail, shared_with: ra.shared_with || [] };
-        changed = true;
+      if (isActivelyShared) {
+        // กำลังแชร์อยู่จริง → sync storage + shared_with ให้ตรงกับ Firestore
+        const needUpdate = a.storage !== 'cloud' || a.owner !== myEmail ||
+          JSON.stringify(a.shared_with || []) !== JSON.stringify(ra.shared_with);
+        if (needUpdate) {
+          _state.accounts[idx] = { ...a, storage: 'cloud', owner: myEmail, shared_with: ra.shared_with };
+          changed = true;
+        }
+      } else {
+        // shared_with=[] → ไม่ได้แชร์จริง
+        // ถ้ายังเป็น cloud อยู่ (ค้างจาก bug เก่า) → revert เป็น local
+        if (a.storage === 'cloud' && a.owner === myEmail) {
+          _state.accounts[idx] = { ...a, storage: 'local', shared_with: [] };
+          changed = true;
+        }
       }
     }
   }
