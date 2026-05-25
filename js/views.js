@@ -393,7 +393,15 @@ function renderSpendingChart() {
   const days = 14;
   const cmp = State.getMonthComparison();
   const activeTxs = State.getTransactions().filter(t => t.deleted_by == null);
-  const { svg, avg, todayTotal } = dailyExpenseBars(activeTxs, days);
+
+  // เฉลี่ยรายรับต่อวัน — ใช้ 30 วันย้อนหลัง (ครอบ 1 รอบเงินเดือนเสมอ)
+  const past30Start = offsetDateISO(todayISO(), -30);
+  const income30    = activeTxs.filter(t =>
+    t.type === 'income' && t.date >= past30Start && t.date <= todayISO()
+  );
+  const incomeAvgPerDay = income30.reduce((s, t) => s + t.amount, 0) / 30;
+
+  const { svg, avg, todayTotal } = dailyExpenseBars(activeTxs, days, incomeAvgPerDay);
 
   // Insight banner
   let insightHtml = '';
@@ -412,12 +420,16 @@ function renderSpendingChart() {
       </div>
     `;
   } else if (avg > 0) {
+    const netDaily = incomeAvgPerDay - avg;
+    const netLabel = netDaily >= 0
+      ? `<span style="color:var(--income,#5a9d63)">+${formatBaht(netDaily)} ฿/วัน</span>`
+      : `<span style="color:var(--expense,#d96b5e)">${formatBaht(netDaily)} ฿/วัน</span>`;
     insightHtml = `
       <div class="insight-banner">
         <div class="ic">${svgIcon('trending', { size: 14, stroke: 2.5 })}</div>
         <div class="text">
           ใช้เฉลี่ยวันละ <strong>${formatBaht(avg)} ฿</strong>
-          ในช่วง ${days} วันที่ผ่านมา
+          ${incomeAvgPerDay > 0 ? `· รับเฉลี่ย <strong>${formatBaht(incomeAvgPerDay)} ฿</strong> · สุทธิ ${netLabel}` : ''}
         </div>
       </div>
     `;

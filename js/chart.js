@@ -15,7 +15,7 @@ import { todayISO, parseLocalDate, formatBaht } from './utils.js';
 /* === Daily expense bars (14 วัน) ================================
    แสดง pattern การใช้จ่าย — เห็น "วันไหนใช้เยอะ"
 =============================================================== */
-export function dailyExpenseBars(transactions, days = 14) {
+export function dailyExpenseBars(transactions, days = 14, incomeAvgPerDay = 0) {
   // 1. Build daily totals
   const today = new Date();
   const startDate = new Date(today);
@@ -31,7 +31,8 @@ export function dailyExpenseBars(transactions, days = 14) {
     dailyTotals.push({ date: iso, total, dayOfMonth: d.getDate(), dayOfWeek: d.getDay() });
   }
 
-  // 2. Calculate scale
+  // 2. Calculate scale — ใช้ max ของ expense bars เป็นหลัก
+  //    income line จะถูก clamp ที่ขอบบน ถ้ารายรับ >> รายจ่าย
   const max = Math.max(...dailyTotals.map(d => d.total), 1);
   const avg = dailyTotals.reduce((s, d) => s + d.total, 0) / days;
   const todayISOStr = todayISO();
@@ -74,11 +75,25 @@ export function dailyExpenseBars(transactions, days = 14) {
     return bar + hit;
   }).join('');
 
-  // 5. Average line (dashed)
+  // 5a. Expense average line (dashed, clay)
   const avgY = PAD_TOP + chartH - (avg / max) * chartH;
   const avgLine = avg > 0
-    ? `<line x1="${PAD_X}" y1="${avgY.toFixed(1)}" x2="${W - PAD_X}" y2="${avgY.toFixed(1)}"
-        stroke="var(--clay)" stroke-dasharray="3 3" stroke-width="1" opacity="0.5"/>`
+    ? `<line x1="${PAD_X}" y1="${avgY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${avgY.toFixed(1)}"
+        stroke="var(--clay)" stroke-dasharray="3 3" stroke-width="1" opacity="0.5"/>
+       <text x="${W - PAD_X - 26}" y="${(avgY + 3).toFixed(1)}"
+        font-size="8" fill="var(--clay)" opacity="0.7">รจ่าย</text>`
+    : '';
+
+  // 5b. Income average line (30 วัน, solid, income green)
+  //     clamp ที่ PAD_TOP เมื่อ incomeAvg > max expense — ยังสื่อว่า "รายรับสูงกว่า"
+  const incomeY = incomeAvgPerDay > 0
+    ? Math.max(PAD_TOP, PAD_TOP + chartH - (incomeAvgPerDay / max) * chartH)
+    : null;
+  const incomeLine = incomeY != null
+    ? `<line x1="${PAD_X}" y1="${incomeY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${incomeY.toFixed(1)}"
+        stroke="var(--income,#5a9d63)" stroke-width="1.5" opacity="0.7"/>
+       <text x="${W - PAD_X - 26}" y="${(incomeY + 3).toFixed(1)}"
+        font-size="8" fill="var(--income,#5a9d63)" opacity="0.85">รับ</text>`
     : '';
 
   // 6. Day labels (1, 8, 15, today)
@@ -96,11 +111,13 @@ export function dailyExpenseBars(transactions, days = 14) {
   return {
     svg: `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
       ${avgLine}
+      ${incomeLine}
       ${bars}
       ${labels}
       <g id="chart-bar-tip" visibility="hidden"/>
     </svg>`,
     avg,
+    incomeAvgPerDay,
     todayTotal: dailyTotals[days - 1].total,
     weekTotal: dailyTotals.slice(-7).reduce((s, d) => s + d.total, 0),
     prevWeekTotal: dailyTotals.slice(0, 7).reduce((s, d) => s + d.total, 0)
