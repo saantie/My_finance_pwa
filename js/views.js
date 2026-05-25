@@ -2392,8 +2392,15 @@ function renderAccountsSection() {
         </div>
       </div>`;
 
-  const myAccounts = accounts.filter(a => !(a.storage === 'cloud' && a.owner && a.owner !== myEmail));
-  const sharedAccounts = accounts.filter(a => a.storage === 'cloud' && a.owner && a.owner !== myEmail);
+  // ถ้า sign out (myEmail = null): ไม่สามารถแยก "ของฉัน" vs "ได้รับแชร์" โดยใช้ owner ได้
+  // เพราะ owner = 'someone@gmail.com' และ null !== 'someone@gmail.com' = true เสมอ
+  // → แสดงทุกบัญชีเป็น "ของฉัน" ทั้งหมด, ส่วน sharedAccounts ว่างเปล่า
+  const myAccounts = !myEmail
+    ? accounts
+    : accounts.filter(a => !(a.storage === 'cloud' && a.owner && a.owner !== myEmail));
+  const sharedAccounts = !myEmail
+    ? []
+    : accounts.filter(a => a.storage === 'cloud' && a.owner && a.owner !== myEmail);
 
   // แต่ละบัญชีของฉัน
   const acctCards = myAccounts.map(acct => {
