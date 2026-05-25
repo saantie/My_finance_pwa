@@ -101,7 +101,10 @@ function renderHeroCard() {
 
   const diffPct = prevSpentAtSameDay - spentPct; // บวก = ใช้ช้ากว่า
 
-  const amountColor = spentPct >= 90 ? '#A32D2D' : spentPct >= 70 ? '#854F0B' : '#3B6D11';
+  const amountColor = remaining < 0 ? '#d96b5e'
+    : spentPct >= 90 ? '#A32D2D'
+    : spentPct >= 70 ? '#854F0B'
+    : '#3B6D11';
 
   let verdictHtml;
   if (diffPct > 0) {
@@ -122,8 +125,8 @@ function renderHeroCard() {
 
       <!-- 1. ตัวเลขหลัก -->
       <div class="hero-card-main">
-        <div class="hero-card-label">ตอนนี้คุณเหลือ</div>
-        <div class="hero-card-amount" style="color:${amountColor}">${formatBaht(remaining)} <span class="hero-card-unit">฿</span></div>
+        <div class="hero-card-label">${remaining < 0 ? 'ตอนนี้คุณขาด' : 'ตอนนี้คุณเหลือ'}</div>
+        <div class="hero-card-amount" style="color:${amountColor}">${formatBaht(Math.abs(remaining))} <span class="hero-card-unit">฿</span></div>
       </div>
 
       <!-- 2. Legend -->
@@ -832,9 +835,12 @@ function renderAccountRow(acct, globalThreshold) {
     && acct.type !== 'debt'
     && acct.type !== 'investment'
     && acct.type !== 'credit_card';
-  const isWarning = alertable && balance < threshold;
-  const isDanger  = isWarning && balance < threshold * 0.5;
-  const rowClass  = isDanger ? 'account-row--danger' : isWarning ? 'account-row--warning' : '';
+  const isNegative = balance < 0;
+  const isWarning  = alertable && !isNegative && balance < threshold;
+  const isDanger   = isWarning && balance < threshold * 0.5;
+  const rowClass   = isNegative ? 'account-row--danger'
+    : isDanger ? 'account-row--danger'
+    : isWarning ? 'account-row--warning' : '';
   const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
 
   return `
@@ -852,7 +858,8 @@ function renderAccountRow(acct, globalThreshold) {
         </div>` : ''}
       </div>
       <div>
-        <div class="acct-balance">${formatBaht(balance)} ฿</div>
+        <div class="acct-balance" style="${isNegative ? 'color:var(--expense,#d96b5e)' : ''}">${formatBaht(balance)} ฿</div>
+        ${isNegative ? `<div style="font-size:11px;color:var(--expense,#d96b5e);text-align:right;margin-top:1px;">ติดลบ</div>` : ''}
       </div>
     </div>
   `;
@@ -937,7 +944,9 @@ function renderEntryRow(tx, decimals = 0) {
       </div>
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
-        <div class="entry-cat">${sharedBadge}${def.label}</div>
+        <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
+          ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
+          : ''}</div>
         ${acctLine}
         ${authorNote}
       </div>
@@ -1555,7 +1564,9 @@ function renderReviewRow(tx, idx, matchingTx, isSelected) {
           ${isDuplicate ? `<span class="dup-badge">อาจซ้ำกับ ${formatShortDate(matchingTx.date)}</span>` : ''}
           ${isATM ? '<span class="atm-badge">→ เงินสด</span>' : ''}
         </div>
-        <div class="entry-cat">${def.label}${tx.balance != null ? ` · คงเหลือ ${formatBaht(tx.balance)} ฿` : ''}</div>
+        <div class="entry-cat">${def.label}${tx.balance != null
+          ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
+          : ''}</div>
       </div>
       <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount)} ฿</div>
       ${compareHtml}

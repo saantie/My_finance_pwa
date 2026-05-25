@@ -1,21 +1,16 @@
 /* ===================================================================
-   onboarding.js — First-run 3-screen overlay
+   onboarding.js — First-run overlay
    ===================================================================
-   Screen 1: Privacy promise   — ข้อมูลอยู่ในเครื่อง, ไม่มี server
-   Screen 2: Import PDF         — นำเข้าข้อมูลจาก PDF หรือ ข้ามก่อน
-   Screen 3: Aha moment         — insight จากข้อมูลจริง (หรือ generic ถ้าข้าม)
-
-   วิธีใช้:
-     import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
-     if (shouldShowOnboarding()) showOnboarding(() => { /* onComplete * / });
+   Flow (PDF imported):  Screen1 → Screen2 → Screen3 (aha) → Screen4 (cash)
+   Flow (skipped):       Screen1 → Screen2 → skip-notice → done
 
    เงื่อนไขแสดง:
-     - ไม่เคยผ่าน onboarding (onboarding_done ไม่มีใน localStorage)
-     - ไม่มีข้อมูล transactions เดิม (fresh install)
+   - ไม่เคยผ่าน onboarding (onboarding_done ไม่มีใน localStorage)
+   - ไม่มีข้อมูล transactions เดิม (fresh install)
    =================================================================== */
 
 import { svgIcon } from './icons.js';
-import { formatBaht } from './utils.js';
+import { formatBaht, todayISO } from './utils.js';
 import * as State from './state.js';
 
 const DONE_KEY = 'onboarding_done';
@@ -23,7 +18,6 @@ const DONE_KEY = 'onboarding_done';
 
 /* === Public API ================================================= */
 
-/** ควรแสดง onboarding ไหม? */
 export function shouldShowOnboarding() {
   return (
     !localStorage.getItem(DONE_KEY) &&
@@ -31,22 +25,15 @@ export function shouldShowOnboarding() {
   );
 }
 
-/** แสดง onboarding overlay — เรียก onComplete เมื่อเสร็จ */
 export function showOnboarding(onComplete) {
   const overlay = document.createElement('div');
   overlay.id = 'onboarding-overlay';
   overlay.style.cssText = `
-    position: fixed;
-    inset: 0;
-    z-index: 9000;
+    position: fixed; inset: 0; z-index: 9000;
     background: var(--paper, #fdfaf6);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    display: flex; flex-direction: column; overflow: hidden;
   `;
   document.body.appendChild(overlay);
-
-  // ป้องกัน scroll body ข้างหลัง
   document.body.style.overflow = 'hidden';
 
   function finish() {
@@ -54,469 +41,489 @@ export function showOnboarding(onComplete) {
     document.body.style.overflow = '';
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.3s ease';
-    setTimeout(() => {
-      overlay.remove();
-      onComplete();
-    }, 300);
+    setTimeout(() => { overlay.remove(); onComplete(); }, 300);
   }
 
-  function goToScreen(n, importedCount) {
+  function go(screen, ctx = {}) {
     overlay.innerHTML = '';
-    if (n === 1) renderScreen1(overlay, () => goToScreen(2, 0));
-    else if (n === 2) renderScreen2(overlay, (count) => goToScreen(3, count), finish);
-    else if (n === 3) renderScreen3(overlay, importedCount, finish);
+    // fade-in
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.18s ease';
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+    });
+    switch (screen) {
+      case 1: renderScreen1(overlay, () => go(2)); break;
+      case 2: renderScreen2(overlay,
+                (count) => go(3, { importedCount: count }),
+                () => renderSkipNotice(overlay, finish)
+              ); break;
+      case 3: renderScreen3(overlay, ctx.importedCount ?? 0,
+                () => go(4)
+              ); break;
+      case 4: renderScreen4(overlay, finish); break;
+    }
   }
 
-  goToScreen(1, 0);
+  go(1);
 }
 
 
 /* === Screen 1: Privacy ========================================= */
 
 function renderScreen1(container, onNext) {
-  container.innerHTML = `
-    <div style="
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 32px;
-      text-align: center;
-      gap: 0;
-    ">
-      <!-- Progress dots -->
-      ${progressDots(1)}
+  container.innerHTML = wrapScreen(`
+    ${dots(1, 4)}
 
-      <!-- Shield icon -->
-      <div style="
-        width: 88px; height: 88px;
-        border-radius: 24px;
-        background: linear-gradient(135deg, #e88e3c, #f5a623);
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 28px;
-        box-shadow: 0 8px 24px rgba(232,142,60,0.3);
-      ">
-        ${svgIcon('shield', { size: 44, stroke: 1.8 })}
-      </div>
-
-      <h1 style="
-        font-size: 26px;
-        font-weight: 800;
-        color: var(--ink, #2d3748);
-        margin: 0 0 12px;
-        line-height: 1.2;
-      ">ข้อมูลทั้งหมด<br>อยู่ในเครื่องนี้</h1>
-
-      <p style="
-        font-size: 16px;
-        color: var(--ink-faint, #718096);
-        margin: 0 0 32px;
-        line-height: 1.6;
-      ">ไม่มี server · ไม่มีโฆษณา<br>ไม่เก็บข้อมูลของคุณ</p>
-
-      <!-- Privacy promises -->
-      <div style="
-        width: 100%;
-        max-width: 320px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-bottom: 40px;
-      ">
-        ${privacyRow('shield', 'PDF ประมวลผลในเครื่อง', 'ไม่ส่งข้อมูลออกนอก browser')}
-        ${privacyRow('check', 'เก็บใน localStorage', 'ไม่มีบัญชี · ไม่ต้องสมัคร')}
-        ${privacyRow('close', 'ไม่มี analytics ติดตาม', 'พฤติกรรมการเงินเป็นของคุณ')}
-      </div>
-
-      <!-- CTA -->
-      <button id="ob-next-1" style="
-        width: 100%;
-        max-width: 320px;
-        padding: 16px;
-        background: linear-gradient(135deg, #e88e3c, #f5a623);
-        color: #fff;
-        border: none;
-        border-radius: 14px;
-        font-size: 17px;
-        font-weight: 700;
-        font-family: inherit;
-        cursor: pointer;
-        box-shadow: 0 4px 16px rgba(232,142,60,0.35);
-      ">เริ่มต้นใช้งาน →</button>
+    <div style="${iconBox('135deg, #e88e3c, #f5a623')}">
+      ${svgIcon('shield', { size: 44, stroke: 1.8 })}
     </div>
-  `;
 
+    <h1 style="${H1}">ข้อมูลทั้งหมด<br>อยู่ในเครื่องนี้</h1>
+    <p style="${SUB}">ไม่มี server · ไม่มีโฆษณา<br>ไม่เก็บข้อมูลของคุณ</p>
+
+    <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;margin-bottom:36px;">
+      ${privacyRow('shield', 'PDF ประมวลผลในเครื่อง', 'ไม่ส่งข้อมูลออกนอก browser')}
+      ${privacyRow('check',  'เก็บใน localStorage', 'ไม่มีบัญชี · ไม่ต้องสมัคร')}
+      ${privacyRow('close',  'ไม่มี analytics ติดตาม', 'พฤติกรรมการเงินเป็นของคุณ')}
+    </div>
+
+    <button id="ob-next-1" style="${BTN_PRIMARY}">เริ่มต้นใช้งาน →</button>
+  `);
   container.querySelector('#ob-next-1').addEventListener('click', onNext);
 }
 
 function privacyRow(icon, title, sub) {
   return `
-    <div style="
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-align: left;
-      background: var(--surface, #fff);
-      border-radius: 12px;
-      padding: 12px 16px;
-      border: 1px solid var(--rule, #efe5d4);
-    ">
-      <div style="
-        width: 36px; height: 36px; flex-shrink: 0;
-        border-radius: 10px;
-        background: var(--accent-soft, #fef3e7);
-        display: flex; align-items: center; justify-content: center;
-        color: var(--primary, #e88e3c);
-      ">${svgIcon(icon, { size: 18, stroke: 2 })}</div>
-      <div>
-        <div style="font-size: 14px; font-weight: 600; color: var(--ink, #2d3748);">${title}</div>
-        <div style="font-size: 12px; color: var(--ink-faint, #718096); margin-top: 1px;">${sub}</div>
+    <div style="display:flex;align-items:center;gap:12px;text-align:left;
+      background:var(--surface,#fff);border-radius:12px;padding:12px 16px;
+      border:1px solid var(--rule,#efe5d4);">
+      <div style="width:36px;height:36px;flex-shrink:0;border-radius:10px;
+        background:var(--accent-soft,#fef3e7);display:flex;align-items:center;
+        justify-content:center;color:var(--primary,#e88e3c);">
+        ${svgIcon(icon, { size: 18, stroke: 2 })}
       </div>
-    </div>
-  `;
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);">${title}</div>
+        <div style="font-size:12px;color:var(--ink-faint,#718096);margin-top:1px;">${sub}</div>
+      </div>
+    </div>`;
 }
 
 
 /* === Screen 2: Import PDF ======================================= */
 
 function renderScreen2(container, onImported, onSkip) {
-  let _parsing = false;
+  // --- state ---
+  let _file       = null;
+  let _parsing    = false;
+  let _needPass   = false;  // กำลังรอรหัส PDF
 
-  container.innerHTML = `
-    <div style="
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 32px;
-      text-align: center;
-    ">
-      ${progressDots(2)}
+  function setStatus(html, color = '') {
+    const el = container.querySelector('#ob-status');
+    if (el) el.innerHTML = color
+      ? `<span style="color:${color}">${html}</span>`
+      : html;
+  }
 
-      <!-- PDF icon -->
-      <div style="
-        width: 88px; height: 88px;
-        border-radius: 24px;
-        background: linear-gradient(135deg, #e88e3c, #f5a623);
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 24px;
-        box-shadow: 0 8px 24px rgba(232,142,60,0.3);
-      ">
-        ${svgIcon('pdf', { size: 44, stroke: 1.5 })}
-      </div>
+  function resetUpload() {
+    _parsing  = false;
+    _needPass = false;
+    _file     = null;
+    const btn = container.querySelector('#ob-upload-btn');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    const pwPanel = container.querySelector('#ob-pw-panel');
+    if (pwPanel) pwPanel.remove();
+    const fileInput = container.querySelector('#ob-file-input');
+    if (fileInput) fileInput.value = '';
+    setStatus('');
+  }
 
-      <h1 style="
-        font-size: 24px;
-        font-weight: 800;
-        color: var(--ink, #2d3748);
-        margin: 0 0 10px;
-        line-height: 1.2;
-      ">นำเข้า e-Statement<br>จากธนาคาร</h1>
+  container.innerHTML = wrapScreen(`
+    ${dots(2, 4)}
 
-      <p style="
-        font-size: 15px;
-        color: var(--ink-faint, #718096);
-        margin: 0 0 10px;
-        line-height: 1.6;
-      ">ดาวน์โหลด PDF จากแอปธนาคาร<br>แล้วอัปโหลดที่นี่ — ระบบจัดการให้ทุกอย่าง</p>
-
-      <!-- Supported banks -->
-      <div style="
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-bottom: 28px;
-      ">
-        ${['กรุงไทย', 'กสิกร', 'ไทยพาณิชย์', 'กรุงเทพ', 'กรุงศรี'].map(b => `
-          <span style="
-            font-size: 12px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: var(--accent-soft, #fef3e7);
-            color: var(--primary, #e88e3c);
-            border: 1px solid rgba(232,142,60,0.2);
-          ">${b}</span>
-        `).join('')}
-        <span style="
-          font-size: 12px;
-          font-weight: 600;
-          padding: 4px 10px;
-          border-radius: 20px;
-          background: var(--surface, #fff);
-          color: var(--ink-faint, #718096);
-          border: 1px solid var(--rule, #efe5d4);
-        ">+11 ธนาคาร</span>
-      </div>
-
-      <!-- Status area -->
-      <div id="ob-status" style="
-        min-height: 24px;
-        font-size: 14px;
-        color: var(--ink-faint, #718096);
-        margin-bottom: 20px;
-        text-align: center;
-      "></div>
-
-      <!-- Hidden file input -->
-      <input type="file" id="ob-file-input" accept=".pdf,application/pdf" style="display:none">
-
-      <!-- Upload button -->
-      <button id="ob-upload-btn" style="
-        width: 100%;
-        max-width: 320px;
-        padding: 16px;
-        background: linear-gradient(135deg, #e88e3c, #f5a623);
-        color: #fff;
-        border: none;
-        border-radius: 14px;
-        font-size: 17px;
-        font-weight: 700;
-        font-family: inherit;
-        cursor: pointer;
-        box-shadow: 0 4px 16px rgba(232,142,60,0.35);
-        margin-bottom: 14px;
-      ">
-        ${svgIcon('upload', { size: 18, stroke: 2 })}
-        &nbsp; เลือกไฟล์ PDF
-      </button>
-
-      <!-- Skip link -->
-      <button id="ob-skip-btn" style="
-        background: none;
-        border: none;
-        color: var(--ink-faint, #718096);
-        font-size: 14px;
-        font-family: inherit;
-        cursor: pointer;
-        padding: 8px 16px;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      ">ข้ามก่อน บันทึกเอง →</button>
+    <div style="${iconBox('135deg, #e88e3c, #f5a623')}">
+      ${svgIcon('pdf', { size: 44, stroke: 1.5 })}
     </div>
-  `;
+
+    <h1 style="${H1}">นำเข้า e-Statement<br>จากธนาคาร</h1>
+    <p style="${SUB}">ดาวน์โหลด PDF จากแอปธนาคาร<br>แล้วอัปโหลดที่นี่ — ระบบจัดการให้ทุกอย่าง</p>
+
+    <!-- Banks -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px;">
+      ${['กรุงไทย','กสิกร','ไทยพาณิชย์','กรุงเทพ','กรุงศรี'].map(b => `
+        <span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;
+          background:var(--accent-soft,#fef3e7);color:var(--primary,#e88e3c);
+          border:1px solid rgba(232,142,60,0.2);">${b}</span>
+      `).join('')}
+      <span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;
+        background:var(--surface,#fff);color:var(--ink-faint,#718096);
+        border:1px solid var(--rule,#efe5d4);">+11 ธนาคาร</span>
+    </div>
+
+    <!-- Status -->
+    <div id="ob-status" style="min-height:22px;font-size:14px;color:var(--ink-faint,#718096);
+      margin-bottom:16px;text-align:center;"></div>
+
+    <!-- Password panel (hidden, shown on demand) -->
+    <div id="ob-pw-panel" style="display:none;width:100%;max-width:320px;
+      background:var(--surface,#fff);border:1.5px solid var(--rule,#efe5d4);
+      border-radius:14px;padding:16px;margin-bottom:16px;text-align:left;">
+      <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);margin-bottom:8px;">
+        ${svgIcon('alert', { size: 14, stroke: 2 })} &nbsp;PDF นี้มีรหัสผ่าน
+      </div>
+      <input id="ob-pw-input" type="password" placeholder="ใส่รหัสผ่าน PDF..."
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--rule,#efe5d4);
+          border-radius:10px;font-size:15px;font-family:inherit;background:var(--paper,#fdfaf6);
+          color:var(--ink,#2d3748);box-sizing:border-box;outline:none;">
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="ob-pw-retry" style="flex:1;padding:10px;background:linear-gradient(135deg,#e88e3c,#f5a623);
+          color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;
+          font-family:inherit;cursor:pointer;">ลองอีกครั้ง</button>
+        <button id="ob-pw-newfile" style="padding:10px 14px;background:var(--surface,#fff);
+          color:var(--ink-faint,#718096);border:1.5px solid var(--rule,#efe5d4);
+          border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;">เลือกไฟล์ใหม่</button>
+      </div>
+    </div>
+
+    <input type="file" id="ob-file-input" accept=".pdf,application/pdf" style="display:none">
+
+    <button id="ob-upload-btn" style="${BTN_PRIMARY};margin-bottom:14px;">
+      ${svgIcon('upload', { size: 18, stroke: 2 })} &nbsp; เลือกไฟล์ PDF
+    </button>
+
+    <button id="ob-skip-btn" style="background:none;border:none;
+      color:var(--ink-faint,#718096);font-size:14px;font-family:inherit;
+      cursor:pointer;padding:8px 16px;text-decoration:underline;text-underline-offset:3px;">
+      ข้ามก่อน บันทึกเอง →
+    </button>
+  `);
 
   const fileInput = container.querySelector('#ob-file-input');
   const uploadBtn = container.querySelector('#ob-upload-btn');
   const skipBtn   = container.querySelector('#ob-skip-btn');
-  const status    = container.querySelector('#ob-status');
+  const pwPanel   = container.querySelector('#ob-pw-panel');
 
+  // --- Upload button ---
   uploadBtn.addEventListener('click', () => {
     if (!_parsing) fileInput.click();
   });
 
-  skipBtn.addEventListener('click', () => {
-    onSkip();  // ข้าม → finish onboarding ไปเลย (ไม่ผ่านหน้า 3)
+  // --- Skip ---
+  skipBtn.addEventListener('click', onSkip);
+
+  // --- "เลือกไฟล์ใหม่" inside password panel ---
+  container.querySelector('#ob-pw-newfile').addEventListener('click', () => {
+    resetUpload();
+    fileInput.click();
   });
 
-  fileInput.addEventListener('change', async () => {
+  // --- Password retry ---
+  container.querySelector('#ob-pw-retry').addEventListener('click', () => {
+    const pw = container.querySelector('#ob-pw-input')?.value?.trim();
+    if (!pw) { setStatus('กรุณาใส่รหัสผ่าน', '#d96b5e'); return; }
+    doParseWithPassword(pw);
+  });
+  container.querySelector('#ob-pw-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') container.querySelector('#ob-pw-retry')?.click();
+  });
+
+  // --- File selected ---
+  fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     if (!file || _parsing) return;
-    _parsing = true;
+    _file = file;
+    doParse();
+  });
 
+  async function doParse(password = null) {
+    if (_parsing) return;
+    _parsing = true;
+    _needPass = false;
     uploadBtn.disabled = true;
     uploadBtn.style.opacity = '0.6';
-    status.textContent = 'กำลังอ่าน PDF...';
+    setStatus('กำลังอ่าน PDF...');
 
     try {
-      // Lazy import parsers (เพื่อไม่โหลดตอน boot)
       const { parsePDF } = await import('./parsers.js');
-
-      let password = null;
-      let result = null;
-
-      // ลอง parse — ถ้า password-protected จะ throw
-      try {
-        result = await parsePDF(file, null, (pct) => {
-          status.textContent = `กำลังอ่าน PDF... ${pct}%`;
-        });
-      } catch (err) {
-        if (err?.name === 'PasswordException' || err?.message?.includes('password')) {
-          // ถาม password
-          password = window.prompt('PDF นี้มีรหัสผ่าน กรุณาใส่รหัส:');
-          if (!password) {
-            status.textContent = 'ยกเลิก — ลองใหม่หรือข้ามก่อน';
-            _parsing = false;
-            uploadBtn.disabled = false;
-            uploadBtn.style.opacity = '1';
-            return;
-          }
-          result = await parsePDF(file, password, (pct) => {
-            status.textContent = `กำลังอ่าน PDF... ${pct}%`;
-          });
-        } else {
-          throw err;
-        }
-      }
-
-      const txs = result?.transactions ?? [];
-      if (txs.length === 0) {
-        status.innerHTML = '<span style="color:#d96b5e">อ่านไม่พบรายการ — ลองไฟล์อื่นหรือข้ามก่อน</span>';
+      const result = await parsePDF(_file, password, (pct) => {
+        setStatus(`กำลังอ่าน PDF... ${pct}%`);
+      });
+      await handleResult(result);
+    } catch (err) {
+      if (isPasswordError(err)) {
+        // PDF ต้องการรหัสผ่าน (หรือรหัสผิด)
+        _parsing = false;
+        _needPass = true;
+        uploadBtn.disabled = false;
+        uploadBtn.style.opacity = '1';
+        pwPanel.style.display = 'block';
+        const msg = password
+          ? 'รหัสผ่านไม่ถูกต้อง — ลองอีกครั้ง'
+          : 'PDF นี้ต้องการรหัสผ่าน';
+        setStatus(msg, '#d96b5e');
+        container.querySelector('#ob-pw-input')?.focus();
+      } else {
+        console.error('[onboarding] parsePDF error', err);
+        setStatus('อ่านไฟล์ไม่สำเร็จ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
         _parsing = false;
         uploadBtn.disabled = false;
         uploadBtn.style.opacity = '1';
-        return;
       }
+    }
+  }
 
-      // Import accounts ด้วย
-      if (result.accounts?.length > 0) {
-        result.accounts.forEach(acct => {
-          if (!State.getAccount(acct.id)) State.addAccount(acct);
-        });
-      }
+  function doParseWithPassword(pw) {
+    _parsing = false; // reset เพื่อให้ doParse ทำงานได้
+    setStatus('กำลังตรวจสอบรหัสผ่าน...');
+    doParse(pw);
+  }
 
-      // Batch import
-      State.addTransactionsBatch(txs);
-      status.innerHTML = `<span style="color:#5a9d63">✓ นำเข้า ${txs.length} รายการแล้ว</span>`;
-
-      // รอให้ user เห็น status แล้วไปหน้า 3
-      setTimeout(() => onImported(txs.length), 900);
-
-    } catch (err) {
-      console.error('[onboarding] parsePDF error', err);
-      status.innerHTML = '<span style="color:#d96b5e">อ่านไฟล์ไม่สำเร็จ — ลองใหม่หรือข้ามก่อน</span>';
+  async function handleResult(result) {
+    const txs = result?.transactions ?? [];
+    if (txs.length === 0) {
+      setStatus('อ่านไม่พบรายการ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
       _parsing = false;
       uploadBtn.disabled = false;
       uploadBtn.style.opacity = '1';
+      return;
     }
-  });
+    // Import accounts
+    if (result.accounts?.length > 0) {
+      result.accounts.forEach(acct => {
+        if (!State.getAccount(acct.id)) State.addAccount(acct);
+      });
+    }
+    State.addTransactionsBatch(txs);
+    setStatus(`✓ นำเข้า ${txs.length} รายการแล้ว`, '#5a9d63');
+    setTimeout(() => onImported(txs.length), 900);
+  }
+}
+
+function isPasswordError(err) {
+  return (
+    err?.name === 'PasswordException' ||
+    err?.message?.toLowerCase().includes('password') ||
+    err?.code === 'PasswordException'
+  );
+}
+
+
+/* === Skip notice (in-screen, ไม่แสดง screen ใหม่) ============== */
+
+function renderSkipNotice(container, onFinish) {
+  container.innerHTML = wrapScreen(`
+    ${dots(2, 4)}
+
+    <div style="${iconBox('135deg, #c89368, #a07246')}">
+      ${svgIcon('alert', { size: 44, stroke: 1.8 })}
+    </div>
+
+    <h1 style="${H1};font-size:22px;">ข้อมูลที่เห็นในแอป<br>เป็นข้อมูลสมมุติ</h1>
+    <p style="${SUB}">ระบบสร้างตัวอย่างให้ดูก่อน<br>เพื่อให้เห็นว่าแอปทำงานอย่างไร</p>
+
+    <!-- What to do next -->
+    <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;margin-bottom:32px;">
+      ${nextStep('pdf',    'นำเข้า PDF จากธนาคาร',   'เมนู นำเข้า ที่แถบด้านล่าง')}
+      ${nextStep('plus',   'บันทึกรายการด้วยตนเอง',  'กดปุ่ม + ตรงกลาง')}
+      ${nextStep('upload', 'กู้คืนข้อมูลจากไฟล์',    'ตั้งค่า → ข้อมูล → กู้คืน')}
+    </div>
+
+    <button id="ob-skip-done" style="${BTN_PRIMARY}">เข้าใจแล้ว เริ่มต้น →</button>
+  `);
+  container.querySelector('#ob-skip-done').addEventListener('click', onFinish);
+}
+
+function nextStep(icon, title, sub) {
+  return `
+    <div style="display:flex;align-items:center;gap:12px;text-align:left;
+      background:var(--surface,#fff);border-radius:12px;padding:12px 16px;
+      border:1px solid var(--rule,#efe5d4);">
+      <div style="width:36px;height:36px;flex-shrink:0;border-radius:10px;
+        background:var(--accent-soft,#fef3e7);display:flex;align-items:center;
+        justify-content:center;color:var(--primary,#e88e3c);">
+        ${svgIcon(icon, { size: 18, stroke: 2 })}
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);">${title}</div>
+        <div style="font-size:12px;color:var(--ink-faint,#718096);margin-top:1px;">${sub}</div>
+      </div>
+    </div>`;
 }
 
 
 /* === Screen 3: Aha Moment ====================================== */
 
-function renderScreen3(container, importedCount, onFinish) {
-  // คำนวณ insights จากข้อมูลจริง
+function renderScreen3(container, importedCount, onNext) {
   const txs   = State.getTransactions();
   const month = new Date().toISOString().slice(0, 7);
   const sum   = State.getMonthSummary(month);
 
-  const net     = sum.income - sum.expense;
-  const netText = net >= 0
-    ? `+${formatBaht(net)} ฿`
-    : `${formatBaht(net)} ฿`;
+  const net      = sum.income - sum.expense;
+  const netText  = net >= 0 ? `+${formatBaht(net)} ฿` : `${formatBaht(net)} ฿`;
   const netColor = net >= 0 ? '#5a9d63' : '#d96b5e';
 
-  // Top category
   const catMap = {};
   txs.filter(t => t.type === 'expense' && t.date.startsWith(month)).forEach(t => {
     catMap[t.group] = (catMap[t.group] || 0) + t.amount;
   });
-  const topCatEntry = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+  const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
 
-  const hasRealData = importedCount > 0 && sum.expense > 0;
+  const hasData = importedCount > 0 && (sum.expense > 0 || sum.income > 0);
 
-  container.innerHTML = `
-    <div style="
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 32px;
-      text-align: center;
-    ">
-      ${progressDots(3)}
+  container.innerHTML = wrapScreen(`
+    ${dots(3, 4)}
 
-      <!-- Hero insight -->
-      <div style="
-        width: 100%;
-        max-width: 320px;
-        background: linear-gradient(135deg, #e88e3c22, #f5a62311);
-        border: 1.5px solid rgba(232,142,60,0.2);
-        border-radius: 20px;
-        padding: 28px 24px;
-        margin-bottom: 28px;
-      ">
-        ${hasRealData ? `
-          <div style="font-size: 14px; color: var(--ink-faint, #718096); margin-bottom: 6px;">เดือนนี้คุณ${net >= 0 ? 'เหลือ' : 'ขาด'}</div>
-          <div style="font-size: 40px; font-weight: 800; color: ${netColor}; line-height: 1.1; margin-bottom: 4px;">${netText}</div>
-          <div style="font-size: 13px; color: var(--ink-faint, #718096);">จาก ${importedCount} รายการที่นำเข้า</div>
-          ${topCatEntry ? `
-            <div style="
-              margin-top: 16px;
-              padding-top: 16px;
-              border-top: 1px solid rgba(232,142,60,0.15);
-              font-size: 13px;
-              color: var(--ink-faint, #718096);
-            ">
-              รายจ่ายสูงสุด:
-              <span style="font-weight: 700; color: var(--ink, #2d3748);">${formatBaht(topCatEntry[1])} ฿</span>
-            </div>
-          ` : ''}
-        ` : `
-          <div style="font-size: 18px; margin-bottom: 8px;">🎉</div>
-          <div style="font-size: 17px; font-weight: 700; color: var(--ink, #2d3748); margin-bottom: 6px;">พร้อมแล้ว!</div>
-          <div style="font-size: 14px; color: var(--ink-faint, #718096); line-height: 1.5;">
-            กดปุ่ม + เพื่อบันทึกรายการแรก<br>
-            หรือ นำเข้า PDF จากธนาคาร<br>
-            เพื่อดูภาพรวมการเงิน
-          </div>
-        `}
-      </div>
-
-      <h2 style="
-        font-size: 22px;
-        font-weight: 800;
-        color: var(--ink, #2d3748);
-        margin: 0 0 10px;
-      ">${hasRealData ? 'เห็นแล้วใช่ไหม?' : 'เริ่มต้นได้เลย'}</h2>
-
-      <p style="
-        font-size: 15px;
-        color: var(--ink-faint, #718096);
-        margin: 0 0 36px;
-        line-height: 1.6;
-      ">${hasRealData
-        ? 'ข้อมูลทั้งหมดอยู่ในเครื่องของคุณ<br>ปลอดภัย · ใช้ได้ออฟไลน์'
-        : 'บันทึกรายการแรกได้เลย<br>ไม่ต้องสมัคร · ใช้ได้ทันที'
-      }</p>
-
-      <button id="ob-finish-btn" style="
-        width: 100%;
-        max-width: 320px;
-        padding: 16px;
-        background: linear-gradient(135deg, #e88e3c, #f5a623);
-        color: #fff;
-        border: none;
-        border-radius: 14px;
-        font-size: 17px;
-        font-weight: 700;
-        font-family: inherit;
-        cursor: pointer;
-        box-shadow: 0 4px 16px rgba(232,142,60,0.35);
-      ">ไปหน้าหลัก →</button>
+    <div style="width:100%;max-width:320px;
+      background:linear-gradient(135deg,#e88e3c22,#f5a62311);
+      border:1.5px solid rgba(232,142,60,0.2);border-radius:20px;
+      padding:28px 24px;margin-bottom:24px;text-align:center;">
+      ${hasData ? `
+        <div style="font-size:14px;color:var(--ink-faint,#718096);margin-bottom:6px;">
+          เดือนนี้คุณ${net >= 0 ? 'เหลือ' : 'ขาด'}
+        </div>
+        <div style="font-size:40px;font-weight:800;color:${netColor};line-height:1.1;margin-bottom:4px;">
+          ${netText}
+        </div>
+        <div style="font-size:13px;color:var(--ink-faint,#718096);">จาก ${importedCount} รายการที่นำเข้า</div>
+        ${topCat ? `
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(232,142,60,0.15);
+            font-size:13px;color:var(--ink-faint,#718096);">
+            รายจ่ายสูงสุด:
+            <span style="font-weight:700;color:var(--ink,#2d3748);">${formatBaht(topCat[1])} ฿</span>
+          </div>` : ''}
+      ` : `
+        <div style="font-size:18px;margin-bottom:8px;">🎉</div>
+        <div style="font-size:17px;font-weight:700;color:var(--ink,#2d3748);margin-bottom:6px;">พร้อมแล้ว!</div>
+        <div style="font-size:14px;color:var(--ink-faint,#718096);line-height:1.5;">
+          กดปุ่ม + เพื่อบันทึกรายการแรก<br>หรือ นำเข้า PDF จากธนาคาร
+        </div>
+      `}
     </div>
-  `;
 
-  container.querySelector('#ob-finish-btn').addEventListener('click', onFinish);
+    <h2 style="${H1};font-size:22px;margin-bottom:8px;">${hasData ? 'เห็นแล้วใช่ไหม?' : 'เริ่มต้นได้เลย'}</h2>
+    <p style="${SUB};margin-bottom:32px;">${hasData
+      ? 'ข้อมูลทั้งหมดอยู่ในเครื่องของคุณ<br>ปลอดภัย · ใช้ได้ออฟไลน์'
+      : 'บันทึกรายการแรกได้เลย<br>ไม่ต้องสมัคร · ใช้ได้ทันที'
+    }</p>
+
+    <button id="ob-next-3" style="${BTN_PRIMARY}">ต่อไป →</button>
+  `);
+
+  container.querySelector('#ob-next-3').addEventListener('click', onNext);
 }
 
 
-/* === Helper: progress dots ====================================== */
+/* === Screen 4: Cash on hand ==================================== */
 
-function progressDots(active) {
-  return `
-    <div style="
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      margin-bottom: 32px;
-    ">
-      ${[1, 2, 3].map(n => `
-        <div style="
-          width: ${n === active ? '24px' : '8px'};
-          height: 8px;
-          border-radius: 4px;
-          background: ${n === active
-            ? 'var(--primary, #e88e3c)'
-            : 'var(--rule, #efe5d4)'};
-          transition: width 0.3s ease, background 0.3s ease;
-        "></div>
-      `).join('')}
+function renderScreen4(container, onFinish) {
+  container.innerHTML = wrapScreen(`
+    ${dots(4, 4)}
+
+    <div style="${iconBox('135deg, #c89368, #a07246')}">
+      ${svgIcon('cash', { size: 44, stroke: 1.8 })}
     </div>
+
+    <h1 style="${H1}">เงินสดในมือ<br>มีเท่าไหร่?</h1>
+    <p style="${SUB}">ช่วยให้ยอดเงินสดใน dashboard<br>ถูกต้องตั้งแต่วันแรก</p>
+
+    <!-- Input row -->
+    <div style="display:flex;align-items:center;gap:0;width:100%;max-width:320px;
+      border:1.5px solid var(--rule,#efe5d4);border-radius:14px;
+      background:var(--surface,#fff);overflow:hidden;margin-bottom:28px;">
+      <span style="padding:0 14px;font-size:16px;color:var(--ink-faint,#718096);
+        font-weight:600;line-height:1;border-right:1px solid var(--rule,#efe5d4);
+        height:52px;display:flex;align-items:center;">฿</span>
+      <input id="ob-cash-input" type="number" inputmode="decimal" min="0" placeholder="0"
+        style="flex:1;padding:0 14px;height:52px;border:none;outline:none;
+          font-size:20px;font-weight:700;color:var(--ink,#2d3748);
+          background:transparent;font-family:inherit;width:100%;">
+    </div>
+
+    <button id="ob-cash-save" style="${BTN_PRIMARY};margin-bottom:12px;">บันทึกและเริ่มใช้งาน</button>
+    <button id="ob-cash-skip" style="background:none;border:none;
+      color:var(--ink-faint,#718096);font-size:14px;font-family:inherit;
+      cursor:pointer;padding:8px 16px;text-decoration:underline;text-underline-offset:3px;">
+      ข้ามก่อน ตั้งทีหลัง
+    </button>
+  `);
+
+  const input    = container.querySelector('#ob-cash-input');
+  const saveBtn  = container.querySelector('#ob-cash-save');
+  const skipBtn  = container.querySelector('#ob-cash-skip');
+
+  // Focus input
+  setTimeout(() => input?.focus(), 100);
+
+  function saveCash() {
+    const raw = parseFloat(input.value) || 0;
+    if (raw > 0) {
+      const satang = Math.round(raw * 100);
+      State.updateAccount('cash:default', {
+        cash_balance_override: satang,
+        override_date: todayISO()
+      });
+    }
+    onFinish();
+  }
+
+  saveBtn.addEventListener('click', saveCash);
+  skipBtn.addEventListener('click', onFinish);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveCash();
+  });
+}
+
+
+/* === Shared UI helpers ========================================= */
+
+const H1 = `
+  font-size:26px;font-weight:800;color:var(--ink,#2d3748);
+  margin:0 0 10px;line-height:1.2;text-align:center;
+`;
+const SUB = `
+  font-size:15px;color:var(--ink-faint,#718096);
+  margin:0 0 24px;line-height:1.6;text-align:center;
+`;
+const BTN_PRIMARY = `
+  width:100%;max-width:320px;padding:16px;
+  background:linear-gradient(135deg,#e88e3c,#f5a623);
+  color:#fff;border:none;border-radius:14px;
+  font-size:17px;font-weight:700;font-family:inherit;
+  cursor:pointer;box-shadow:0 4px 16px rgba(232,142,60,0.35);
+`;
+
+function iconBox(gradient) {
+  return `
+    width:88px;height:88px;border-radius:24px;
+    background:linear-gradient(${gradient});
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 24px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.12);
+    color:#fff;
   `;
+}
+
+function wrapScreen(inner) {
+  return `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;padding:36px 28px;text-align:center;
+      overflow-y:auto;-webkit-overflow-scrolling:touch;">
+      ${inner}
+    </div>`;
+}
+
+function dots(active, total) {
+  const items = Array.from({ length: total }, (_, i) => {
+    const n = i + 1;
+    const isActive = n === active;
+    const isPast   = n < active;
+    return `<div style="
+      width:${isActive ? '24px' : '8px'};height:8px;border-radius:4px;
+      background:${isActive ? 'var(--primary,#e88e3c)' : isPast ? 'rgba(232,142,60,0.35)' : 'var(--rule,#efe5d4)'};
+      transition:width 0.3s ease,background 0.3s ease;"></div>`;
+  });
+  return `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:28px;">
+    ${items.join('')}
+  </div>`;
 }
