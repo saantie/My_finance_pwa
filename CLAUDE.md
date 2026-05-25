@@ -107,7 +107,7 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 | # | Pain | ความถี่ | แอปนี้แก้ไหม |
 |---|---|---|---|
 | 1 | บันทึกเองทีละรายการ ขี้เกียจ ลืมจด | 🔥🔥🔥🔥🔥 | ✅ PDF import |
-| 2 | ไม่มี cloud sync ฟรี เปลี่ยนเครื่องข้อมูลหาย | 🔥🔥🔥🔥🔥 | ⚠️ Drive backup v1.0, Firestore shared accounts done |
+| 2 | ไม่มี cloud sync ฟรี เปลี่ยนเครื่องข้อมูลหาย | 🔥🔥🔥🔥🔥 | ✅ Email backup รายสัปดาห์ (JSON ใน body) + Firestore shared accounts |
 | 3 | ไม่มี PC version ใช้ลำบาก | 🔥🔥🔥🔥 | ✅ PWA |
 | 4 | App crash บ่อย | 🔥🔥🔥🔥 | ⚠️ test ดี + Sentry |
 | 5 | การโอนข้ามบัญชีนับเป็นรายจ่าย (model ผิด) | 🔥🔥🔥 | ✅ transfer type |
@@ -468,11 +468,17 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 - ❌ ไม่มี analytics, ad network, server
 - "0 KB sent to server today"
 
-#### F1.9 — Backup Multi-layer [⏳ PENDING]
-- **Layer 1:** Manual JSON export/import (resilient parser)
-- **Layer 2:** Auto Google Drive backup (`drive.file` scope, no OAuth verification needed)
-- Sign in Google ครั้งเดียว → upload .json daily
-- New device: sign in → auto-restore
+#### F1.9 — Backup Multi-layer [✅ DONE]
+- **Layer 1:** Manual JSON export ("สำรองเป็นไฟล์") + import จากไฟล์ ("กู้คืนจากไฟล์") — ใช้งานได้แล้ว
+- **Layer 2:** Email backup ("สำรองทาง Email") — ฝัง JSON ลงใน body ของ email โดยตรง ไม่ต้องแนบไฟล์
+  - มือถือ: Web Share API → แนบไฟล์จริงใน Gmail/Mail app ได้
+  - เดสก์ท็อป: `mailto:` พร้อม JSON ฝังระหว่าง `===BACKUP_START===` / `===BACKUP_END===`
+  - ถ้า URL เกิน 1.8MB → ดาวน์โหลดไฟล์ + เปิด email (กรณีข้อมูลมากผิดปกติ)
+  - **กู้คืนจาก Email:** ตั้งค่า → กู้คืนจาก Email → วางข้อความทั้งหมดจาก email → แอป parse อัตโนมัติ
+  - Weekly reminder: เปิดแอปแล้วครบ 7 วัน → toast แจ้งเตือน 1 ครั้ง/session
+  - เก็บวันที่สำรองล่าสุดใน `settings.last_email_backup` (YYYY-MM-DD)
+- **ทำไมไม่ใช้ Drive:** ผู้ใช้ต้องเปิด API ใน Cloud Console เอง — friction สูงเกิน
+- **Drive backup ถูกตัดออกแล้ว** — ลบ drive.js ออกจาก SHELL_FILES และ firebase.js ไม่มี drive.file scope แล้ว
 
 #### F1.10 — Themes + Dark Mode [✅ DONE]
 - **7 color themes:** Diary (default), Ocean, Forest, Rose, Slate, Citrus, Violet — swatch picker ใน Settings
@@ -814,7 +820,7 @@ Font:        IBM Plex Serif headings + Sans Thai body
 
 - Google Sheets API = ต้องผ่าน OAuth verification (4-8 สัปดาห์, อาจต้อง security assessment $15K-75K)
 - Firebase Auth = verified อยู่แล้ว, ไม่มีหน้า "unverified app"
-- Drive backup ใช้ scope `drive.file` = non-sensitive scope = ไม่ต้อง verify
+- Email backup ใช้ `mailto:` + Web Share API = ไม่ต้อง OAuth scope ใดๆ
 
 ### 10.4 Data flow
 
@@ -839,7 +845,7 @@ PDF file → pdf.js → ถ้ามีรหัส → prompt password → ใ�
    ↓
    Dashboard.render() → analytics → charts
    ↓
-   (Optional) Drive backup auto-upload daily
+   (Optional) Email backup รายสัปดาห์ — JSON ใน mailto: body หรือ Web Share API file
    (Shared accounts) → Firestore real-time sync
 ```
 
@@ -900,10 +906,12 @@ finance-pwa/
 │   ├── pdf.js              ← pdf.js wrapper + password prompt support
 │   ├── chart.js            ← Inline SVG charts: dailyExpenseBars(), cashflowForecast()
 │   ├── recurring.js        ← Template engine + scheduler + getForecast()
-│   ├── firebase.js         ← Firebase Auth + Firestore client
+│   ├── firebase.js         ← Firebase Auth + Firestore client (ไม่มี drive.file scope แล้ว)
 │   │                          pushSharedAccount(), migrateAccountToCloud()
 │   │                          softDeleteTransaction(), hardDeleteTransaction()
 │   │                          subscribeSharedAccount(), subscribeAccountsSharedWithMe()
+│   │                          token: GoogleAuthProvider.credentialFromResult(result).accessToken
+│   ├── drive.js            ← ไฟล์ยังอยู่แต่ไม่ได้ใช้แล้ว (ตัด Drive backup ออก)
 │   ├── add.js              ← Add/Edit transaction modal
 │   │                          pickAccount() bottom-sheet, bankGradient() helper
 │   │                          frequency: today|past|scheduled|monthly|weekly|installment
@@ -911,7 +919,10 @@ finance-pwa/
 │   │                          renderList() with month nav + filter chips
 │   │                          renderSpendingChart() using dailyExpenseBars SVG
 │   │                          renderAccountsSection() with share controls + recipient UI
+│   │                          email backup handler (mailto: + Web Share API)
+│   │                          import-email-text handler (paste + parse BACKUP markers)
 │   └── app.js              ← Entry point, routing, Firebase init, auth lifecycle
+│                              weekly backup reminder check at startup
 ├── tests/
 │   └── run.mjs             ← 206 tests passing
 └── CLAUDE.md               ← เอกสารนี้
@@ -956,6 +967,17 @@ finance-pwa/
 23. Forecast chart ยอดไม่ตรง — แก้: ใช้ยอดคำนวณจากรายการจริงแทนการอ่าน field ตรง
 24. Edit account popup — เดิมแสดง inline ใน settings ดูรก — แก้: เปลี่ยนเป็น popup modal เมื่อกดดินสอ
 
+**Voice / UX:**
+25. Voice input ข้อความซ้ำ 4 ครั้ง — Chrome `continuous=true` ยิง `onresult` หลายรอบสำหรับ segment เดียวกัน; เดิมใช้ `finalTranscript +=` สะสม — แก้: อ่านแค่ `e.results[e.results.length - 1]` (result ล่าสุดเสมอ)
+26. ฝ่ายที่ 2 (recipient) กดลบแล้วไม่มีผล — `State.getTransactions()` filter `deleted_by != null` ออก → `find()` คืน undefined → handler return ก่อนทำอะไร — แก้: ใช้ `State.getState().transactions.find()` ซึ่งรวม soft-deleted
+
+**Storage / Settings:**
+27. localStorage compact format (v2) — `compactTx()` / `expandTx()` ลดขนาด ~55% (key mapping: `amount→amt`, `group→grp`, `description→ds`, `account_from→af`, `account_to→at`, เวลาเก็บเป็น Unix ms); storage key เปลี่ยนจาก `diary_finance_v1` → `diary_finance_v2`
+28. `settings.last_email_backup` (YYYY-MM-DD) — เพิ่มใหม่ เก็บวันที่สำรอง email ล่าสุด
+
+**Firebase token:**
+29. `result._tokenResponse?.oauthAccessToken` เป็น internal field ที่อาจเปลี่ยนได้ตลอด — แก้: ใช้ `GoogleAuthProvider.credentialFromResult(result).accessToken` (official API) ทั้งใน firebase.js และ drive.js
+
 ### 11.4 Banks supported (parsers)
 
 KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, LHB, ICBC, Citi (16 banks total)
@@ -987,14 +1009,15 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Sign-in/out UI + display name for shared accounts
 - Soft delete / two-stage delete for shared transactions
 - Two-way revoke detection (owner revoke → recipient UI clears)
-- Settings: shared account UI อยู่ติดกับแชร์บัญชี
+- Settings: shared account UI อยู่ติดกับแชร์บัญชี; text size อยู่ในส่วนธีม; display name อยู่ในส่วนบัญชี
+- **Shared badge** บน transaction rows (ไอคอน users เล็กๆ หน้า category label) สำหรับรายการในบัญชีแชร์
+- **Email backup (F1.9 DONE):** สำรองทาง Email + กู้คืนจาก Email (วางข้อความ) + weekly reminder
+- **localStorage compact (v2):** `compactTx()` / `expandTx()` ลด ~55%, key v1→v2
 - 206 tests
 
 ⏳ **Pending implementation:**
 - Onboarding 3-screen (F1.7)
 - Privacy Story Page (F1.8)
-- JSON backup Layer 1 (F1.9)
-- Google Drive backup Layer 2 (F1.9)
 - Gamification: coins + level UI (F1.13)
 - Microinteractions polish (haptic, scale animations)
 - Swipe actions on list rows
@@ -1022,11 +1045,11 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Empty states (2-path CTA)
 - Gamification: coins + level UI
 
-**สัปดาห์ 2:** Onboarding + Backup
+**สัปดาห์ 2:** Onboarding + Privacy
 - Onboarding 3-screen
 - Privacy Story Page
-- Backup/restore JSON (Layer 1)
-- Google Drive backup (Layer 2)
+- ~~Backup/restore JSON~~ ✅ Done
+- ~~Google Drive backup~~ ❌ ตัดออก → Email backup ✅ Done
 
 **สัปดาห์ 3:** Stability + Pre-launch ops
 - Test fixtures 5 ธนาคาร
@@ -1121,9 +1144,9 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | No streak mechanic | Behavioral research: streak = guilt = quit |
 | 2026-05 | Android: TWA (not native) | Solo dev maintenance, PWA reuse |
 | 2026-05 | iOS: Phase 2 | รอรายได้ก่อน |
-| 2026-05 | Cloud sync: v2.0 (not v1.1) | Privacy story + scope; Drive backup ทดแทน |
+| 2026-05 | Cloud sync: v2.0 (not v1.1) | Privacy story + scope; Email backup ทดแทนในระหว่างนี้ |
 | 2026-05 | Use Firebase (not Sheets) for v2 sync | Avoid OAuth verification complexity |
-| 2026-05 | Backup: JSON + Drive (drive.file scope) | Multi-layer, no verification needed |
+| 2026-05 | Backup: JSON + Email (mailto: body) | Drive ต้องตั้งค่า Cloud Console — ตัดออก; Email ไม่ต้องตั้งค่าอะไร |
 | 2026-05 | Default theme: Friendly (Pro toggle) | Mass market ชอบ playful (4.9★ apps research) |
 | 2026-05 | Theme toggle in Settings (hidden) | Reduce noise on topbar |
 | 2026-05 | Add `transfer` type to data model | Fix accounting bug ที่ MeTang ถูกบ่น |
@@ -1173,6 +1196,17 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | Add modal: title เปลี่ยนเป็น "บันทึกรายการ" (ไม่ใช่ "บันทึกรายจ่าย") | รองรับ income, transfer ด้วย ไม่ใช่แค่รายจ่าย |
 | 2026-05 | Add modal: account picker ย้ายไปบนหมวด; แถวจำนวนเงิน ใส่จำนวน+ตัวเลข+ไมค์ อยู่บรรทัดเดียว | ลำดับสมเหตุสมผลกว่า: เลือกบัญชีก่อนหมวด; ตัวเลขอยู่กลางง่ายอ่าน |
 | 2026-05 | Dashboard: บันทึกวันนี้ย้ายมาอยู่หลัง hero card | ให้ hero card (ภาพรวม) เป็นสิ่งแรกที่เห็น แล้วค่อยตามด้วยรายการวันนี้ |
+| 2026-05 | ตัด Google Drive backup ออก → ใช้ Email backup แทน | Drive ต้องให้ user เปิด API ใน Cloud Console เอง — friction สูงเกิน; Email backup ไม่ต้องตั้งค่าอะไร |
+| 2026-05 | Email backup: ฝัง JSON ใน mailto: body ระหว่าง ===BACKUP_START=== / ===BACKUP_END=== | ไม่มี web API ที่แนบไฟล์ใน email ได้บน desktop; JSON ใน body ทำงานได้ทุก platform โดยไม่ต้องแนบ |
+| 2026-05 | Email backup mobile: ลอง Web Share API with file ก่อน | มือถือ (Android/iOS) Web Share API แนบไฟล์จริงใน Gmail; ถ้าไม่รองรับ fallback mailto: body |
+| 2026-05 | email body size limit: ถ้า mailtoUrl > 1.8MB → download file แทน | Chrome limit ~2MB; buffer 0.2MB; กรณีนี้เกิดเมื่อ user มีรายการมากผิดปกติ (5,000+ รายการ) |
+| 2026-05 | กู้คืนจาก Email: paste text ทั้งหมดจาก email → parse ระหว่าง markers | user ไม่ต้องแยก JSON เอง; regex `===BACKUP_START===\r?\n?([\s\S]*?)\r?\n?===BACKUP_END===` |
+| 2026-05 | weekly backup reminder: toast 1 ครั้ง/session ถ้า ≥ 7 วัน + มี transactions | ไม่ intrusive; เพิ่มใน app.js step 3.5; เช็คจาก `settings.last_email_backup` |
+| 2026-05 | localStorage v2: compactTx()/expandTx() ลด ~55% | key สั้น (amt/grp/ds/af/at), timestamp เป็น Unix ms, ตัด fields ที่ derive ได้; storage key v1→v2 |
+| 2026-05 | Voice onresult: อ่านแค่ result ล่าสุด ไม่สะสม | Chrome continuous=true ยิง onresult ซ้ำหลายรอบ; `finalTranscript +=` ทำให้ข้อความซ้ำ 4x |
+| 2026-05 | soft-delete lookup ใน delete handler ต้องใช้ `State.getState().transactions` ไม่ใช่ `State.getTransactions()` | getTransactions() filter deleted_by!=null ออก → recipient กดลบ soft-deleted row ไม่ได้ |
+| 2026-05 | shared badge บน transaction rows: ไอคอน users (11px) หน้า category label | แสดงว่ารายการมาจากบัญชีแชร์โดยไม่รก; `.shared-badge` + `.entry-cat { display:flex }` |
+| 2026-05 | firebase.js: ใช้ GoogleAuthProvider.credentialFromResult(result).accessToken | result._tokenResponse?.oauthAccessToken เป็น internal undocumented field — อาจเปลี่ยนได้ทุก Firebase release |
 
 ---
 
