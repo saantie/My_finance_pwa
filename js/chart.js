@@ -90,10 +90,19 @@ export function dailyExpenseBars(transactions, days = 14, incomeAvgPerDay = 0) {
     ? Math.max(PAD_TOP, PAD_TOP + chartH - (incomeAvgPerDay / max) * chartH)
     : null;
   const incomeLine = incomeY != null
-    ? `<line x1="${PAD_X}" y1="${incomeY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${incomeY.toFixed(1)}"
-        stroke="var(--income,#5a9d63)" stroke-width="1.5" opacity="0.7"/>
-       <text x="${W - PAD_X - 26}" y="${(incomeY + 3).toFixed(1)}"
-        font-size="8" fill="var(--income,#5a9d63)" opacity="0.85">รับ</text>`
+    ? (() => {
+        const isClamped = incomeY <= PAD_TOP + 0.5;
+        const amtLabel  = formatBaht(Math.round(incomeAvgPerDay));
+        // เมื่อเส้นถูก clamp ที่ขอบบน → แสดงตัวเลขด้านล่างเส้น, ไม่ด้านบน
+        const amtY  = (isClamped ? incomeY + 8  : incomeY - 2).toFixed(1);
+        const tagY  = (isClamped ? incomeY + 15 : incomeY + 6).toFixed(1);
+        return `<line x1="${PAD_X}" y1="${incomeY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${incomeY.toFixed(1)}"
+          stroke="var(--income,#5a9d63)" stroke-width="1.5" opacity="0.7"/>
+         <text x="${W - PAD_X - 26}" y="${amtY}"
+          font-size="7" fill="var(--income,#5a9d63)" opacity="0.95" font-weight="600">${amtLabel}</text>
+         <text x="${W - PAD_X - 26}" y="${tagY}"
+          font-size="7" fill="var(--income,#5a9d63)" opacity="0.75">รับ/วัน</text>`;
+      })()
     : '';
 
   // 6. Day labels (1, 8, 15, today)
