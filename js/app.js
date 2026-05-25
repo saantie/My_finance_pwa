@@ -14,7 +14,7 @@ import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
-import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe } from './firebase.js';
+import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 
 
@@ -279,6 +279,28 @@ function init() {
           State.mergeSharedAccounts(accounts);
           State.subscribeSharedAccounts();
         });
+
+        // Drive auto-backup (ทุก 7 วัน, เฉพาะ session ที่มี token จาก popup sign-in)
+        const driveToken = getAccessToken();
+        if (driveToken && State.getTransactions().length > 0) {
+          const lastDriveBackup = State.getSettings().last_drive_backup;
+          const daysSince = lastDriveBackup
+            ? Math.floor((Date.now() - new Date(lastDriveBackup).getTime()) / 86400000)
+            : Infinity;
+          if (daysSince >= 7) {
+            import('./drive.js').then(({ setDriveToken, uploadBackup }) => {
+              setDriveToken(driveToken);
+              const json = State.exportJSON();
+              return uploadBackup(json);
+            }).then(() => {
+              State.setSetting('last_drive_backup', new Date().toISOString().slice(0, 10));
+              setTimeout(() => showToast('💾 สำรองข้อมูลไปยัง Drive แล้ว ✓'), 3500);
+            }).catch(e => console.warn('[drive] auto-backup failed', e));
+          } else {
+            // มี token — อัปเดต drive.js token cache เพื่อให้ manual backup ใช้ได้ทันที
+            import('./drive.js').then(({ setDriveToken }) => setDriveToken(driveToken));
+          }
+        }
       } else {
         // Sign out — ปิด listeners แล้วล้างบัญชีที่รับแชร์ออกจาก UI ทันที
         State.unsubscribeAll();

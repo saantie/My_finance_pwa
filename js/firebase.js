@@ -81,6 +81,7 @@ export function initFirebase() {
 export async function signInWithGoogle() {
   try {
     const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
     const result = await signInWithPopup(_auth, provider);
     const { email, displayName, uid } = result.user;
     const credential = GoogleAuthProvider.credentialFromResult(result);

@@ -21,7 +21,7 @@ import { cashflowForecast, dailyExpenseBars } from './chart.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
 import { getLevelInfo } from './gamification.js';
 import {
-  signInWithGoogle, signOut as firebaseSignOut, getCurrentUser,
+  signInWithGoogle, signOut as firebaseSignOut, getCurrentUser, getAccessToken,
   updateSharedWith, migrateAccountToCloud
 } from './firebase.js';
 
@@ -1931,6 +1931,17 @@ export function renderSettings(container) {
     const _days = Math.floor((Date.now() - new Date(_lastBackup).getTime()) / 86400000);
     emailBackupSub = _days === 0 ? 'สำรองแล้ววันนี้ ✓' : `สำรองล่าสุด ${_days} วันที่แล้ว`;
   }
+
+  // สถานะ Drive backup
+  const _user = getCurrentUser();
+  const _lastDriveBackup = settings.last_drive_backup;
+  let driveBackupSub;
+  if (!_lastDriveBackup) {
+    driveBackupSub = 'ยังไม่ได้สำรอง';
+  } else {
+    const _dd = Math.floor((Date.now() - new Date(_lastDriveBackup).getTime()) / 86400000);
+    driveBackupSub = _dd === 0 ? 'สำรองแล้ววันนี้ ✓' : `สำรองล่าสุด ${_dd} วันที่แล้ว`;
+  }
   const theme       = settings.theme || 'diary';
   const darkMode    = settings.dark || false;
   const displayName = settings.display_name || '';
@@ -2061,6 +2072,32 @@ export function renderSettings(container) {
           <div class="setting-value">${acctCount} บัญชี</div>
         </div>
 
+        <!-- Drive backup -->
+        ${_user ? `
+        <div class="setting-row" data-action="drive-backup" style="cursor:pointer">
+          <div>
+            <div class="setting-label">สำรองไปยัง Drive</div>
+            <div class="setting-sub" id="drive-backup-sub">${driveBackupSub}</div>
+          </div>
+          ${svgIcon('cloud-upload', { size: 18, stroke: 2 })}
+        </div>
+        <div class="setting-row" data-action="drive-restore" style="cursor:pointer">
+          <div>
+            <div class="setting-label">กู้คืนจาก Drive</div>
+            <div class="setting-sub">ดึงไฟล์สำรองจาก Google Drive</div>
+          </div>
+          ${svgIcon('cloud-download', { size: 18, stroke: 2 })}
+        </div>
+        ` : `
+        <div class="setting-row" style="opacity:0.5">
+          <div>
+            <div class="setting-label">สำรองไปยัง Drive</div>
+            <div class="setting-sub">ลงชื่อเข้าใช้ Google เพื่อใช้งาน</div>
+          </div>
+          ${svgIcon('cloud-upload', { size: 18, stroke: 2 })}
+        </div>
+        `}
+
         <!-- Email backup -->
         <div class="setting-row" data-action="email-backup" style="cursor:pointer">
           <div>
@@ -2122,6 +2159,106 @@ export function renderSettings(container) {
   `;
 
   // === Bind events ===
+
+  // ── Drive backup helpers (shared between upload/restore buttons) ──
+  async function _getDriveModule() {
+    return import('./drive.js');
+  }
+  async function _ensureDriveToken(drive) {
+    // ถ้ามี token ใน cache แล้ว ใช้ได้เลย
+    if (drive.hasDriveToken()) return true;
+    // ถ้า session มี token จาก popup sign-in ในรอบนี้ → ใส่ใน drive module
+    const sessionToken = getAccessToken();
+    if (sessionToken) { drive.setDriveToken(sessionToken); return true; }
+    // ไม่มี token (reload กลับมา) → ต้องขอ token ใหม่ผ่าน popup
+    try {
+      await drive.requestDriveAccess();
+      return true;
+    } catch (e) {
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return false;
+      throw e;
+    }
+  }
+
+  // Drive: สำรองตอนนี้
+  container.querySelector('[data-action="drive-backup"]')?.addEventListener('click', async () => {
+    const btn = container.querySelector('[data-action="drive-backup"]');
+    if (btn) btn.style.opacity = '0.5';
+    try {
+      const drive = await _getDriveModule();
+      const ok = await _ensureDriveToken(drive);
+      if (!ok) { if (btn) btn.style.opacity = ''; return; }
+
+      showToast('กำลังสำรองข้อมูลไปยัง Drive…');
+      const json = State.exportJSON();
+      await drive.uploadBackup(json);
+      const today = new Date().toISOString().slice(0, 10);
+      State.setSetting('last_drive_backup', today);
+      const subEl = container.querySelector('#drive-backup-sub');
+      if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
+      showToast('💾 สำรองข้อมูลไปยัง Drive เรียบร้อย ✓');
+    } catch (e) {
+      console.error('[drive] manual backup failed', e);
+      showToast('สำรองไม่สำเร็จ: ' + (e.message ?? e));
+    } finally {
+      if (btn) btn.style.opacity = '';
+    }
+  });
+
+  // Drive: กู้คืน
+  container.querySelector('[data-action="drive-restore"]')?.addEventListener('click', async () => {
+    try {
+      const drive = await _getDriveModule();
+      const ok = await _ensureDriveToken(drive);
+      if (!ok) return;
+
+      showToast('กำลังดาวน์โหลดข้อมูลจาก Drive…');
+      const jsonStr = await drive.downloadBackup();
+      if (!jsonStr) { showToast('ไม่พบไฟล์สำรองใน Drive'); return; }
+
+      // แสดง dialog ยืนยันก่อน import
+      const info = await drive.getBackupInfo().catch(() => null);
+      const dateStr = info?.modifiedTime
+        ? new Date(info.modifiedTime).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+        : 'ไม่ทราบวันที่';
+      const sizeKB = info?.size ? Math.ceil(Number(info.size) / 1024) : '?';
+
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.innerHTML = `
+        <div class="acct-modal" style="max-width:340px">
+          <div class="acct-modal-head">กู้คืนจาก Drive</div>
+          <div class="acct-modal-body" style="font-size:14px;line-height:1.7;color:var(--ink)">
+            <p style="margin:0 0 8px">พบไฟล์สำรองใน Google Drive</p>
+            <p style="margin:0 0 4px;color:var(--ink-faint);font-size:13px">
+              📅 แก้ไขล่าสุด: ${dateStr}<br>
+              📦 ขนาด: ${sizeKB} KB
+            </p>
+            <p style="margin:12px 0 0;color:var(--clay);font-size:13px">
+              ⚠️ ข้อมูลปัจจุบันในเครื่องจะถูกแทนที่ด้วยข้อมูลจาก Drive
+            </p>
+          </div>
+          <div class="acct-modal-footer" style="gap:8px">
+            <button class="cancel" id="dr-cancel">ยกเลิก</button>
+            <button class="add-save" id="dr-ok" style="flex:1">กู้คืน</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#dr-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#dr-ok').addEventListener('click', () => {
+        overlay.remove();
+        if (State.importJSON(jsonStr)) {
+          showToast('กู้คืนข้อมูลเรียบร้อย ✓');
+        } else {
+          showToast('ไม่สามารถกู้คืนได้ — ไฟล์ใน Drive อาจเสียหาย');
+        }
+      });
+    } catch (e) {
+      console.error('[drive] restore failed', e);
+      showToast('กู้คืนไม่สำเร็จ: ' + (e.message ?? e));
+    }
+  });
 
   // Email backup
   // มือถือ: Web Share API → แนบไฟล์จริงใน Gmail/Mail

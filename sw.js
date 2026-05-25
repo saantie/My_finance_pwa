@@ -7,7 +7,7 @@
    เปลี่ยน VERSION เพื่อ force update ทุก deploy
    =================================================================== */
 
-const VERSION = 'diary-v6.23.2';
+const VERSION = 'diary-v6.24.0';
 const SHELL_CACHE = `shell-${VERSION}`;
 
 /** ไฟล์ที่ cache ตอน install */
@@ -27,6 +27,7 @@ const SHELL_FILES = [
   './js/chart.js',
   './js/recurring.js',
   './js/onboarding.js',
+  './js/drive.js',
   './js/parsers.js',
   './js/lib/pdf.min.mjs',
   './js/lib/pdf.worker.min.mjs',
