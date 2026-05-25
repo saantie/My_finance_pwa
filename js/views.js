@@ -676,7 +676,7 @@ function renderForecastCard() {
             <div class="forecast-stat-value ok">${formatBaht(days[0]?.balance ?? 0)} ฿</div>
           </div>
           <div class="forecast-stat">
-            <div class="forecast-stat-label">คาดต่ำสุดใน 30 วัน</div>
+            <div class="forecast-stat-label">คาดต่ำสุดในช่วง 30 วัน</div>
             <div class="forecast-stat-value ${minBalance < threshold ? 'danger' : 'ok'}">
               ${formatBaht(minBalance)} ฿
             </div>
