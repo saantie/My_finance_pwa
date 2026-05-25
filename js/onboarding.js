@@ -114,31 +114,10 @@ function privacyRow(icon, title, sub) {
 /* === Screen 2: Import PDF ======================================= */
 
 function renderScreen2(container, onImported, onSkip) {
-  // --- state ---
-  let _file       = null;
-  let _parsing    = false;
-  let _needPass   = false;  // กำลังรอรหัส PDF
+  let _file    = null;
+  let _parsing = false;
 
-  function setStatus(html, color = '') {
-    const el = container.querySelector('#ob-status');
-    if (el) el.innerHTML = color
-      ? `<span style="color:${color}">${html}</span>`
-      : html;
-  }
-
-  function resetUpload() {
-    _parsing  = false;
-    _needPass = false;
-    _file     = null;
-    const btn = container.querySelector('#ob-upload-btn');
-    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-    const pwPanel = container.querySelector('#ob-pw-panel');
-    if (pwPanel) pwPanel.remove();
-    const fileInput = container.querySelector('#ob-file-input');
-    if (fileInput) fileInput.value = '';
-    setStatus('');
-  }
-
+  // ---- Initial HTML (ไม่มี password panel — สร้าง dynamic เมื่อเกิด error) ----
   container.innerHTML = wrapScreen(`
     ${dots(2, 4)}
 
@@ -149,7 +128,6 @@ function renderScreen2(container, onImported, onSkip) {
     <h1 style="${H1}">นำเข้า e-Statement<br>จากธนาคาร</h1>
     <p style="${SUB}">ดาวน์โหลด PDF จากแอปธนาคาร<br>แล้วอัปโหลดที่นี่ — ระบบจัดการให้ทุกอย่าง</p>
 
-    <!-- Banks -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px;">
       ${['กรุงไทย','กสิกร','ไทยพาณิชย์','กรุงเทพ','กรุงศรี'].map(b => `
         <span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;
@@ -161,30 +139,8 @@ function renderScreen2(container, onImported, onSkip) {
         border:1px solid var(--rule,#efe5d4);">+11 ธนาคาร</span>
     </div>
 
-    <!-- Status -->
     <div id="ob-status" style="min-height:22px;font-size:14px;color:var(--ink-faint,#718096);
       margin-bottom:16px;text-align:center;"></div>
-
-    <!-- Password panel (hidden, shown on demand) -->
-    <div id="ob-pw-panel" style="display:none;width:100%;max-width:320px;
-      background:var(--surface,#fff);border:1.5px solid var(--rule,#efe5d4);
-      border-radius:14px;padding:16px;margin-bottom:16px;text-align:left;">
-      <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);margin-bottom:8px;">
-        ${svgIcon('alert', { size: 14, stroke: 2 })} &nbsp;PDF นี้มีรหัสผ่าน
-      </div>
-      <input id="ob-pw-input" type="password" placeholder="ใส่รหัสผ่าน PDF..."
-        style="width:100%;padding:10px 14px;border:1.5px solid var(--rule,#efe5d4);
-          border-radius:10px;font-size:15px;font-family:inherit;background:var(--paper,#fdfaf6);
-          color:var(--ink,#2d3748);box-sizing:border-box;outline:none;">
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button id="ob-pw-retry" style="flex:1;padding:10px;background:linear-gradient(135deg,#e88e3c,#f5a623);
-          color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;
-          font-family:inherit;cursor:pointer;">ลองอีกครั้ง</button>
-        <button id="ob-pw-newfile" style="padding:10px 14px;background:var(--surface,#fff);
-          color:var(--ink-faint,#718096);border:1.5px solid var(--rule,#efe5d4);
-          border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;">เลือกไฟล์ใหม่</button>
-      </div>
-    </div>
 
     <input type="file" id="ob-file-input" accept=".pdf,application/pdf" style="display:none">
 
@@ -201,47 +157,101 @@ function renderScreen2(container, onImported, onSkip) {
 
   const fileInput = container.querySelector('#ob-file-input');
   const uploadBtn = container.querySelector('#ob-upload-btn');
-  const skipBtn   = container.querySelector('#ob-skip-btn');
-  const pwPanel   = container.querySelector('#ob-pw-panel');
 
-  // --- Upload button ---
-  uploadBtn.addEventListener('click', () => {
-    if (!_parsing) fileInput.click();
-  });
-
-  // --- Skip ---
-  skipBtn.addEventListener('click', onSkip);
-
-  // --- "เลือกไฟล์ใหม่" inside password panel ---
-  container.querySelector('#ob-pw-newfile').addEventListener('click', () => {
-    resetUpload();
-    fileInput.click();
-  });
-
-  // --- Password retry ---
-  container.querySelector('#ob-pw-retry').addEventListener('click', () => {
-    const pw = container.querySelector('#ob-pw-input')?.value?.trim();
-    if (!pw) { setStatus('กรุณาใส่รหัสผ่าน', '#d96b5e'); return; }
-    doParseWithPassword(pw);
-  });
-  container.querySelector('#ob-pw-input')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') container.querySelector('#ob-pw-retry')?.click();
-  });
-
-  // --- File selected ---
+  uploadBtn.addEventListener('click', () => { if (!_parsing) fileInput.click(); });
+  container.querySelector('#ob-skip-btn').addEventListener('click', onSkip);
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     if (!file || _parsing) return;
     _file = file;
+    removePwPanel();
     doParse();
   });
+
+  // ---- Helpers ----
+
+  function setStatus(html, color = '') {
+    const el = container.querySelector('#ob-status');
+    if (el) el.innerHTML = color ? `<span style="color:${color}">${html}</span>` : html;
+  }
+
+  function setUploadEnabled(on) {
+    uploadBtn.disabled = !on;
+    uploadBtn.style.opacity = on ? '1' : '0.6';
+  }
+
+  function removePwPanel() {
+    container.querySelector('#ob-pw-panel')?.remove();
+  }
+
+  /** สร้าง password panel เฉพาะเมื่อเกิด password error — ไม่มีใน HTML ตั้งแต่ต้น */
+  function showPwPanel(wrongPw) {
+    removePwPanel(); // ลบอันเก่าถ้ามี
+
+    const panel = document.createElement('div');
+    panel.id = 'ob-pw-panel';
+    panel.style.cssText = [
+      'width:100%', 'max-width:320px',
+      'background:var(--surface,#fff)',
+      'border:1.5px solid var(--rule,#efe5d4)',
+      'border-radius:14px', 'padding:16px', 'margin-bottom:16px',
+      'text-align:left', 'box-sizing:border-box'
+    ].join(';');
+
+    panel.innerHTML = `
+      <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        ${svgIcon('alert', { size: 14, stroke: 2 })} PDF นี้มีรหัสผ่าน
+      </div>
+      ${wrongPw ? `<div style="font-size:12px;color:#d96b5e;margin-bottom:8px;">รหัสผ่านไม่ถูกต้อง — ลองอีกครั้ง</div>` : ''}
+      <input id="ob-pw-input" type="password" placeholder="ใส่รหัสผ่าน PDF..."
+        autocomplete="off" style="width:100%;padding:10px 14px;
+        border:1.5px solid var(--rule,#efe5d4);border-radius:10px;
+        font-size:15px;font-family:inherit;background:var(--paper,#fdfaf6);
+        color:var(--ink,#2d3748);box-sizing:border-box;outline:none;">
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="ob-pw-retry" style="flex:1;padding:10px;
+          background:linear-gradient(135deg,#e88e3c,#f5a623);
+          color:#fff;border:none;border-radius:10px;font-size:14px;
+          font-weight:700;font-family:inherit;cursor:pointer;">ลองอีกครั้ง</button>
+        <button id="ob-pw-newfile" style="padding:10px 14px;
+          background:var(--surface,#fff);color:var(--ink-faint,#718096);
+          border:1.5px solid var(--rule,#efe5d4);border-radius:10px;
+          font-size:13px;font-family:inherit;cursor:pointer;">เลือกไฟล์ใหม่</button>
+      </div>`;
+
+    // แทรกก่อน upload button
+    uploadBtn.parentNode.insertBefore(panel, uploadBtn);
+
+    // bind events ทันทีหลังสร้าง
+    panel.querySelector('#ob-pw-retry').addEventListener('click', () => {
+      const pw = panel.querySelector('#ob-pw-input')?.value?.trim();
+      if (!pw) { setStatus('กรุณาใส่รหัสผ่าน', '#d96b5e'); return; }
+      setStatus('กำลังตรวจสอบรหัสผ่าน...');
+      _parsing = false;
+      doParse(pw);
+    });
+    panel.querySelector('#ob-pw-newfile').addEventListener('click', () => {
+      removePwPanel();
+      _file    = null;
+      _parsing = false;
+      setStatus('');
+      setUploadEnabled(true);
+      fileInput.value = '';
+      fileInput.click();
+    });
+    panel.querySelector('#ob-pw-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') panel.querySelector('#ob-pw-retry')?.click();
+    });
+
+    setTimeout(() => panel.querySelector('#ob-pw-input')?.focus(), 50);
+  }
+
+  // ---- Parse logic ----
 
   async function doParse(password = null) {
     if (_parsing) return;
     _parsing = true;
-    _needPass = false;
-    uploadBtn.disabled = true;
-    uploadBtn.style.opacity = '0.6';
+    setUploadEnabled(false);
     setStatus('กำลังอ่าน PDF...');
 
     try {
@@ -249,54 +259,35 @@ function renderScreen2(container, onImported, onSkip) {
       const result = await parsePDF(_file, password, (pct) => {
         setStatus(`กำลังอ่าน PDF... ${pct}%`);
       });
-      await handleResult(result);
-    } catch (err) {
-      if (isPasswordError(err)) {
-        // PDF ต้องการรหัสผ่าน (หรือรหัสผิด)
+
+      const txs = result?.transactions ?? [];
+      if (txs.length === 0) {
+        setStatus('อ่านไม่พบรายการ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
         _parsing = false;
-        _needPass = true;
-        uploadBtn.disabled = false;
-        uploadBtn.style.opacity = '1';
-        pwPanel.style.display = 'block';
-        const msg = password
-          ? 'รหัสผ่านไม่ถูกต้อง — ลองอีกครั้ง'
-          : 'PDF นี้ต้องการรหัสผ่าน';
-        setStatus(msg, '#d96b5e');
-        container.querySelector('#ob-pw-input')?.focus();
+        setUploadEnabled(true);
+        return;
+      }
+
+      if (result.accounts?.length > 0) {
+        result.accounts.forEach(acct => {
+          if (!State.getAccount(acct.id)) State.addAccount(acct);
+        });
+      }
+      State.addTransactionsBatch(txs);
+      removePwPanel();
+      setStatus(`✓ นำเข้า ${txs.length} รายการแล้ว`, '#5a9d63');
+      setTimeout(() => onImported(txs.length), 900);
+
+    } catch (err) {
+      _parsing = false;
+      setUploadEnabled(true);
+      if (isPasswordError(err)) {
+        showPwPanel(password != null); // wrongPw = true ถ้าเคยส่ง password แล้วยังผิด
       } else {
         console.error('[onboarding] parsePDF error', err);
         setStatus('อ่านไฟล์ไม่สำเร็จ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
-        _parsing = false;
-        uploadBtn.disabled = false;
-        uploadBtn.style.opacity = '1';
       }
     }
-  }
-
-  function doParseWithPassword(pw) {
-    _parsing = false; // reset เพื่อให้ doParse ทำงานได้
-    setStatus('กำลังตรวจสอบรหัสผ่าน...');
-    doParse(pw);
-  }
-
-  async function handleResult(result) {
-    const txs = result?.transactions ?? [];
-    if (txs.length === 0) {
-      setStatus('อ่านไม่พบรายการ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
-      _parsing = false;
-      uploadBtn.disabled = false;
-      uploadBtn.style.opacity = '1';
-      return;
-    }
-    // Import accounts
-    if (result.accounts?.length > 0) {
-      result.accounts.forEach(acct => {
-        if (!State.getAccount(acct.id)) State.addAccount(acct);
-      });
-    }
-    State.addTransactionsBatch(txs);
-    setStatus(`✓ นำเข้า ${txs.length} รายการแล้ว`, '#5a9d63');
-    setTimeout(() => onImported(txs.length), 900);
   }
 }
 
