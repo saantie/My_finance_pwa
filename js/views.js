@@ -379,6 +379,7 @@ export function renderDashboard(container) {
   requestAnimationFrame(() => {
     initHeroChart();
     initForecastChart();
+    initSpendingChart(container);
   });
 }
 
@@ -433,6 +434,104 @@ function renderSpendingChart() {
       </div>
     </div>
   `;
+}
+
+
+/* === Bar chart: tap-to-show tooltip ============================
+   bind หลัง DOM render ใน requestAnimationFrame
+   Tooltip ถูก render เป็น SVG <g> ภายใน .chart-svg
+================================================================ */
+function initSpendingChart(container) {
+  const svg = container.querySelector('.chart-card .chart-svg');
+  if (!svg) return;
+
+  const MONTH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                        'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  function hideTip() {
+    const tip = svg.getElementById('chart-bar-tip');
+    if (tip) {
+      tip.setAttribute('visibility', 'hidden');
+      tip.innerHTML = '';
+    }
+    svg.querySelectorAll('.bar-hit--active').forEach(el =>
+      el.setAttribute('fill', 'transparent')
+    );
+  }
+
+  function showTip(hitRect) {
+    hideTip();
+    const date  = hitRect.dataset.date;
+    const total = parseInt(hitRect.dataset.total, 10);
+    const cx    = parseFloat(hitRect.dataset.cx);
+    const barY  = parseFloat(hitRect.dataset.bary);
+
+    const tip = svg.getElementById('chart-bar-tip');
+    if (!tip) return;
+
+    // วันที่แสดง
+    const [, mm, dd] = date.split('-');
+    const todayStr = todayISO();
+    const isToday  = date === todayStr;
+    const dateLabel = isToday
+      ? 'วันนี้'
+      : `${parseInt(dd, 10)} ${MONTH_SHORT[parseInt(mm, 10) - 1]}`;
+
+    // ตัวเลข
+    const amtLabel = total > 0 ? `${formatBaht(total)} ฿` : 'ไม่มีรายจ่าย';
+
+    // ขนาด tooltip
+    const tipW = 88, tipH = 36, tipR = 8;
+    const SVG_W = 320;
+
+    // จำกัดไม่ให้เกินขอบ SVG
+    let tx = cx - tipW / 2;
+    tx = Math.max(2, Math.min(tx, SVG_W - tipW - 2));
+    const ty = Math.max(2, barY - tipH - 7);
+
+    // ลูกศรชี้ลงหาแท่ง
+    const arrowCX = Math.min(Math.max(cx, tx + 10), tx + tipW - 10).toFixed(1);
+    const arrowY  = (ty + tipH).toFixed(1);
+
+    tip.innerHTML = `
+      <rect x="${tx.toFixed(1)}" y="${ty.toFixed(1)}"
+        width="${tipW}" height="${tipH}" rx="${tipR}"
+        fill="var(--ink,#2d3748)"/>
+      <polygon points="${arrowCX},${(ty + tipH + 6).toFixed(1)} ${(parseFloat(arrowCX)-5).toFixed(1)},${arrowY} ${(parseFloat(arrowCX)+5).toFixed(1)},${arrowY}"
+        fill="var(--ink,#2d3748)"/>
+      <text x="${(tx + tipW / 2).toFixed(1)}" y="${(ty + 14).toFixed(1)}"
+        text-anchor="middle" font-size="11" font-weight="700" fill="#fff"
+        font-family="inherit">${amtLabel}</text>
+      <text x="${(tx + tipW / 2).toFixed(1)}" y="${(ty + 27).toFixed(1)}"
+        text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.68)"
+        font-family="inherit">${dateLabel}</text>
+    `;
+    tip.setAttribute('visibility', 'visible');
+
+    // ไฮไลต์ hit area ที่กด (เพิ่ม subtle fill)
+    hitRect.setAttribute('fill', 'rgba(255,255,255,0.08)');
+  }
+
+  // click ครอบคลุมทั้ง mouse + touch (iOS/Android)
+  svg.addEventListener('click', e => {
+    const hit = e.target.closest('.bar-hit');
+    if (hit) {
+      showTip(hit);
+    } else {
+      hideTip();
+    }
+  });
+
+  // touch: ป้องกัน scroll แล้ว handle ทันที (ลด delay 300ms บน iOS เก่า)
+  svg.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    const el    = document.elementFromPoint(touch.clientX, touch.clientY);
+    const hit   = el?.closest('.bar-hit');
+    if (hit) {
+      e.preventDefault();
+      showTip(hit);
+    }
+  }, { passive: false });
 }
 
 

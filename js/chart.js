@@ -42,10 +42,11 @@ export function dailyExpenseBars(transactions, days = 14) {
   const chartH = H - PAD_TOP - PAD_BOTTOM;
   const barW = (W - PAD_X * 2) / days - 2;
 
-  // 4. Render bars
+  // 4. Render bars + hit areas
+  const slotW = barW + 2; // ความกว้างแต่ละช่อง (bar + gap)
   const bars = dailyTotals.map((d, i) => {
     const h = d.total > 0 ? Math.max((d.total / max) * chartH, 2) : 0;
-    const x = PAD_X + i * (barW + 2);
+    const x = PAD_X + i * slotW;
     const y = PAD_TOP + chartH - h;
     const isToday = d.date === todayISOStr;
     const isWeekend = d.dayOfWeek === 0 || d.dayOfWeek === 6;
@@ -55,8 +56,22 @@ export function dailyExpenseBars(transactions, days = 14) {
       : (isWeekend ? 'var(--mocha)' : 'var(--rule)');
     const opacity = isToday ? 1 : (isWeekend ? 0.6 : 0.9);
 
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
-      fill="${color}" fill-opacity="${opacity}" rx="2"/>`;
+    // visual bar
+    const bar = h > 0
+      ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
+           fill="${color}" fill-opacity="${opacity}" rx="2" data-bar-idx="${i}"/>`
+      : '';
+
+    // hit area — full-height, transparent, tappable
+    const cx    = (x + barW / 2).toFixed(1);
+    const barY  = y.toFixed(1);
+    const hit   = `<rect class="bar-hit"
+      x="${x.toFixed(1)}" y="0" width="${slotW.toFixed(1)}" height="${H}"
+      fill="transparent" style="cursor:pointer"
+      data-date="${d.date}" data-total="${d.total}"
+      data-cx="${cx}" data-bary="${barY}"/>`;
+
+    return bar + hit;
   }).join('');
 
   // 5. Average line (dashed)
@@ -83,6 +98,7 @@ export function dailyExpenseBars(transactions, days = 14) {
       ${avgLine}
       ${bars}
       ${labels}
+      <g id="chart-bar-tip" visibility="hidden"/>
     </svg>`,
     avg,
     todayTotal: dailyTotals[days - 1].total,
