@@ -169,6 +169,12 @@ function registerSW() {
 /* === Seed sample data (first run only) ========================== */
 
 function seedSampleDataIfEmpty() {
+  // Migration: ถ้า demo account มีอยู่แล้วแต่ขาด _sample (bug เก่า) → patch ทันที
+  const demoAcct = State.getAccount('bank:kbank:3344');
+  if (demoAcct && !demoAcct._sample) {
+    State.updateAccount('bank:kbank:3344', { _sample: true });
+  }
+
   // Skip ถ้ามีข้อมูลแล้ว
   if (State.getTransactions().length > 0) return;
 

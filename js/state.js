@@ -402,7 +402,8 @@ export function addAccount(account) {
     storage: account.storage || 'local',
     shared_with: account.shared_with || [],
     cash_balance_override: account.cash_balance_override ?? null,
-    override_date: account.override_date ?? null
+    override_date: account.override_date ?? null,
+    _sample: account._sample ?? false
   };
   _state.accounts.push(newAcct);
   notify();
