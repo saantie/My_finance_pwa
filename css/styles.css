@@ -2539,6 +2539,20 @@ html, body {
 
 .entry.upcoming { opacity: 0.92; }
 
+/* Demo badge — แสดงบน รายการ/บัญชี/รายการล่วงหน้า ที่เป็นข้อมูลตัวอย่าง */
+.demo-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--rule, #efe5d4);
+  color: var(--ink-faint, #718096);
+  margin-left: 5px;
+  font-weight: 500;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
 
 /* === PDF import progress modal ================================= */
 .import-progress {

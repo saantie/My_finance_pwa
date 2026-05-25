@@ -906,6 +906,12 @@ function renderUpcomingRow(u) {
     ? `<span class="install-tag">งวด ${u.installment_info.current}/${u.installment_info.total}</span>`
     : '';
 
+  // ตรวจว่า template นี้ผูกกับ sample account หรือไม่
+  const isDemoAcct = u.account_id
+    ? State.getAccount(u.account_id)?._sample === true
+    : false;
+  const demoTag = isDemoAcct ? ' <span class="demo-tag">Demo</span>' : '';
+
   return `
     <div class="entry upcoming">
       <span class="entry-time">${dateLabel}</span>
@@ -913,7 +919,7 @@ function renderUpcomingRow(u) {
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
       </div>
       <div>
-        <div class="entry-name">${escapeHtml(u.description || def.label)} ${installmentLabel}</div>
+        <div class="entry-name">${escapeHtml(u.description || def.label)} ${installmentLabel}${demoTag}</div>
         <div class="entry-cat">${def.label} · ประจำ</div>
       </div>
       <div class="entry-amt ${amtClass}">${sign}${formatBaht(u.amount)} ฿</div>
@@ -946,7 +952,7 @@ function renderAccountRow(acct, globalThreshold) {
     <div class="acct${rowClass ? ` ${rowClass}` : ''}">
       <div class="acct-icon ${acct.bank || acct.type}">${initial}</div>
       <div class="acct-body">
-        <div class="acct-name">${escapeHtml(acct.display_name)}</div>
+        <div class="acct-name">${escapeHtml(acct.display_name)}${acct._sample ? ' <span class="demo-tag">Demo</span>' : ''}</div>
         ${acct.account_number_masked
           ? `<div class="acct-num">${escapeHtml(acct.account_number_masked)}</div>`
           : ''}
@@ -1042,7 +1048,7 @@ function renderEntryRow(tx, decimals = 0) {
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
       </div>
       <div class="entry-body">
-        <div class="entry-name">${escapeHtml(tx.description || def.label)}</div>
+        <div class="entry-name">${escapeHtml(tx.description || def.label)}${tx.source === 'sample' ? ' <span class="demo-tag">Demo</span>' : ''}</div>
         <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
           ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
           : ''}</div>
