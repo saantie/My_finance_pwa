@@ -179,7 +179,8 @@ function seedSampleDataIfEmpty() {
     account_number_masked: 'xxx-x-x3344-x',
     display_name: 'กสิกร ...3344',
     type: 'bank',
-    current_balance: 1545000  // 15,450 ฿
+    current_balance: 1545000,  // 15,450 ฿
+    _sample: true              // marker สำหรับ clearSampleData()
   });
 
   // เพิ่ม sample transactions ของวันนี้
@@ -195,7 +196,7 @@ function seedSampleDataIfEmpty() {
   ];
 
   for (const s of samples) {
-    State.addTransaction({ ...s, source: 'manual' });
+    State.addTransaction({ ...s, source: 'sample' });
   }
 
   // เพิ่ม sample recurring templates (skip ถ้ามีอยู่แล้ว)

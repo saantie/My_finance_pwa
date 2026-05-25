@@ -443,6 +443,41 @@ export function removeAccountWithTransactions(id) {
 }
 
 
+/**
+ * ลบข้อมูลสมมุติที่ seed ตอน first-run ออกทั้งหมด
+ * เรียกก่อน import PDF จริง เพื่อไม่ให้ข้อมูลตัวอย่างปนกับข้อมูลจริง
+ *
+ * เงื่อนไข "เป็นข้อมูลสมมุติ":
+ *   - Transaction ที่ source === 'sample'
+ *   - Account ที่ _sample === true (sample account ที่ seed ไว้)
+ *
+ * @returns {boolean} true ถ้ามีข้อมูลสมมุติอยู่จริงและถูกลบแล้ว
+ */
+export function clearSampleData() {
+  const hasSampleTxs   = _state.transactions.some(t => t.source === 'sample');
+  const hasSampleAccts = _state.accounts.some(a => a._sample === true);
+  if (!hasSampleTxs && !hasSampleAccts) return false;
+
+  // ลบ transactions สมมุติ (เก็บ manual/import/voice ของ user ไว้)
+  _state.transactions = _state.transactions.filter(t => t.source !== 'sample');
+
+  // ลบ accounts สมมุติ + transactions ที่ผูกกับ account นั้น
+  const sampleAccountIds = _state.accounts
+    .filter(a => a._sample === true)
+    .map(a => a.id);
+  if (sampleAccountIds.length > 0) {
+    _state.accounts = _state.accounts.filter(a => !a._sample);
+    _state.transactions = _state.transactions.filter(t =>
+      !sampleAccountIds.includes(t.account_from) &&
+      !sampleAccountIds.includes(t.account_to)
+    );
+  }
+
+  notify();
+  return true;
+}
+
+
 /* === Mutations: Settings ======================================== */
 
 export function setSetting(key, value) {

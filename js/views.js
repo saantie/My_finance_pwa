@@ -1611,8 +1611,21 @@ function confirmImport(result) {
   // ลบ raw_text ก่อน save (ไม่ต้องเก็บใน storage)
   const cleanTxs = result.transactions.map(({ raw_text, ...rest }) => rest);
 
+  // ลบข้อมูลสมมุติออกก่อน import ข้อมูลจริง (ถ้ามี)
+  const hadSampleData = State.clearSampleData();
+  if (hadSampleData) {
+    // ลบ recurring templates ที่ผูกกับ sample accounts ด้วย
+    Recurring.getTemplates()
+      .filter(t => {
+        const acct = State.getAccount(t.account_id);
+        // account_id ไม่พบใน state แล้ว = ถูกลบไปพร้อม sample data
+        return t.account_id && !acct;
+      })
+      .forEach(t => Recurring.deleteTemplate(t.id));
+  }
+
   State.addTransactionsBatch(cleanTxs);
-  showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย`);
+  showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย${hadSampleData ? ' (ลบข้อมูลตัวอย่างออกแล้ว)' : ''}`);
 
   // ตรวจหา recurring patterns อัตโนมัติหลัง import
   const suggestions = Recurring.detectRecurringPatterns(State.getTransactions());
