@@ -184,9 +184,9 @@ function renderScreen2(container, onImported, onSkip) {
     container.querySelector('#ob-pw-panel')?.remove();
   }
 
-  /** สร้าง password panel เฉพาะเมื่อเกิด password error — ไม่มีใน HTML ตั้งแต่ต้น */
-  function showPwPanel(wrongPw) {
-    removePwPanel(); // ลบอันเก่าถ้ามี
+  /** สร้าง password panel — input + ปลดล็อค เท่านั้น (ไม่มีปุ่มอื่น) */
+  function showPwPanel() {
+    removePwPanel();
 
     const panel = document.createElement('div');
     panel.id = 'ob-pw-panel';
@@ -199,48 +199,33 @@ function renderScreen2(container, onImported, onSkip) {
     ].join(';');
 
     panel.innerHTML = `
-      <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+      <div style="font-size:14px;font-weight:600;color:var(--ink,#2d3748);margin-bottom:10px;
+        display:flex;align-items:center;gap:6px;">
         ${svgIcon('alert', { size: 14, stroke: 2 })} PDF นี้มีรหัสผ่าน
       </div>
-      ${wrongPw ? `<div style="font-size:12px;color:#d96b5e;margin-bottom:8px;">รหัสผ่านไม่ถูกต้อง — ลองอีกครั้ง</div>` : ''}
       <input id="ob-pw-input" type="password" placeholder="ใส่รหัสผ่าน PDF..."
         autocomplete="off" style="width:100%;padding:10px 14px;
         border:1.5px solid var(--rule,#efe5d4);border-radius:10px;
         font-size:15px;font-family:inherit;background:var(--paper,#fdfaf6);
-        color:var(--ink,#2d3748);box-sizing:border-box;outline:none;">
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button id="ob-pw-retry" style="flex:1;padding:10px;
-          background:linear-gradient(135deg,#e88e3c,#f5a623);
-          color:#fff;border:none;border-radius:10px;font-size:14px;
-          font-weight:700;font-family:inherit;cursor:pointer;">ลองอีกครั้ง</button>
-        <button id="ob-pw-newfile" style="padding:10px 14px;
-          background:var(--surface,#fff);color:var(--ink-faint,#718096);
-          border:1.5px solid var(--rule,#efe5d4);border-radius:10px;
-          font-size:13px;font-family:inherit;cursor:pointer;">เลือกไฟล์ใหม่</button>
-      </div>`;
+        color:var(--ink,#2d3748);box-sizing:border-box;outline:none;margin-bottom:10px;">
+      <button id="ob-pw-ok" style="width:100%;padding:11px;
+        background:linear-gradient(135deg,#e88e3c,#f5a623);
+        color:#fff;border:none;border-radius:10px;font-size:14px;
+        font-weight:700;font-family:inherit;cursor:pointer;">ปลดล็อค</button>`;
 
-    // แทรกก่อน upload button
     uploadBtn.parentNode.insertBefore(panel, uploadBtn);
 
-    // bind events ทันทีหลังสร้าง
-    panel.querySelector('#ob-pw-retry').addEventListener('click', () => {
+    function tryPassword() {
       const pw = panel.querySelector('#ob-pw-input')?.value?.trim();
       if (!pw) { setStatus('กรุณาใส่รหัสผ่าน', '#d96b5e'); return; }
-      setStatus('กำลังตรวจสอบรหัสผ่าน...');
+      setStatus('กำลังตรวจสอบ...');
       _parsing = false;
       doParse(pw);
-    });
-    panel.querySelector('#ob-pw-newfile').addEventListener('click', () => {
-      removePwPanel();
-      _file    = null;
-      _parsing = false;
-      setStatus('');
-      setUploadEnabled(true);
-      fileInput.value = '';
-      fileInput.click();
-    });
+    }
+
+    panel.querySelector('#ob-pw-ok').addEventListener('click', tryPassword);
     panel.querySelector('#ob-pw-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') panel.querySelector('#ob-pw-retry')?.click();
+      if (e.key === 'Enter') tryPassword();
     });
 
     setTimeout(() => panel.querySelector('#ob-pw-input')?.focus(), 50);
@@ -280,12 +265,24 @@ function renderScreen2(container, onImported, onSkip) {
 
     } catch (err) {
       _parsing = false;
-      setUploadEnabled(true);
       if (isPasswordError(err)) {
-        showPwPanel(password != null); // wrongPw = true ถ้าเคยส่ง password แล้วยังผิด
+        if (password != null) {
+          // รหัสผ่านผิด → แจ้งแล้วรีเซ็ตกลับหน้าเลือกไฟล์
+          setStatus('รหัสผ่านไม่ถูกต้อง — กรุณาเลือกไฟล์และใส่รหัสใหม่', '#d96b5e');
+          removePwPanel();
+          _file = null;
+          fileInput.value = '';
+          setUploadEnabled(true);
+        } else {
+          // ตรวจพบรหัสผ่านครั้งแรก → แสดง panel ใส่รหัส
+          setStatus('');
+          setUploadEnabled(false);
+          showPwPanel();
+        }
       } else {
         console.error('[onboarding] parsePDF error', err);
         setStatus('อ่านไฟล์ไม่สำเร็จ — ลองไฟล์อื่นหรือข้ามก่อน', '#d96b5e');
+        setUploadEnabled(true);
       }
     }
   }
