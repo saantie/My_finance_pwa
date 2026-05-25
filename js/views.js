@@ -540,55 +540,117 @@ function initSpendingChart(container) {
 let _forecastChartInstance = null;
 let _forecastChartPayload  = null;
 
-/** คำนวณข้อมูล forecast 30 วัน */
+/** คำนวณข้อมูล forecast 30 วัน
+ *
+ *  สูตร (ป้องกัน double count):
+ *  1. รายการประจำ (recurring templates) → exact date + exact amount
+ *  2. รายจ่ายผันแปร (variable) = เฉลี่ยต่อวันปีนี้  MINUS  เฉลี่ยต่อวันของ templates
+ *  3. รายรับผันแปร (variable) = เฉลี่ยต่อวันปีนี้  MINUS  เฉลี่ยต่อวันของ templates
+ *  → templates บวกเข้าแบบ exact แล้ว ไม่ต้องนับซ้ำใน average
+ */
 function getForecastData() {
-  const today = todayISO();
+  const today      = todayISO();
+  const yearStart  = today.slice(0, 4) + '-01-01';
 
   // ยอดรวมทุกบัญชี ณ ปัจจุบัน
   const startBalance = State.getAccounts().reduce((s, a) =>
     s + (a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id)), 0);
 
-  // ค่าใช้จ่ายเฉลี่ยรายวัน จาก 30 วันที่ผ่านมา (satang)
-  const past30Start = offsetDateISO(today, -30);
   const txs = State.getTransactions().filter(t => t.deleted_by == null);
-  const pastExpenses = txs.filter(t =>
-    t.type === 'expense' && t.date >= past30Start && t.date < today
-  );
-  const avgDailyExpense = pastExpenses.reduce((s, t) => s + t.amount, 0) / 30;
 
-  // Recurring/scheduled ใน 30 วันข้างหน้า จาก recurring.js
+  // === YTD transactions (ปีปัจจุบัน, ไม่เกินวันนี้) ===
+  const ytdTxs      = txs.filter(t => t.date >= yearStart && t.date <= today);
+  const ytdExpenses = ytdTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const ytdIncomes  = ytdTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+
+  // จำนวนวันที่มีข้อมูล (วันแรกที่บันทึก → วันนี้)
+  const firstDate   = ytdTxs.length > 0
+    ? ytdTxs.reduce((m, t) => (t.date < m ? t.date : m), today)
+    : yearStart;
+  const daysElapsed = Math.max(1, Math.round((new Date(today) - new Date(firstDate)) / 86400000) + 1);
+
+  // === เฉลี่ยต่อวันของ recurring templates (ทุก frequency) ===
+  const templates = Recurring.getTemplates().filter(t => t.active);
+  let tplDailyExpense = 0;
+  let tplDailyIncome  = 0;
+  for (const t of templates) {
+    let occPerMonth = 0;
+    if      (t.frequency === 'monthly')     occPerMonth = 1;
+    else if (t.frequency === 'weekly')      occPerMonth = 4.33;
+    else if (t.frequency === 'yearly')      occPerMonth = 1 / 12;
+    else if (t.frequency === 'installment') {
+      if ((t.installment_paid ?? 0) < (t.installment_total ?? 0)) occPerMonth = 1;
+    }
+    // one-time → ไม่มี recurring ต่อเดือน
+    const daily = (t.amount * occPerMonth) / 30;
+    if (t.type === 'expense') tplDailyExpense += daily;
+    else if (t.type === 'income') tplDailyIncome += daily;
+  }
+
+  // === Variable daily averages (หลังหัก template impact) ===
+  const hasSufficientData = ytdTxs.length >= 5;   // ต้องมีข้อมูลพอสมควร
+
+  let varDailyExpense, varDailyIncome, dataSource;
+  if (hasSufficientData) {
+    varDailyExpense = Math.max(0, (ytdExpenses / daysElapsed) - tplDailyExpense);
+    varDailyIncome  = Math.max(0, (ytdIncomes  / daysElapsed) - tplDailyIncome);
+    dataSource = 'year';
+  } else {
+    // fallback: 30 วันย้อนหลัง (พฤติกรรมเดิม) พร้อมหัก template
+    const p30Start   = offsetDateISO(today, -30);
+    const p30Txs     = txs.filter(t => t.date >= p30Start && t.date < today);
+    varDailyExpense  = Math.max(0,
+      p30Txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0) / 30 - tplDailyExpense);
+    varDailyIncome   = Math.max(0,
+      p30Txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) / 30 - tplDailyIncome);
+    dataSource = 'month30';
+  }
+
+  // === Recurring/scheduled ===
   const schedule = Recurring.getForecast(30);
   const schedByDate = {};
   for (const r of schedule) {
     (schedByDate[r.date] = schedByDate[r.date] || []).push(r);
   }
 
-  // สร้าง days array
+  // === Build 30-day projection ===
   const days = [];
   let running = startBalance;
   for (let i = 0; i < 30; i++) {
-    const date = offsetDateISO(today, i);
+    const date      = offsetDateISO(today, i);
     const recurring = schedByDate[date] || [];
-    const recurringNet = recurring.reduce((s, r) =>
-      s + (r.type === 'income' ? r.amount : -r.amount), 0);
-    // วันแรก (i=0) ไม่หักค่าใช้จ่ายเฉลี่ย — แสดงยอดเริ่มต้น
-    running = i === 0
-      ? running + recurringNet
-      : running - avgDailyExpense + recurringNet;
+    const schedNet  = recurring.reduce((s, r) => s + (r.type === 'income' ? r.amount : -r.amount), 0);
+
+    if (i === 0) {
+      // วันนี้: แค่รวม scheduled event (ยอดเริ่มต้นสะท้อน balance จริงอยู่แล้ว)
+      running += schedNet;
+    } else {
+      running += schedNet + varDailyIncome - varDailyExpense;
+    }
+
     days.push({
       date,
-      balance: Math.round(running),
+      balance:      Math.round(running),
       hasRecurring: recurring.length > 0,
       recurringItems: recurring,
     });
   }
 
-  return { days, avgDailyExpense, startBalance };
+  return {
+    days,
+    avgDailyExpense: varDailyExpense,   // ← ชื่อ field เดิม (ใช้กับ note)
+    varDailyIncome,
+    tplDailyExpense,
+    tplDailyIncome,
+    daysElapsed,
+    startBalance,
+    dataSource,
+  };
 }
 
 /** HTML card สำหรับ forecast — chart init ผ่าน initForecastChart() */
 function renderForecastCard() {
-  const { days, avgDailyExpense } = getForecastData();
+  const { days, avgDailyExpense, varDailyIncome, tplDailyExpense, daysElapsed, dataSource } = getForecastData();
   const threshold   = State.getSettings().threshold_satang;
   const minBalance  = Math.min(...days.map(d => d.balance));
   const dangerDays  = days.filter(d => d.balance < threshold);
@@ -642,8 +704,12 @@ function renderForecastCard() {
 
         <div class="forecast-note">
           <div class="forecast-note-text">
-            อิงจาก<b>รายการประจำ</b>ที่ตั้งไว้ + ค่าใช้จ่ายเฉลี่ย <b>${formatBaht(avgDailyExpense)} ฿/วัน</b>
-            (30 วันที่ผ่านมา) — เป็นการคาดการณ์เท่านั้น
+            <b>รายการประจำ</b> (exact) +
+            ใช้จ่ายผันแปร <b>${formatBaht(avgDailyExpense)} ฿/วัน</b>
+            ${varDailyIncome > 0 ? `− รายรับผันแปร <b>${formatBaht(varDailyIncome)} ฿/วัน</b>` : ''}
+            · อิงจาก${dataSource === 'year'
+              ? `ข้อมูล <b>${daysElapsed} วัน</b>ในปีนี้ (หักรายการประจำออกแล้ว)`
+              : '30 วันย้อนหลัง (ข้อมูลปีนี้ยังน้อย)'}
           </div>
         </div>
 
