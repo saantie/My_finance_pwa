@@ -15,6 +15,7 @@ import * as Recurring from './recurring.js';
 import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe } from './firebase.js';
+import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 
 
 /* === Globals ==================================================== */
@@ -286,8 +287,18 @@ function init() {
   applyTextSize(settings.text_size || 'normal');
   applyDark(settings.dark || false);
 
-  // 2. Seed (ถ้าจำเป็น) — เห็น demo data ทันทีเมื่อเปิดครั้งแรก
-  seedSampleDataIfEmpty();
+  // 2. Onboarding (first-run) หรือ seed demo data
+  if (shouldShowOnboarding()) {
+    // แสดง onboarding overlay ก่อน — ไม่ seed demo data
+    showOnboarding(() => {
+      // หลัง onboarding เสร็จ: ถ้ายังไม่มีข้อมูล (user ข้าม PDF) → seed ให้เห็นตัวอย่าง
+      seedSampleDataIfEmpty();
+      renderCurrentView();
+    });
+  } else {
+    // ติดตั้งซ้ำ / มีข้อมูลแล้ว → seed ถ้าจำเป็น (fresh state ที่ผ่าน onboarding ไปแล้ว)
+    seedSampleDataIfEmpty();
+  }
 
   // 3. Run scheduler — สร้าง transaction จาก template ที่ครบกำหนดแล้ว
   const sched = Recurring.runScheduler();
