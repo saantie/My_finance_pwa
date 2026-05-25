@@ -272,6 +272,95 @@ function computeNextDue(currentISO, frequency) {
 }
 
 
+/* === Auto-detect recurring patterns from transaction history ==== */
+
+/**
+ * วิเคราะห์ transactions และหา recurring patterns อัตโนมัติ
+ * @param {Array} transactions — ทั้งหมดจาก State.getTransactions()
+ * @returns {Array} suggestions ที่ confidence >= 0.8, เรียง desc
+ *   { description, amount, type, group, frequency, next_due, confidence, sampleDates }
+ */
+export function detectRecurringPatterns(transactions) {
+  // เฉพาะ expense / income ที่ไม่ถูกลบ + มี description
+  const eligible = transactions.filter(tx =>
+    tx.deleted_by == null &&
+    (tx.type === 'expense' || tx.type === 'income') &&
+    tx.description && tx.description.trim().length > 0
+  );
+
+  // normalize: lowercase + ตัด non-alphanumeric (Thai + EN)
+  function norm(s) {
+    return s.toLowerCase().replace(/[\s\W]+/gu, '').replace(/_/g, '');
+  }
+
+  // group by normalized description
+  const groups = new Map();
+  for (const tx of eligible) {
+    const key = norm(tx.description);
+    if (!key || key.length < 2) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(tx);
+  }
+
+  const suggestions = [];
+
+  for (const group of groups.values()) {
+    if (group.length < 3) continue;
+
+    // sort by date ascending
+    const sorted = [...group].sort((a, b) => a.date.localeCompare(b.date));
+    const dates   = sorted.map(tx => tx.date);
+    const amounts = sorted.map(tx => tx.amount);
+
+    // amount variance
+    const sum = amounts.reduce((s, a) => s + a, 0);
+    const avg = sum / amounts.length;
+    const mn  = Math.min(...amounts);
+    const mx  = Math.max(...amounts);
+    const amountVariance = avg > 0 ? (mx - mn) / avg : 1;
+    if (amountVariance > 0.1) continue;
+
+    // intervals (วัน) ระหว่าง transactions ติดกัน
+    const intervals = [];
+    for (let i = 1; i < dates.length; i++) {
+      const diff = (new Date(dates[i]) - new Date(dates[i - 1])) / 86400000;
+      intervals.push(Math.round(diff));
+    }
+
+    // ตรวจ frequency
+    let frequency = null;
+    if (intervals.every(iv => iv >= 6  && iv <= 8))  frequency = 'weekly';
+    if (intervals.every(iv => iv >= 25 && iv <= 35)) frequency = 'monthly';
+    if (!frequency) continue;
+
+    // confidence
+    const confidence = Math.min(sorted.length / 5, 1) * (1 - amountVariance);
+    if (confidence < 0.8) continue;
+
+    // ข้ามถ้ามี template ที่ match อยู่แล้ว
+    const alreadyExists = _templates.some(t =>
+      norm(t.description) === norm(sorted[0].description) &&
+      t.frequency === frequency &&
+      t.active
+    );
+    if (alreadyExists) continue;
+
+    suggestions.push({
+      description: sorted[0].description,
+      amount:      Math.round(avg),
+      type:        sorted[0].type,
+      group:       sorted[0].group || 'other',
+      frequency,
+      next_due:    computeNextDue(dates[dates.length - 1], frequency),
+      confidence:  Math.round(confidence * 100) / 100,
+      sampleDates: dates.slice(-3)
+    });
+  }
+
+  return suggestions.sort((a, b) => b.confidence - a.confidence);
+}
+
+
 /* === Stats ====================================================== */
 
 /** สรุป recurring rate รายเดือน */

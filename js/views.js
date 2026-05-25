@@ -40,6 +40,9 @@ let _heroChartInstance = null;
 let _ChartClass        = null;
 let _heroChartPayload  = null;  // ข้อมูลสำหรับ initHeroChart ที่เรียกหลัง DOM insert
 
+// Recurring suggestions ที่ detect หลัง PDF import (module-level, reset เมื่อ dismiss)
+let _recurSuggestions = [];
+
 /** คืน yearMonth ก่อนหน้า เช่น "2026-05" → "2026-04" */
 function prevYearMonth(ym) {
   const [y, m] = ym.split('-').map(Number);
@@ -1600,6 +1603,13 @@ function confirmImport(result) {
   State.addTransactionsBatch(cleanTxs);
   showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย`);
 
+  // ตรวจหา recurring patterns อัตโนมัติหลัง import
+  const suggestions = Recurring.detectRecurringPatterns(State.getTransactions());
+  if (suggestions.length > 0) {
+    _recurSuggestions = suggestions;
+    setTimeout(() => showToast(`พบ ${suggestions.length} รายการประจำที่น่าตั้งไว้ → ดูใน ตั้งค่า`), 800);
+  }
+
   // ตรวจว่ามี cash account ที่ยังไม่มี override — ถ้ามี ATM ใน batch ให้ถาม
   const hasAtm = cleanTxs.some(t =>
     t.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(t.description || '')
@@ -2109,6 +2119,35 @@ export function renderSettings(container) {
       State.setSetting('threshold_satang', Math.round(Number(v) * 100));
       showToast('บันทึกแล้ว');
     }
+  });
+
+  // Recurring suggestions — เพิ่ม / ข้าม
+  container.querySelectorAll('.recur-suggest-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      const s = _recurSuggestions[idx];
+      if (!s) return;
+      Recurring.addTemplate({
+        type:        s.type,
+        amount:      s.amount,
+        group:       s.group,
+        description: s.description,
+        frequency:   s.frequency,
+        first_due:   s.next_due
+      });
+      _recurSuggestions.splice(idx, 1);
+      showToast(`เพิ่ม "${s.description}" เป็นรายการประจำแล้ว ✓`);
+      // Recurring.addTemplate → save() → listeners → renderCurrentView() (re-render อัตโนมัติ)
+    });
+  });
+
+  container.querySelectorAll('.recur-suggest-skip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      _recurSuggestions.splice(idx, 1);
+      // re-render settings page โดยตรง (container ยังอยู่ใน scope)
+      renderSettings(container);
+    });
   });
 
   // Delete recurring templates
@@ -2625,13 +2664,56 @@ function showAccountModal(existingAcct, settingsContainer) {
 }
 
 
+/** Render suggestion cards จาก detectRecurringPatterns */
+function renderRecurringSuggestions() {
+  if (_recurSuggestions.length === 0) return '';
+  const freqLabel = { monthly: 'ทุกเดือน', weekly: 'ทุกสัปดาห์' };
+
+  return `
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">พบรายการประจำจาก PDF</h2>
+        <span class="section-action" style="color:var(--primary)">${_recurSuggestions.length} รายการ</span>
+      </div>
+      <div class="card card-padded">
+        ${_recurSuggestions.map((s, i) => {
+          const def = getCategory(s.group);
+          const samples = s.sampleDates.map(d => formatShortDate(d)).join(', ');
+          return `
+            <div class="template-row" style="align-items:flex-start;gap:10px">
+              <div class="entry-icon" style="background:${def.color};opacity:0.85;flex-shrink:0">
+                ${svgIcon(def.icon, { size: 16, stroke: 2 })}
+              </div>
+              <div style="flex:1;min-width:0">
+                <div class="entry-name">${escapeHtml(s.description)}</div>
+                <div class="entry-cat">${freqLabel[s.frequency]} · ${formatBaht(s.amount)} ฿ · เจอ ${s.sampleDates.length}+ ครั้ง</div>
+                <div class="entry-cat" style="opacity:0.6">${samples}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+                <button class="recur-suggest-add" data-idx="${i}"
+                  style="font-size:12px;padding:4px 12px;border-radius:9999px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-family:inherit">เพิ่ม</button>
+                <button class="recur-suggest-skip" data-idx="${i}"
+                  style="font-size:12px;padding:4px 12px;border-radius:9999px;border:1.5px solid var(--rule);background:transparent;color:var(--ink-faint);cursor:pointer;font-family:inherit">ข้าม</button>
+              </div>
+            </div>
+          `;
+        }).join('<hr style="margin:6px 0;border:none;border-top:1px solid var(--rule)">')}
+      </div>
+    </div>
+  `;
+}
+
+
 /** Render section รายการประจำ + ผ่อน + ล่วงหน้า ใน Settings */
 function renderRecurringSection() {
   const templates = Recurring.getActiveTemplates();
   const monthlyTotal = Recurring.getMonthlyRecurringTotal();
 
+  const suggestionsHtml = renderRecurringSuggestions();
+
   if (templates.length === 0) {
     return `
+      ${suggestionsHtml}
       <div class="section">
         <div class="section-head">
           <h2 class="section-title">รายการประจำ / ผ่อน</h2>
@@ -2649,6 +2731,7 @@ function renderRecurringSection() {
   }
 
   return `
+    ${suggestionsHtml}
     <div class="section">
       <div class="section-head">
         <h2 class="section-title">รายการประจำ / ผ่อน</h2>
