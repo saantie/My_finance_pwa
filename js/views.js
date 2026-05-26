@@ -3041,14 +3041,22 @@ export function applyDark(dark) {
 }
 
 /** แสดง toast — ใช้ across views */
-export function showToast(message) {
+/**
+ * แสดง toast notification
+ * @param {string} message
+ * @param {number} duration — ms ที่แสดง (default 3500, reminder ควรใช้ 7000)
+ */
+export function showToast(message, duration = 3500) {
   const container = document.getElementById('toast');
   if (!container) return;
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = message;
+  // คำนวณ delay ก่อน fade-out: duration - 500ms (250 fade-in + 250 fade-out)
+  const fadeDelay = Math.max((duration - 500) / 1000, 0.5).toFixed(2);
+  el.style.animation = `toast-in 0.25s ease, toast-out 0.25s ease ${fadeDelay}s forwards`;
   container.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  setTimeout(() => el.remove(), duration);
 }
 
 /** Toast เล็กๆ หลังได้เหรียญ/level up — ไม่มี toast กรณี streak reset */

@@ -69,9 +69,11 @@ export function checkReminders(showToast) {
 
   if (toasts.length === 0) return;
 
-  // แสดง toast ทีละอัน ห่าง 1.5 วิ (ไม่กองพร้อมกัน)
+  // แสดง toast ทีละอัน — reminder มีตัวเลขให้อ่าน ใช้ 7 วิ, gap 3 วิ
+  const DURATION = 7000;   // ms ที่แสดงแต่ละ toast
+  const GAP      = 3000;   // ms ระหว่าง toast (ให้เวลาอ่านก่อนอันถัดมาขึ้น)
   toasts.forEach((msg, i) => {
-    setTimeout(() => showToast(msg), i * 1500);
+    setTimeout(() => showToast(msg, DURATION), i * GAP);
   });
 
   // บันทึกวันที่แสดงแล้ว — ไม่แสดงซ้ำวันเดียวกัน
