@@ -16,6 +16,7 @@ import { renderDashboard, renderList, renderImport, renderSettings, showToast, a
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
+import { checkReminders } from './reminders.js';
 
 
 /* === Globals ==================================================== */
@@ -378,6 +379,9 @@ function init() {
 
   // 7. PWA service worker
   registerSW();
+
+  // 8. Smart reminders (gentle) — หน่วง 1.5 วิหลัง app load เพื่อไม่บัง first paint
+  setTimeout(() => checkReminders(showToast), 1500);
 
   console.log('[diary] app ready', {
     transactions: State.getTransactions().length,
