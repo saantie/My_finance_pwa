@@ -23,6 +23,34 @@ let currentView = 'dashboard';
 let _backPressedOnce = false;
 let _backTimer = null;
 
+
+/* === Auth badge — สถานะลงชื่อ มุมขวาบน ========================= */
+
+function updateAuthBadge(user) {
+  const badge = document.getElementById('auth-badge');
+  if (!badge) return;
+
+  if (user) {
+    // ใช้ชื่อจาก displayName หรือ email เป็น initials
+    const name = user.displayName || user.email || '?';
+    const initials = name.split(/[\s@]/).filter(Boolean)
+      .map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    badge.className = 'auth-badge signed-in';
+    badge.textContent = initials;
+    badge.title = `ลงชื่อเข้าใช้: ${user.email}`;
+  } else {
+    badge.className = 'auth-badge signed-out';
+    badge.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0112 0v2"/></svg>`;
+    badge.title = 'ไม่ได้ลงชื่อเข้าใช้ — กดเพื่อไปตั้งค่า';
+  }
+}
+
+function setupAuthBadge() {
+  const badge = document.getElementById('auth-badge');
+  if (!badge) return;
+  badge.addEventListener('click', () => switchView('settings'));
+}
+
 const VIEW_RENDERERS = {
   dashboard: renderDashboard,
   list:      renderList,
@@ -249,6 +277,7 @@ function init() {
     let _lastEmail = null;
     onAuthStateChanged(async user => {
       if (_sharedWithMeUnsub) { _sharedWithMeUnsub(); _sharedWithMeUnsub = null; }
+      updateAuthBadge(user);   // อัปเดต badge มุมขวาบนทันที
       if (user) {
         _lastEmail = user.email;
         // ปิด listeners เก่า + ล้าง received accounts ออกจาก memory และ localStorage
@@ -335,8 +364,9 @@ function init() {
     setTimeout(() => showToast(`สร้างรายการประจำ ${sched.executed} รายการ`), 800);
   }
 
-  // 4. Setup navigation handlers
+  // 4. Setup navigation handlers + auth badge
   setupNav();
+  setupAuthBadge();
 
   // 5. Subscribe state changes → re-render เมื่อข้อมูลเปลี่ยน
   State.subscribe(() => renderCurrentView());

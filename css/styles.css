@@ -151,6 +151,9 @@ html[data-text-size="xlarge"] {
 }
 
 :root {
+  /* Font accent — สำหรับ heading/date ที่ใช้ Mali; override ใน theme เพื่อเปลี่ยนฟอนท์ได้ */
+  --font-accent:  'Mali', cursive;
+
   /* Paper & ink (เน้น cream ไม่ใช่ขาวบริสุทธิ์) */
   --paper:        #fdf9f0;
   --paper-deep:   #f5ecd9;
@@ -205,7 +208,7 @@ html, body {
 
 /* Handwritten heading — สำหรับ accent เท่านั้น (date, section title) */
 .handwriting {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-weight: 400;
   letter-spacing: -0.5px;
 }
@@ -312,7 +315,7 @@ html, body {
   margin-bottom: 4px;
 }
 .page-date {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 32px;
   line-height: 1.15;
   color: var(--ink);
@@ -346,7 +349,7 @@ html, body {
   padding: 0 4px;
 }
 .section-title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 22px;
   font-weight: 400;
   color: var(--ink);
@@ -396,7 +399,7 @@ html, body {
 }
 
 .hero-label {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 16px;
   color: var(--ink-soft);
   margin-bottom: 4px;
@@ -969,7 +972,7 @@ html, body {
 .signoff {
   margin-top: 24px;
   text-align: center;
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   color: var(--ink-faint);
   font-size: 14px;
   padding-bottom: 8px;
@@ -1013,7 +1016,7 @@ html, body {
 .add-close svg { width: 18px; height: 18px; stroke-width: 2; }
 
 .add-title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 22px;
   color: var(--ink);
 }
@@ -1081,7 +1084,7 @@ html, body {
   padding: 20px 24px 6px;
 }
 .add-amount-label {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 16px;
   color: var(--ink-soft);
   margin-bottom: 8px;
@@ -1155,7 +1158,7 @@ html, body {
 }
 .meta-block { margin-bottom: 14px; }
 .meta-label {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 15px;
   color: var(--ink-soft);
   margin-bottom: 6px;
@@ -1569,7 +1572,7 @@ html, body {
   padding: 12px 0 6px;
 }
 .app-bar .title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 22px;
   color: var(--ink);
 }
@@ -1690,7 +1693,7 @@ html, body {
   padding-left: 4px;
 }
 .day-name {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 22px;
   color: var(--ink);
   line-height: 1.1;
@@ -1710,7 +1713,7 @@ html, body {
 /* === 9. Import view ============================================= */
 .import-header { padding: 8px 4px 18px; }
 .import-title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 30px;
   color: var(--ink);
   line-height: 1.1;
@@ -2053,7 +2056,7 @@ html, body {
   opacity: 0.4;
 }
 .empty .title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 20px;
   color: var(--ink);
   margin-bottom: 4px;
@@ -2160,7 +2163,7 @@ html, body {
 }
 
 .voice-prompt {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 19px;
   font-weight: 600;
   color: var(--ink);
@@ -2231,7 +2234,7 @@ html, body {
   justify-content: center;
 }
 .scanner-title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 18px;
   font-weight: 600;
   color: white;
@@ -2577,7 +2580,7 @@ html, body {
   box-shadow: 0 16px 40px -12px rgba(60, 40, 20, 0.25);
 }
 .import-progress .title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 19px;
   color: var(--ink);
   margin-bottom: 6px;
@@ -2616,7 +2619,7 @@ html, body {
   border-bottom: 1px solid var(--rule);
 }
 .review-title {
-  font-family: 'Mali', cursive;
+  font-family: var(--font-accent);
   font-size: 22px;
   color: var(--ink);
 }
@@ -3090,7 +3093,15 @@ html[data-theme="carbon"] {
   --income:          #047857;
   --expense:         #dc2626;
   --r-card:          10px;
+  /* ฟอนท์ Noto Sans Thai แทน Mali ทุกจุดใน Carbon theme */
+  --font-accent:     'Noto Sans Thai', sans-serif;
 }
+/* ลบ paper texture — carbon ใช้พื้นสะอาด */
+html[data-theme="carbon"],
+html[data-theme="carbon"] body { background-image: none; }
+/* ลบ diary decorations — ไม่เข้ากับ precision aesthetic */
+html[data-theme="carbon"] .squiggle,
+html[data-theme="carbon"] .page-sub { display: none; }
 html[data-theme="carbon"] .fab {
   background: linear-gradient(135deg, #1e3a72 0%, #122452 100%);
 }
@@ -3098,13 +3109,6 @@ html[data-theme="carbon"] .hero::before { background: #1e3a72; }
 html[data-theme="carbon"] .add-save { background: #1e3a72; }
 html[data-theme="carbon"] .card {
   box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 0 0 1px rgba(15,23,42,0.05);
-}
-/* Noto Sans Thai — เส้นสะอาด geometric แทน Mali ที่เป็น cursive */
-html[data-theme="carbon"] .handwriting,
-html[data-theme="carbon"] .page-date {
-  font-family: 'Noto Sans Thai', sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.02em;
 }
 /* tabular-nums สำหรับตัวเลขการเงิน */
 html[data-theme="carbon"] .hero-amount,
@@ -3240,6 +3244,61 @@ html[data-dark="1"] .chip.active {
   background: var(--terracotta);
   color: white;
   border-color: var(--terracotta);
+}
+
+
+/* ===================================================================
+   Auth badge — สถานะการลงชื่อเข้าใช้ มุมขวาบน (fixed, persistent)
+   =================================================================== */
+.auth-badge {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 120;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.auth-badge:active { transform: scale(0.92); }
+
+/* ยังไม่ได้ลงชื่อ — วงกลมเส้นประ สีเทา */
+.auth-badge.signed-out {
+  background: var(--rule);
+  color: var(--ink-faint);
+  border: 1.5px dashed var(--ink-faint);
+}
+.auth-badge.signed-out svg {
+  width: 16px; height: 16px;
+  stroke: var(--ink-faint); stroke-width: 1.8;
+  fill: none;
+}
+
+/* ลงชื่อแล้ว — วงกลมสีพร้อม initials */
+.auth-badge.signed-in {
+  background: var(--sage);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+/* dark mode */
+html[data-dark="1"] .auth-badge.signed-out {
+  background: var(--card);
+  border-color: var(--ink-faint);
+}
+
+/* Carbon dark mode */
+html[data-theme="carbon"][data-dark="1"] .auth-badge.signed-in {
+  background: #2a4e8c;
 }
 
 

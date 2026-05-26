@@ -370,9 +370,16 @@ export function renderDashboard(container) {
 
   bindEntryActions(container);
 
-  // "จัดการ" → navigate ไปหน้า Settings
+  // "จัดการ" → navigate ไปหน้า Settings แล้ว scroll ไปส่วนบัญชีของฉัน
   container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
     document.querySelector('.nav-item[data-view="settings"]')?.click();
+    // รอให้ renderSettings วาด DOM เสร็จก่อน scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById('settings-accounts')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
   });
 
   // init charts หลัง DOM พร้อม
@@ -2114,7 +2121,7 @@ export function renderSettings(container) {
     </div>
 
     <!-- บัญชีของฉัน -->
-    ${renderAccountsSection()}
+    <div id="settings-accounts">${renderAccountsSection()}</div>
 
     <!-- Privacy info -->
     <div class="privacy-footer" style="margin-top: 22px;">
