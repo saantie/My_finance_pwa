@@ -120,8 +120,8 @@ export function dailyExpenseBars(transactions, days = 14, incomeAvgPerDay = 0) {
   return {
     svg: `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
       ${avgLine}
-      ${incomeLine}
       ${bars}
+      ${incomeLine}
       ${labels}
       <g id="chart-bar-tip" visibility="hidden"/>
     </svg>`,
