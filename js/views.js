@@ -3017,7 +3017,7 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-const NAMED_THEMES = ['ocean', 'forest', 'rose', 'slate', 'citrus', 'violet', 'pro'];
+const NAMED_THEMES = ['ocean', 'forest', 'rose', 'slate', 'citrus', 'violet', 'carbon', 'pro'];
 
 /** Apply theme ลง <html> element */
 export function applyTheme(theme) {
