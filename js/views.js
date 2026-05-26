@@ -1922,16 +1922,6 @@ export function renderSettings(container) {
   const txCount = State.getTransactions().length;
   const acctCount = State.getAccounts().length;
 
-  // สถานะ email backup แสดงใต้ row
-  const _lastBackup = settings.last_email_backup;
-  let emailBackupSub;
-  if (!_lastBackup) {
-    emailBackupSub = 'แนะนำสำรองทุกสัปดาห์ — เก็บไว้ใน Email เครื่องหายข้อมูลไม่หาย';
-  } else {
-    const _days = Math.floor((Date.now() - new Date(_lastBackup).getTime()) / 86400000);
-    emailBackupSub = _days === 0 ? 'สำรองแล้ววันนี้ ✓' : `สำรองล่าสุด ${_days} วันที่แล้ว`;
-  }
-
   // สถานะ Drive backup
   const _user = getCurrentUser();
   const _lastDriveBackup = settings.last_drive_backup;
@@ -2098,15 +2088,6 @@ export function renderSettings(container) {
         </div>
         `}
 
-        <!-- Email backup -->
-        <div class="setting-row" data-action="email-backup" style="cursor:pointer">
-          <div>
-            <div class="setting-label">สำรองทาง Email</div>
-            <div class="setting-sub" id="email-backup-sub">${emailBackupSub}</div>
-          </div>
-          ${svgIcon('mail', { size: 18, stroke: 2 })}
-        </div>
-
         <!-- local JSON download (สำรองรอง) -->
         <div class="setting-row" data-action="export-json" style="cursor:pointer">
           <div>
@@ -2121,13 +2102,6 @@ export function renderSettings(container) {
             <div class="setting-sub">เลือกไฟล์ JSON ที่เคยสำรองไว้</div>
           </div>
           ${svgIcon('upload', { size: 18, stroke: 2 })}
-        </div>
-        <div class="setting-row" data-action="import-email-text" style="cursor:pointer">
-          <div>
-            <div class="setting-label">กู้คืนจาก Email</div>
-            <div class="setting-sub">วางข้อความที่คัดลอกจาก email สำรองข้อมูล</div>
-          </div>
-          ${svgIcon('mail', { size: 18, stroke: 2 })}
         </div>
         <div class="setting-row" data-action="reset-all" style="color: var(--clay);">
           <div>
@@ -2148,7 +2122,7 @@ export function renderSettings(container) {
       <div class="text">
         <strong>ข้อมูลทั้งหมดอยู่ในเครื่องนี้</strong><br>
         ไม่มีการส่งข้อมูลไปยังเซิร์ฟเวอร์ใดๆ — ลบแอปข้อมูลหายทันที
-        แนะนำสำรองทาง Email ทุกสัปดาห์ เครื่องหายข้อมูลไม่หาย
+        แนะนำสำรองข้อมูลทาง Drive หรือ ดาวน์โหลดไฟล์เก็บไว้ เครื่องหายข้อมูลไม่หาย
       </div>
     </div>
 
@@ -2258,125 +2232,6 @@ export function renderSettings(container) {
       console.error('[drive] restore failed', e);
       showToast('กู้คืนไม่สำเร็จ: ' + (e.message ?? e));
     }
-  });
-
-  // Email backup
-  // มือถือ: Web Share API → แนบไฟล์จริงใน Gmail/Mail
-  // เดสก์ท็อป: mailto: พร้อม JSON ฝังใน body (browser ไม่มี API แนบไฟล์)
-  container.querySelector('[data-action="email-backup"]')?.addEventListener('click', async () => {
-    const json = State.exportJSON();
-    const jsonMin = JSON.stringify(JSON.parse(json)); // minify
-    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-    const txCount = State.getTransactions().length;
-    const fileName = `finance-backup-${todayISO()}.json`;
-    const subject  = `📦 สำรองข้อมูล Finance Diary — ${dateStr}`;
-
-    const { getCurrentUser } = await import('./firebase.js').catch(() => ({ getCurrentUser: () => null }));
-    const toEmail = getCurrentUser?.()?.email ?? '';
-
-    // === เนื้อหา email สำหรับ body-text (เดสก์ท็อป) หรือ text ใน share (มือถือ) ===
-    const bodyLines = [
-      '📦 สำรองข้อมูล Finance Diary',
-      `วันที่: ${dateStr}  |  รายการ: ${txCount} รายการ`,
-      '',
-      'เก็บ email นี้ไว้ — ถ้าเครื่องหายหรือเปลี่ยนเครื่อง ข้อมูลไม่หาย',
-      '',
-      'กู้คืน: ตั้งค่า → ข้อมูล → กู้คืนจาก Email (วางข้อความ)',
-      '        หรือ ตั้งค่า → ข้อมูล → กู้คืนจากไฟล์ (ถ้ามีไฟล์แนบ)',
-      '',
-      '— ข้อมูลสำรอง (อย่าแก้ไข) —',
-      '===BACKUP_START===',
-      jsonMin,
-      '===BACKUP_END==='
-    ];
-    const bodyText = bodyLines.join('\n');
-
-    // ── มือถือ: ลองแนบไฟล์จริงผ่าน Web Share API ──────────────────
-    const blob = new Blob([json], { type: 'application/json' });
-    const file = new File([blob], fileName, { type: 'application/json' });
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ title: subject, text: bodyText, files: [file] });
-        // share สำเร็จ (user ไม่ cancel)
-        State.setSetting('last_email_backup', todayISO());
-        const subEl = container.querySelector('#email-backup-sub');
-        if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
-        showToast('สำรองข้อมูลเรียบร้อย ✓');
-        return;
-      } catch (e) {
-        if (e.name === 'AbortError') return; // user กด cancel
-        // share ล้มเหลวด้วยสาเหตุอื่น → fallback mailto: ด้านล่าง
-      }
-    }
-
-    // ── เดสก์ท็อป / fallback: mailto: พร้อม JSON ใน body ──────────
-    const encodedSubject = encodeURIComponent(subject);
-    const encodedBody    = encodeURIComponent(bodyText);
-    const mailtoUrl = `mailto:${toEmail}?subject=${encodedSubject}&body=${encodedBody}`;
-
-    if (mailtoUrl.length <= 1_800_000) {
-      // ✅ ข้อมูลฝังใน body — กดส่งเดียวจบ ไม่ต้องแนบไฟล์
-      window.open(mailtoUrl, '_self');
-      showToast('เปิด email แล้ว — กดส่งเพื่อสำรอง');
-    } else {
-      // ⚠️ ข้อมูลมากเกิน URL limit — ดาวน์โหลดไฟล์ + เปิด email
-      const dlUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = dlUrl; a.download = fileName;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(dlUrl);
-
-      const simpleBody = encodeURIComponent(
-        `📦 สำรองข้อมูล Finance Diary — ${dateStr}\n\nไฟล์ ${fileName} ถูกดาวน์โหลดแล้ว\nกรุณาแนบไฟล์นั้นแล้วกดส่ง`
-      );
-      setTimeout(() => window.open(`mailto:${toEmail}?subject=${encodedSubject}&body=${simpleBody}`, '_self'), 400);
-      showToast(`ดาวน์โหลดแล้ว — แนบไฟล์ ${fileName} แล้วกดส่ง`);
-    }
-
-    State.setSetting('last_email_backup', todayISO());
-    const subEl = container.querySelector('#email-backup-sub');
-    if (subEl) subEl.textContent = 'สำรองแล้ววันนี้ ✓';
-  });
-
-  // กู้คืนจาก Email — วางข้อความจาก email body
-  container.querySelector('[data-action="import-email-text"]')?.addEventListener('click', () => {
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-    overlay.innerHTML = `
-      <div class="acct-modal" style="max-width:360px">
-        <div class="acct-modal-head">กู้คืนจาก Email</div>
-        <div class="acct-modal-body">
-          <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:var(--ink)">
-            เปิด email สำรองข้อมูล → เลือกข้อความทั้งหมด (Ctrl+A) → คัดลอก → วางที่นี่
-          </p>
-          <textarea id="email-paste-area"
-            placeholder="วางข้อความจาก email ที่นี่…"
-            style="width:100%;height:130px;padding:10px;border:1.5px solid var(--rule);border-radius:8px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box;color:var(--ink);background:var(--bg)"></textarea>
-        </div>
-        <div class="acct-modal-footer" style="gap:8px">
-          <button class="cancel" id="ei-cancel">ยกเลิก</button>
-          <button class="add-save" id="ei-ok" style="flex:1">กู้คืน</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    overlay.querySelector('#ei-cancel').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#ei-ok').addEventListener('click', () => {
-      const text = overlay.querySelector('#email-paste-area').value.trim();
-      if (!text) { showToast('กรุณาวางข้อความก่อน'); return; }
-
-      // แยก JSON จากระหว่าง markers — ถ้าไม่เจอ markers ลอง parse ทั้งก้อน
-      let jsonStr = text;
-      const m = text.match(/===BACKUP_START===\r?\n?([\s\S]*?)\r?\n?===BACKUP_END===/);
-      if (m) jsonStr = m[1].trim();
-
-      if (State.importJSON(jsonStr)) {
-        showToast('กู้คืนข้อมูลเรียบร้อย ✓');
-        overlay.remove();
-      } else {
-        showToast('ไม่พบข้อมูลสำรองในข้อความ — ลองคัดลอกใหม่');
-      }
-    });
   });
 
   // แสดงเวอร์ชันจาก Service Worker

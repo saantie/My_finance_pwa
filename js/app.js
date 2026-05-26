@@ -335,22 +335,6 @@ function init() {
     setTimeout(() => showToast(`สร้างรายการประจำ ${sched.executed} รายการ`), 800);
   }
 
-  // 3.5 Weekly email backup reminder (แสดงครั้งเดียวต่อ session)
-  (() => {
-    const txCount = State.getTransactions().length;
-    if (txCount === 0) return; // ไม่มีข้อมูล ไม่ต้อง remind
-    const lastBackup = State.getSettings().last_email_backup;
-    const days = lastBackup
-      ? Math.floor((Date.now() - new Date(lastBackup).getTime()) / 86400000)
-      : Infinity;
-    if (days >= 7) {
-      const msg = lastBackup
-        ? `📦 ครบ ${days} วันแล้ว — กดสำรองข้อมูลทาง Email ที่ตั้งค่า`
-        : '📦 แนะนำสำรองข้อมูลทาง Email — ตั้งค่า → ข้อมูล → สำรองทาง Email';
-      setTimeout(() => showToast(msg), 2500);
-    }
-  })();
-
   // 4. Setup navigation handlers
   setupNav();
 
