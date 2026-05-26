@@ -1941,10 +1941,9 @@ export function renderSettings(container) {
     { val: 'ocean',  color: '#2e86c1', name: 'Ocean' },
     { val: 'forest', color: '#27ae60', name: 'Forest' },
     { val: 'rose',   color: '#e06880', name: 'Rose' },
-    { val: 'slate',  color: '#5a7fb5', name: 'Slate' },
     { val: 'citrus', color: '#d4880e', name: 'Citrus' },
     { val: 'violet', color: '#7c5cbf', name: 'Violet' },
-    { val: 'carbon', color: '#1d4ed8', name: 'Carbon' },
+    { val: 'carbon', color: '#1e3a72', name: 'Carbon' },
   ];
   const curThemeName = THEME_SWATCHES.find(t => t.val === theme)?.name || 'Diary';
 
@@ -3017,7 +3016,7 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-const NAMED_THEMES = ['ocean', 'forest', 'rose', 'slate', 'citrus', 'violet', 'carbon', 'pro'];
+const NAMED_THEMES = ['ocean', 'forest', 'rose', 'citrus', 'violet', 'carbon', 'pro'];
 
 /** Apply theme ลง <html> element */
 export function applyTheme(theme) {

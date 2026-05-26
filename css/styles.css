@@ -3049,18 +3049,6 @@ html[data-theme="rose"] .fab {
 html[data-theme="rose"] .hero::before { background: #e06880; }
 html[data-theme="rose"] .add-save { background: #e06880; }
 
-html[data-theme="slate"] {
-  --terracotta:      #5a7fb5;
-  --terracotta-soft: #dae4f4;
-  --paper:           #f4f6f9;
-  --paper-deep:      #e8ecf2;
-}
-html[data-theme="slate"] .fab {
-  background: linear-gradient(135deg, #5a7fb5 0%, #436599 100%);
-}
-html[data-theme="slate"] .hero::before { background: #5a7fb5; }
-html[data-theme="slate"] .add-save { background: #5a7fb5; }
-
 html[data-theme="citrus"] {
   --terracotta:      #d4880e;
   --terracotta-soft: #fce8c8;
@@ -3085,10 +3073,10 @@ html[data-theme="violet"] .fab {
 html[data-theme="violet"] .hero::before { background: #7c5cbf; }
 html[data-theme="violet"] .add-save { background: #7c5cbf; }
 
-/* Carbon — ธีม smart/precision: น้ำเงินลึก, พื้นหลังเย็น, เส้นคม */
+/* Carbon — ธีม smart/precision: น้ำเงินกรมท่า, พื้นหลังเย็น, เส้นคม, ฟอนท์ Noto Sans Thai */
 html[data-theme="carbon"] {
-  --terracotta:      #1d4ed8;
-  --terracotta-soft: #dbeafe;
+  --terracotta:      #1e3a72;   /* น้ำเงินกรมท่า */
+  --terracotta-soft: #d3ddf0;
   --paper:           #f1f4f9;
   --paper-deep:      #e4e9f2;
   --card:            #ffffff;
@@ -3104,13 +3092,21 @@ html[data-theme="carbon"] {
   --r-card:          10px;
 }
 html[data-theme="carbon"] .fab {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+  background: linear-gradient(135deg, #1e3a72 0%, #122452 100%);
 }
-html[data-theme="carbon"] .hero::before { background: #1d4ed8; }
-html[data-theme="carbon"] .add-save { background: #1d4ed8; }
+html[data-theme="carbon"] .hero::before { background: #1e3a72; }
+html[data-theme="carbon"] .add-save { background: #1e3a72; }
 html[data-theme="carbon"] .card {
   box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 0 0 1px rgba(15,23,42,0.05);
 }
+/* Noto Sans Thai — เส้นสะอาด geometric แทน Mali ที่เป็น cursive */
+html[data-theme="carbon"] .handwriting,
+html[data-theme="carbon"] .page-date {
+  font-family: 'Noto Sans Thai', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* tabular-nums สำหรับตัวเลขการเงิน */
 html[data-theme="carbon"] .hero-amount,
 html[data-theme="carbon"] .acct-balance,
 html[data-theme="carbon"] .stat-val {
@@ -3120,15 +3116,15 @@ html[data-theme="carbon"] .stat-val {
 html[data-theme="carbon"] .entry-amount {
   font-variant-numeric: tabular-nums;
 }
-html[data-theme="carbon"] .nav-item.active { color: #1d4ed8; }
-html[data-theme="carbon"] .nav-item.active svg { stroke: #1d4ed8; }
+html[data-theme="carbon"] .nav-item.active { color: #1e3a72; }
+html[data-theme="carbon"] .nav-item.active svg { stroke: #1e3a72; }
 html[data-theme="carbon"] .chip.active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: #1e3a72;
+  border-color: #1e3a72;
   color: #fff;
 }
 html[data-theme="carbon"] .seg-item.active {
-  background: #1d4ed8;
+  background: #1e3a72;
   color: #fff;
 }
 html[data-theme="carbon"] .type-btn.active[data-type="expense"] {
@@ -3140,8 +3136,56 @@ html[data-theme="carbon"] .type-btn.active[data-type="income"] {
   border-color: #047857;
 }
 html[data-theme="carbon"] .type-btn.active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: #1e3a72;
+  border-color: #1e3a72;
+}
+
+/* Carbon + Dark mode — cool dark palette แทน warm dark ของ default */
+html[data-theme="carbon"][data-dark="1"] {
+  --paper:           #0d1829;
+  --paper-deep:      #08101e;
+  --card:            #162340;
+  --ink:             #e2e8f5;
+  --ink-soft:        #94a8c4;
+  --ink-faint:       #5a7499;
+  --rule:            #1e3050;
+  --rule-soft:       #162340;
+  --terracotta-soft: #1a2e50;
+  --mocha:           #7a9abf;
+  --clay:            #6b8fba;
+}
+html[data-theme="carbon"][data-dark="1"] .card {
+  box-shadow: none;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+html[data-theme="carbon"][data-dark="1"] .bottom-nav {
+  background: #0d1829;
+  border-top-color: #1e3050;
+}
+/* navy บน dark bg มืดเกินไป — ใช้ lighter navy accent แทน */
+html[data-theme="carbon"][data-dark="1"] .nav-item.active { color: #7aa3d9; }
+html[data-theme="carbon"][data-dark="1"] .nav-item.active svg { stroke: #7aa3d9; }
+html[data-theme="carbon"][data-dark="1"] .chip.active {
+  background: #2a4e8c;
+  border-color: #2a4e8c;
+  color: #e2e8f5;
+}
+html[data-theme="carbon"][data-dark="1"] .seg-item.active {
+  background: #2a4e8c;
+  color: #e2e8f5;
+}
+html[data-theme="carbon"][data-dark="1"] .add-save { background: #2a4e8c; }
+html[data-theme="carbon"][data-dark="1"] .fab {
+  background: linear-gradient(135deg, #2a4e8c 0%, #1e3a72 100%);
+}
+html[data-theme="carbon"][data-dark="1"] .hero::before { background: #1e3a72; }
+html[data-theme="carbon"][data-dark="1"] .setting-seg-btn.active {
+  background: #2a4e8c;
+  border-color: #2a4e8c;
+}
+html[data-theme="carbon"][data-dark="1"] .type-btn.active {
+  background: #2a4e8c;
+  border-color: #2a4e8c;
 }
 
 

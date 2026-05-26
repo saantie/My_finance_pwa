@@ -489,8 +489,8 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 > user เก่าที่ sign in ค้างอยู่อาจต้อง sign out → sign in ใหม่ครั้งหนึ่ง
 
 #### F1.10 — Themes + Dark Mode [✅ DONE]
-- **8 color themes:** Diary (default), Ocean, Forest, Rose, Slate, Citrus, Violet, Carbon — swatch picker ใน Settings
-- **Pro mode** — Bloomberg/editorial, navy, dense (ยังคงมีเป็น 1 ใน 8 ตัวเลือก)
+- **7 color themes:** Diary (default), Ocean, Forest, Rose, Citrus, Violet, Carbon — swatch picker ใน Settings
+- **Pro mode** — Bloomberg/editorial, navy, dense (ยังคงมีเป็น 1 ใน 7 ตัวเลือก)
 - **Dark mode:** toggle แยกต่างหากใน Settings; `data-dark="1"` บน `<html>`
 - **Settings → รูปแบบการแสดงผล:** UI ปรับให้ clean ไม่ดูรก — swatch + dark toggle + text size รวมอยู่ในส่วนเดียว
 
@@ -679,7 +679,7 @@ Font:        Sarabun (no serif)
 Font-size:   :root 16px (normal) / 18px (large) / 20px (xlarge) — rem cascade
 ```
 
-#### Color themes (8 สี — เลือกใน Settings)
+#### Color themes (7 สี — เลือกใน Settings)
 
 | val | ชื่อ | Primary color |
 |---|---|---|
@@ -687,10 +687,9 @@ Font-size:   :root 16px (normal) / 18px (large) / 20px (xlarge) — rem cascade
 | `ocean` | Ocean | #2e86c1 (blue) |
 | `forest` | Forest | #27ae60 (green) |
 | `rose` | Rose | #e06880 (pink) |
-| `slate` | Slate | #5a7fb5 (blue-grey) |
 | `citrus` | Citrus | #d4880e (amber) |
 | `violet` | Violet | #7c5cbf (purple) |
-| `carbon` | Carbon | #1d4ed8 (precision blue) — cool neutral bg, tabular nums, tighter radius |
+| `carbon` | Carbon | #1e3a72 (น้ำเงินกรมท่า) — cool neutral bg, Noto Sans Thai font, tabular nums, tighter radius, dark-mode-safe |
 
 - แต่ละ theme override `--primary`, `.fab`, `.hero::before`, `.add-save`
 - สลับผ่าน swatch buttons ใน Settings → `data-theme` บน `<html>` element
@@ -1006,7 +1005,7 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Voice NLP Thai
 - Min balance + days-below alert
 - Daily/monthly stats + month comparison
-- **8 color themes + dark mode** (Diary default) + text size 3 ระดับ (ใช้งานได้จริง)
+- **7 color themes + dark mode** (Diary default) + text size 3 ระดับ (ใช้งานได้จริง)
 - Lucide icons inline
 - Bottom nav + FAB + full-screen add modal + in-app keypad
 - Recurring template engine + scheduler + forecast
@@ -1217,6 +1216,7 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | shared badge บน transaction rows: ไอคอน users (11px) หน้า category label | แสดงว่ารายการมาจากบัญชีแชร์โดยไม่รก; `.shared-badge` + `.entry-cat { display:flex }` |
 | 2026-05 | firebase.js: ใช้ GoogleAuthProvider.credentialFromResult(result).accessToken | result._tokenResponse?.oauthAccessToken เป็น internal undocumented field — อาจเปลี่ยนได้ทุก Firebase release |
 | 2026-05 | Carbon theme: น้ำเงิน #1d4ed8, พื้นหลังเย็น #f1f4f9, หมึกเข้ม #0f172a, radius 10px, tabular-nums, hairline border บน card | ธีมสำหรับ "smart man" รู้สึก precision/professional โดยไม่เปลี่ยน layout |
+| 2026-05 | Carbon: เปลี่ยน primary → #1e3a72 (น้ำเงินกรมท่า), ฟอนท์ Noto Sans Thai แทน Mali, เพิ่ม dark-mode-safe palette (#0d1829 bg, lighter navy accent #2a4e8c) | Slate theme ถูกลบออก |
 
 ---
 
