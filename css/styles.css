@@ -3085,6 +3085,65 @@ html[data-theme="violet"] .fab {
 html[data-theme="violet"] .hero::before { background: #7c5cbf; }
 html[data-theme="violet"] .add-save { background: #7c5cbf; }
 
+/* Carbon — ธีม smart/precision: น้ำเงินลึก, พื้นหลังเย็น, เส้นคม */
+html[data-theme="carbon"] {
+  --terracotta:      #1d4ed8;
+  --terracotta-soft: #dbeafe;
+  --paper:           #f1f4f9;
+  --paper-deep:      #e4e9f2;
+  --card:            #ffffff;
+  --ink:             #0f172a;
+  --ink-soft:        #334155;
+  --ink-faint:       #64748b;
+  --rule:            #e2e8f0;
+  --rule-soft:       #f1f5f9;
+  --mocha:           #475569;
+  --clay:            #64748b;
+  --income:          #047857;
+  --expense:         #dc2626;
+  --r-card:          10px;
+}
+html[data-theme="carbon"] .fab {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+}
+html[data-theme="carbon"] .hero::before { background: #1d4ed8; }
+html[data-theme="carbon"] .add-save { background: #1d4ed8; }
+html[data-theme="carbon"] .card {
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08), 0 0 0 1px rgba(15,23,42,0.05);
+}
+html[data-theme="carbon"] .hero-amount,
+html[data-theme="carbon"] .acct-balance,
+html[data-theme="carbon"] .stat-val {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+html[data-theme="carbon"] .entry-amount {
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="carbon"] .nav-item.active { color: #1d4ed8; }
+html[data-theme="carbon"] .nav-item.active svg { stroke: #1d4ed8; }
+html[data-theme="carbon"] .chip.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+html[data-theme="carbon"] .seg-item.active {
+  background: #1d4ed8;
+  color: #fff;
+}
+html[data-theme="carbon"] .type-btn.active[data-type="expense"] {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+html[data-theme="carbon"] .type-btn.active[data-type="income"] {
+  background: #047857;
+  border-color: #047857;
+}
+html[data-theme="carbon"] .type-btn.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
 
 /* ===================================================================
    Dark mode — data-dark="1" บน <html>

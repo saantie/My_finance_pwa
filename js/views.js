@@ -1944,6 +1944,7 @@ export function renderSettings(container) {
     { val: 'slate',  color: '#5a7fb5', name: 'Slate' },
     { val: 'citrus', color: '#d4880e', name: 'Citrus' },
     { val: 'violet', color: '#7c5cbf', name: 'Violet' },
+    { val: 'carbon', color: '#1d4ed8', name: 'Carbon' },
   ];
   const curThemeName = THEME_SWATCHES.find(t => t.val === theme)?.name || 'Diary';
 
