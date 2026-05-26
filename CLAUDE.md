@@ -470,15 +470,23 @@ Stage: Implementation phase (shared accounts + UX polish done, pre-launch polish
 
 #### F1.9 — Backup Multi-layer [✅ DONE]
 - **Layer 1:** Manual JSON export ("สำรองเป็นไฟล์") + import จากไฟล์ ("กู้คืนจากไฟล์") — ใช้งานได้แล้ว
-- **Layer 2:** Email backup ("สำรองทาง Email") — ฝัง JSON ลงใน body ของ email โดยตรง ไม่ต้องแนบไฟล์
-  - มือถือ: Web Share API → แนบไฟล์จริงใน Gmail/Mail app ได้
-  - เดสก์ท็อป: `mailto:` พร้อม JSON ฝังระหว่าง `===BACKUP_START===` / `===BACKUP_END===`
-  - ถ้า URL เกิน 1.8MB → ดาวน์โหลดไฟล์ + เปิด email (กรณีข้อมูลมากผิดปกติ)
-  - **กู้คืนจาก Email:** ตั้งค่า → กู้คืนจาก Email → วางข้อความทั้งหมดจาก email → แอป parse อัตโนมัติ
-  - Weekly reminder: เปิดแอปแล้วครบ 7 วัน → toast แจ้งเตือน 1 ครั้ง/session
-  - เก็บวันที่สำรองล่าสุดใน `settings.last_email_backup` (YYYY-MM-DD)
-- **ทำไมไม่ใช้ Drive:** ผู้ใช้ต้องเปิด API ใน Cloud Console เอง — friction สูงเกิน
-- **Drive backup ถูกตัดออกแล้ว** — ลบ drive.js ออกจาก SHELL_FILES และ firebase.js ไม่มี drive.file scope แล้ว
+- **Layer 2:** Google Drive backup ("สำรองไปยัง Drive") — ใช้ `drive.file` scope (non-sensitive, ไม่ต้อง Google verification)
+  - อัปโหลดไฟล์เดียว `diary-finance-backup.json` (create หรือ PATCH ถ้ามีอยู่แล้ว)
+  - auto-backup ทุก 7 วันหลัง sign-in ด้วย popup (เฉพาะ session ที่มี token)
+  - กู้คืน: ดาวน์โหลดจาก Drive → dialog ยืนยันพร้อมวันที่ + ขนาดไฟล์ → import
+  - token หมดอายุ (session restore): `requestDriveAccess()` popup อัตโนมัติเมื่อกดปุ่ม
+  - เก็บวันที่สำรองล่าสุดใน `settings.last_drive_backup` (YYYY-MM-DD)
+- **Email backup ถูกตัดออกแล้ว** — ลบออกจาก views.js, app.js, state.js ทั้งหมด
+
+**Developer setup (ทำครั้งเดียว) — เปิดใช้ Google Drive API:**
+1. [console.cloud.google.com](https://console.cloud.google.com) → เลือก project `finance-diary-d9d5d`
+2. **APIs & Services → Library** → ค้นหา `Google Drive API` → **Enable**
+3. **APIs & Services → OAuth consent screen → Data Access** → **Add or remove scopes**
+   - เพิ่ม `https://www.googleapis.com/auth/drive.file`
+   - ชื่อแสดง: "See, edit, create, and delete only the specific Google Drive files you use with this app"
+   - `drive.file` = Non-sensitive scope → ไม่ต้องขอ Google verification
+4. **Save and Continue**
+> user เก่าที่ sign in ค้างอยู่อาจต้อง sign out → sign in ใหม่ครั้งหนึ่ง
 
 #### F1.10 — Themes + Dark Mode [✅ DONE]
 - **7 color themes:** Diary (default), Ocean, Forest, Rose, Slate, Citrus, Violet — swatch picker ใน Settings
@@ -906,12 +914,14 @@ finance-pwa/
 │   ├── pdf.js              ← pdf.js wrapper + password prompt support
 │   ├── chart.js            ← Inline SVG charts: dailyExpenseBars(), cashflowForecast()
 │   ├── recurring.js        ← Template engine + scheduler + getForecast()
-│   ├── firebase.js         ← Firebase Auth + Firestore client (ไม่มี drive.file scope แล้ว)
+│   ├── firebase.js         ← Firebase Auth + Firestore client (มี drive.file scope ใน signInWithGoogle)
 │   │                          pushSharedAccount(), migrateAccountToCloud()
 │   │                          softDeleteTransaction(), hardDeleteTransaction()
 │   │                          subscribeSharedAccount(), subscribeAccountsSharedWithMe()
 │   │                          token: GoogleAuthProvider.credentialFromResult(result).accessToken
-│   ├── drive.js            ← ไฟล์ยังอยู่แต่ไม่ได้ใช้แล้ว (ตัด Drive backup ออก)
+│   ├── drive.js            ← Google Drive backup: uploadBackup(), downloadBackup(), getBackupInfo()
+│   │                          requestDriveAccess() — popup ขอ token ใหม่เมื่อ session restore
+│   │                          setDriveToken() — รับ token จาก signInWithGoogle ผ่าน app.js
 │   ├── add.js              ← Add/Edit transaction modal
 │   │                          pickAccount() bottom-sheet, bankGradient() helper
 │   │                          frequency: today|past|scheduled|monthly|weekly|installment
@@ -1011,9 +1021,9 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 - Two-way revoke detection (owner revoke → recipient UI clears)
 - Settings: shared account UI อยู่ติดกับแชร์บัญชี; text size อยู่ในส่วนธีม; display name อยู่ในส่วนบัญชี
 - **Shared badge** บน transaction rows (ไอคอน users เล็กๆ หน้า category label) สำหรับรายการในบัญชีแชร์
-- **Email backup (F1.9 DONE):** สำรองทาง Email + กู้คืนจาก Email (วางข้อความ) + weekly reminder
+- **Drive backup (F1.9 DONE):** สำรองไปยัง Google Drive (`drive.file` scope) + กู้คืนจาก Drive + auto-backup ทุก 7 วัน
 - **localStorage compact (v2):** `compactTx()` / `expandTx()` ลด ~55%, key v1→v2
-- 206 tests
+- 232 tests (229 passed)
 
 ⏳ **Pending implementation:**
 - Onboarding 3-screen (F1.7)
@@ -1144,9 +1154,9 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | No streak mechanic | Behavioral research: streak = guilt = quit |
 | 2026-05 | Android: TWA (not native) | Solo dev maintenance, PWA reuse |
 | 2026-05 | iOS: Phase 2 | รอรายได้ก่อน |
-| 2026-05 | Cloud sync: v2.0 (not v1.1) | Privacy story + scope; Email backup ทดแทนในระหว่างนี้ |
+| 2026-05 | Cloud sync: v2.0 (not v1.1) | Privacy story + scope; Drive backup ทดแทนในระหว่างนี้ |
 | 2026-05 | Use Firebase (not Sheets) for v2 sync | Avoid OAuth verification complexity |
-| 2026-05 | Backup: JSON + Email (mailto: body) | Drive ต้องตั้งค่า Cloud Console — ตัดออก; Email ไม่ต้องตั้งค่าอะไร |
+| 2026-05 | Backup: JSON + Drive (drive.file scope) | Email backup ตัดออก — Drive ใช้ scope เดียวกับ sign-in ไม่ต้องตั้งค่าเพิ่ม (developer enable API ครั้งเดียวใน Cloud Console) |
 | 2026-05 | Default theme: Friendly (Pro toggle) | Mass market ชอบ playful (4.9★ apps research) |
 | 2026-05 | Theme toggle in Settings (hidden) | Reduce noise on topbar |
 | 2026-05 | Add `transfer` type to data model | Fix accounting bug ที่ MeTang ถูกบ่น |
@@ -1196,12 +1206,10 @@ KTB, KBank, SCB, BBL, BAY/Krungsri, TTB, GSB, BAAC, GHB, TISCO, KKP, CIMB, UOB, 
 | 2026-05 | Add modal: title เปลี่ยนเป็น "บันทึกรายการ" (ไม่ใช่ "บันทึกรายจ่าย") | รองรับ income, transfer ด้วย ไม่ใช่แค่รายจ่าย |
 | 2026-05 | Add modal: account picker ย้ายไปบนหมวด; แถวจำนวนเงิน ใส่จำนวน+ตัวเลข+ไมค์ อยู่บรรทัดเดียว | ลำดับสมเหตุสมผลกว่า: เลือกบัญชีก่อนหมวด; ตัวเลขอยู่กลางง่ายอ่าน |
 | 2026-05 | Dashboard: บันทึกวันนี้ย้ายมาอยู่หลัง hero card | ให้ hero card (ภาพรวม) เป็นสิ่งแรกที่เห็น แล้วค่อยตามด้วยรายการวันนี้ |
-| 2026-05 | ตัด Google Drive backup ออก → ใช้ Email backup แทน | Drive ต้องให้ user เปิด API ใน Cloud Console เอง — friction สูงเกิน; Email backup ไม่ต้องตั้งค่าอะไร |
-| 2026-05 | Email backup: ฝัง JSON ใน mailto: body ระหว่าง ===BACKUP_START=== / ===BACKUP_END=== | ไม่มี web API ที่แนบไฟล์ใน email ได้บน desktop; JSON ใน body ทำงานได้ทุก platform โดยไม่ต้องแนบ |
-| 2026-05 | Email backup mobile: ลอง Web Share API with file ก่อน | มือถือ (Android/iOS) Web Share API แนบไฟล์จริงใน Gmail; ถ้าไม่รองรับ fallback mailto: body |
-| 2026-05 | email body size limit: ถ้า mailtoUrl > 1.8MB → download file แทน | Chrome limit ~2MB; buffer 0.2MB; กรณีนี้เกิดเมื่อ user มีรายการมากผิดปกติ (5,000+ รายการ) |
-| 2026-05 | กู้คืนจาก Email: paste text ทั้งหมดจาก email → parse ระหว่าง markers | user ไม่ต้องแยก JSON เอง; regex `===BACKUP_START===\r?\n?([\s\S]*?)\r?\n?===BACKUP_END===` |
-| 2026-05 | weekly backup reminder: toast 1 ครั้ง/session ถ้า ≥ 7 วัน + มี transactions | ไม่ intrusive; เพิ่มใน app.js step 3.5; เช็คจาก `settings.last_email_backup` |
+| 2026-05 | Drive backup (drive.file scope) แทน Email backup | drive.file = non-sensitive scope ไม่ต้อง Google verification; developer enable Drive API ใน Cloud Console ครั้งเดียว; ใช้ token เดียวกับ Firestore sign-in |
+| 2026-05 | Drive backup: ไฟล์เดียว (create/PATCH) ไม่เก็บหลาย version | UX เรียบง่าย; user กู้คืนจาก version ล่าสุดเสมอ; file ชื่อ `diary-finance-backup.json` |
+| 2026-05 | Drive token หมดอายุเมื่อ page reload → requestDriveAccess() popup ใหม่ | Firebase session restore ไม่ return access token; drive.js จัดการ popup อัตโนมัติเมื่อ user กดปุ่ม |
+| 2026-05 | Drive API setup: developer enable ใน Cloud Console, ไม่ใช่ user | ความเข้าใจผิดเดิมว่า user ต้องทำ — จริงแล้วเป็นงาน developer ทำครั้งเดียว (APIs & Services → Library → Google Drive API → Enable + เพิ่ม drive.file scope ใน OAuth consent screen → Data Access) |
 | 2026-05 | localStorage v2: compactTx()/expandTx() ลด ~55% | key สั้น (amt/grp/ds/af/at), timestamp เป็น Unix ms, ตัด fields ที่ derive ได้; storage key v1→v2 |
 | 2026-05 | Voice onresult: อ่านแค่ result ล่าสุด ไม่สะสม | Chrome continuous=true ยิง onresult ซ้ำหลายรอบ; `finalTranscript +=` ทำให้ข้อความซ้ำ 4x |
 | 2026-05 | soft-delete lookup ใน delete handler ต้องใช้ `State.getState().transactions` ไม่ใช่ `State.getTransactions()` | getTransactions() filter deleted_by!=null ออก → recipient กดลบ soft-deleted row ไม่ได้ |
