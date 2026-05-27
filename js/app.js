@@ -49,7 +49,16 @@ function updateAuthBadge(user) {
 function setupAuthBadge() {
   const badge = document.getElementById('auth-badge');
   if (!badge) return;
-  badge.addEventListener('click', () => switchView('settings'));
+  badge.addEventListener('click', () => {
+    switchView('settings');
+    // รอ renderSettings วาด DOM เสร็จ แล้ว scroll ไปส่วนลงชื่อเข้าใช้
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById('settings-signin')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  });
 }
 
 const VIEW_RENDERERS = {
