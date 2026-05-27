@@ -1817,8 +1817,10 @@ function renderReviewRow(tx, idx, matchingTx, isSelected) {
 
 function confirmImport(result) {
   // Add/update account if detected
+  let _importedAccountId = null;  // เก็บไว้สำหรับ aha-moments trigger
   if (result.accountInfo?.last4 && result.bank !== 'unknown') {
     const accountId = `bank:${result.bank}:${result.accountInfo.last4}`;
+    _importedAccountId = accountId;
     const existing = State.getAccount(accountId);
     if (!existing) {
       State.addAccount({
@@ -1867,6 +1869,13 @@ function confirmImport(result) {
 
   State.addTransactionsBatch(cleanTxs);
   showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย${hadSampleData ? ' (ลบข้อมูลตัวอย่างออกแล้ว)' : ''}`);
+
+  // Aha-moment screen — แสดงครั้งแรกของแต่ละบัญชี (หลัง toast หน่อย)
+  import('./aha-moments.js').then(({ showAhaMomentScreen, isFirstPdfForAccount }) => {
+    if (isFirstPdfForAccount(_importedAccountId)) {
+      setTimeout(() => showAhaMomentScreen(cleanTxs, _importedAccountId), 600);
+    }
+  });
 
   // ตรวจหา recurring patterns อัตโนมัติหลัง import
   const suggestions = Recurring.detectRecurringPatterns(State.getTransactions());

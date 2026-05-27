@@ -2177,6 +2177,150 @@ html[data-dark="1"] .catchup-banner {
 }
 html[data-dark="1"] .catchup-close { background: rgba(255,255,255,0.08); }
 
+/* === Aha-moment screen ========================================= */
+.aha-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: aha-bg-in 0.3s ease both;
+}
+@keyframes aha-bg-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.aha-overlay--out {
+  animation: aha-bg-out 0.28s ease both;
+}
+@keyframes aha-bg-out {
+  to { opacity: 0; }
+}
+.aha-screen {
+  background: var(--card, #fff);
+  width: 100%;
+  max-width: 480px;
+  border-radius: 24px 24px 0 0;
+  padding: 32px 20px 28px;
+  max-height: 94dvh;
+  overflow-y: auto;
+  animation: aha-screen-in 0.42s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+@keyframes aha-screen-in {
+  from { transform: translateY(60px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.aha-overlay--out .aha-screen {
+  animation: aha-screen-out 0.25s ease both;
+}
+@keyframes aha-screen-out {
+  to { transform: translateY(60px); opacity: 0; }
+}
+.aha-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.aha-emoji {
+  font-size: 40px;
+  margin-bottom: 10px;
+  line-height: 1;
+}
+.aha-title {
+  font-family: var(--font-accent);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink, #2d3748);
+  line-height: 1.35;
+  margin: 0 0 6px;
+}
+.aha-subtitle {
+  font-size: 13px;
+  color: var(--ink-faint, #a0aec0);
+  margin: 0;
+}
+
+/* Insight cards */
+.aha-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.aha-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--paper, #fdfaf6);
+  border-radius: var(--r-card, 14px);
+  padding: 14px 16px;
+  border: 1px solid var(--rule, #efe5d4);
+  opacity: 0;
+  transform: translateY(12px);
+  animation: aha-card-in 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+@keyframes aha-card-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+.aha-card-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.aha-card-text { flex: 1; min-width: 0; }
+.aha-card-title {
+  font-family: var(--font-accent);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #2d3748);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+.aha-card-detail {
+  font-size: 12.5px;
+  color: var(--ink-soft, #718096);
+  line-height: 1.4;
+}
+
+/* Footer */
+.aha-footer { text-align: center; }
+.aha-cta {
+  width: 100%;
+  padding: 14px;
+  background: var(--terracotta, #e88e3c);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-accent);
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  margin-bottom: 8px;
+}
+.aha-cta:active { transform: scale(0.97); opacity: 0.9; }
+.aha-note {
+  font-size: 12px;
+  color: var(--ink-faint, #a0aec0);
+  margin: 0;
+}
+
+/* Dark mode */
+html[data-dark="1"] .aha-screen {
+  background: var(--card, #16213e);
+}
+html[data-dark="1"] .aha-card {
+  background: var(--paper-deep, #0d1829);
+  border-color: var(--rule, #1e3050);
+}
+
 /* Misc utilities */
 .hidden { display: none !important; }
 .dotted-divider {
