@@ -3337,7 +3337,7 @@ html[data-theme="violet"] .add-save { background: #7c5cbf; }
 
 /* Carbon — ธีม smart/precision: น้ำเงินกรมท่า, พื้นหลังเย็น, เส้นคม, ฟอนท์ Noto Sans Thai */
 html[data-theme="carbon"] {
-  --terracotta:      #1e3a72;   /* น้ำเงินกรมท่า */
+  --terracotta:      #1e3a72;   /* น้ำเงินกรมท่า — primary action */
   --terracotta-soft: #d3ddf0;
   --paper:           #f1f4f9;
   --paper-deep:      #e4e9f2;
@@ -3347,10 +3347,16 @@ html[data-theme="carbon"] {
   --ink-faint:       #64748b;
   --rule:            #e2e8f0;
   --rule-soft:       #f1f5f9;
-  --mocha:           #475569;
-  --clay:            #64748b;
-  --income:          #047857;
-  --expense:         #dc2626;
+  --mocha:           #475569;   /* neutral accent */
+  /* Semantic colors — ใช้ตรงๆ เพื่อให้ตัวเลขสื่อความหมายเหมือนธีมอื่น */
+  --clay:            #dc2626;   /* expense (= --expense) — แดงชัด */
+  --clay-soft:       #fee2e2;
+  --sage:            #059669;   /* income — เขียวสด readable บนพื้นเย็น */
+  --sage-soft:       #d1fae5;
+  --dust-blue:       #3b82f6;   /* transfer — น้ำเงินสด เข้ากับ Carbon */
+  --dust-blue-soft:  #dbeafe;
+  --income:          #059669;   /* align กับ --sage */
+  --expense:         #dc2626;   /* align กับ --clay */
   --r-card:          10px;
   /* ฟอนท์ Noto Sans Thai แทน Mali ทุกจุดใน Carbon theme */
   --font-accent:     'Noto Sans Thai', sans-serif;
@@ -3391,16 +3397,13 @@ html[data-theme="carbon"] .seg-item.active {
   color: #fff;
 }
 html[data-theme="carbon"] .type-btn.active[data-type="expense"] {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: var(--expense); border-color: var(--expense);
 }
 html[data-theme="carbon"] .type-btn.active[data-type="income"] {
-  background: #047857;
-  border-color: #047857;
+  background: var(--income);  border-color: var(--income);
 }
 html[data-theme="carbon"] .type-btn.active {
-  background: #1e3a72;
-  border-color: #1e3a72;
+  background: #1e3a72; border-color: #1e3a72;
 }
 
 /* Carbon + Dark mode — cool dark palette แทน warm dark ของ default */
@@ -3415,7 +3418,15 @@ html[data-theme="carbon"][data-dark="1"] {
   --rule-soft:       #162340;
   --terracotta-soft: #1a2e50;
   --mocha:           #7a9abf;
-  --clay:            #6b8fba;
+  /* Semantic colors — สว่างขึ้นสำหรับ dark bg */
+  --clay:            #f87171;   /* expense — แดงอ่อนบน dark */
+  --clay-soft:       rgba(248, 113, 113, 0.12);
+  --sage:            #34d399;   /* income — เขียวมิ้นต์บน dark */
+  --sage-soft:       rgba(52, 211, 153, 0.12);
+  --dust-blue:       #60a5fa;   /* transfer — ฟ้าสว่างบน dark */
+  --dust-blue-soft:  rgba(96, 165, 250, 0.12);
+  --income:          #34d399;
+  --expense:         #f87171;
 }
 html[data-theme="carbon"][data-dark="1"] .card {
   box-shadow: none;
