@@ -1392,27 +1392,15 @@ export function renderImport(container) {
       <div class="import-sub">เลือกวิธีที่สะดวก — รวบยอดเดือน หรือสแกนทีละรายการ</div>
     </div>
 
-    <!-- 2-tile selector: PDF / Slip -->
-    <div class="tile-grid">
-      <div class="import-tile pdf" data-action="import-pdf">
-        <div class="tile-icon">
-          ${svgIcon('pdf', { size: 26, stroke: 1.6 })}
-          <span class="badge">PDF</span>
-        </div>
-        <div class="tile-title">e-Statement</div>
-        <div class="tile-desc">ลาก PDF จากแอปธนาคาร — รวบทั้งเดือน</div>
-        <button class="tile-btn">เลือกไฟล์</button>
+    <!-- PDF tile -->
+    <div class="import-tile pdf" data-action="import-pdf">
+      <div class="tile-icon">
+        ${svgIcon('pdf', { size: 26, stroke: 1.6 })}
+        <span class="badge">PDF</span>
       </div>
-
-      <div class="import-tile slip" data-action="scan-slip">
-        <div class="tile-icon">
-          ${svgIcon('camera', { size: 26, stroke: 1.6 })}
-          <span class="badge">SCAN</span>
-        </div>
-        <div class="tile-title">Slip / ใบเสร็จ</div>
-        <div class="tile-desc">สแกน QR บน slip โอน — หรือเลือกรูปจากเครื่อง</div>
-        <button class="tile-btn">เปิดกล้อง</button>
-      </div>
+      <div class="tile-title">e-Statement</div>
+      <div class="tile-desc">ลาก PDF จากแอปธนาคาร — รวบทั้งเดือน</div>
+      <button class="tile-btn">เลือกไฟล์</button>
     </div>
 
     <!-- Bank grid -->
@@ -1447,14 +1435,12 @@ export function renderImport(container) {
       ${svgIcon('shield', { size: 18, stroke: 2 })}
       <div class="text">
         <strong>ข้อมูลของคุณอยู่ในเครื่องเท่านั้น</strong><br>
-        PDF, slip และรายการทั้งหมดประมวลผลในเครื่อง — ไม่ส่งออกไปไหน
+        PDF และรายการทั้งหมดประมวลผลในเครื่อง — ไม่ส่งออกไปไหน
       </div>
     </div>
 
-    <!-- Hidden file inputs -->
+    <!-- Hidden file input -->
     <input id="pdf-file-input" type="file" accept="application/pdf" hidden>
-    <!-- capture="environment" → mobile เปิดกล้องหลังตรงๆ; desktop ใช้ file picker -->
-    <input id="slip-file-input" type="file" accept="image/*" capture="environment" hidden>
   `;
 
   // === Bind events ===
@@ -1469,16 +1455,6 @@ export function renderImport(container) {
     await handlePdfImport(file);
   });
 
-  container.querySelector('[data-action="scan-slip"]')?.addEventListener('click', () => {
-    container.querySelector('#slip-file-input').click();
-  });
-
-  container.querySelector('#slip-file-input')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = '';   // reset
-    await handleSlipScan(file);
-  });
 }
 
 

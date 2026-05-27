@@ -1726,12 +1726,7 @@ html, body {
   margin-top: 4px;
 }
 
-/* 2-tile grid: PDF + Slip scan */
-.tile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
+/* PDF import tile */
 .import-tile {
   background: var(--card);
   border: 2px dashed;
@@ -1743,10 +1738,9 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 180px;
+  min-height: 140px;
 }
-.import-tile.pdf  { border-color: var(--terracotta); }
-.import-tile.slip { border-color: var(--dust-blue); }
+.import-tile.pdf { border-color: var(--terracotta); }
 .import-tile::before {
   content: "";
   position: absolute;
@@ -1754,8 +1748,7 @@ html, body {
   opacity: 0.5;
   pointer-events: none;
 }
-.import-tile.pdf::before  { background: linear-gradient(135deg, var(--terracotta-soft) 0%, transparent 75%); }
-.import-tile.slip::before { background: linear-gradient(135deg, var(--dust-blue-soft) 0%, transparent 75%); }
+.import-tile.pdf::before { background: linear-gradient(135deg, var(--terracotta-soft) 0%, transparent 75%); }
 
 .tile-icon {
   position: relative;
@@ -1769,8 +1762,7 @@ html, body {
   justify-content: center;
   margin-bottom: 12px;
 }
-.import-tile.pdf  .tile-icon { color: var(--terracotta); transform: rotate(-3deg); }
-.import-tile.slip .tile-icon { color: var(--dust-blue); transform: rotate(3deg); }
+.import-tile.pdf .tile-icon { color: var(--terracotta); transform: rotate(-3deg); }
 .tile-icon svg { width: 26px; height: 26px; stroke-width: 1.6; }
 
 .tile-icon .badge {
@@ -1784,8 +1776,7 @@ html, body {
   border-radius: 4px;
   letter-spacing: 0.05em;
 }
-.import-tile.pdf  .tile-icon .badge { background: var(--terracotta); transform: rotate(8deg); }
-.import-tile.slip .tile-icon .badge { background: var(--dust-blue);  transform: rotate(-6deg); }
+.import-tile.pdf .tile-icon .badge { background: var(--terracotta); transform: rotate(8deg); }
 
 .tile-title {
   position: relative;
@@ -1812,8 +1803,7 @@ html, body {
   padding: 7px 16px;
   border-radius: 999px;
 }
-.import-tile.pdf  .tile-btn { background: var(--terracotta); box-shadow: 0 3px 10px -3px rgba(232, 133, 99, 0.55); }
-.import-tile.slip .tile-btn { background: var(--dust-blue); box-shadow: 0 3px 10px -3px rgba(95, 163, 209, 0.55); }
+.import-tile.pdf .tile-btn { background: var(--terracotta); box-shadow: 0 3px 10px -3px rgba(232, 133, 99, 0.55); }
 
 
 /* Bank grid */
