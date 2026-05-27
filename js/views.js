@@ -24,6 +24,7 @@ import {
   signInWithGoogle, signOut as firebaseSignOut, getCurrentUser, getAccessToken,
   updateSharedWith, migrateAccountToCloud
 } from './firebase.js';
+import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
 
 
 /* === Squiggle SVG (decorative divider) ========================== */
@@ -285,6 +286,40 @@ async function initHeroChart() {
 
 
 /* ===================================================================
+   CATCHUP BANNER — แสดงเมื่อ user กลับมาหลังหาย ≥7 วัน
+   =================================================================== */
+function renderCatchupBanner({ daysSinceLastTx, lastTxDate, missedRecurring }) {
+  const lastDateFmt = formatLongDate(parseLocalDate(lastTxDate));
+
+  // เดือนที่ควรนำเข้า — เดือนของ lastTxDate (ภาษาไทย)
+  const lastD = parseLocalDate(lastTxDate);
+  const monthLabel = monthNameTH(lastD, false);
+
+  const recurringNote = missedRecurring > 0
+    ? `<div class="catchup-hint">✓ ระบบลงรายการประจำ ${missedRecurring} รายการให้แล้ว</div>`
+    : '';
+
+  return `
+    <div class="catchup-banner">
+      <div class="catchup-title">ยินดีต้อนรับกลับ ✨</div>
+      <div class="catchup-body">
+        บันทึกล่าสุดเมื่อ <strong>${daysSinceLastTx} วันที่แล้ว</strong>
+        (${lastDateFmt})
+        <br>อยากนำเข้า PDF เดือน${monthLabel}
+        เพื่อตามให้ทันไหม?
+        ${recurringNote}
+      </div>
+      <div class="catchup-actions">
+        <button class="catchup-btn-primary" data-action="import-pdf">นำเข้า PDF ตอนนี้</button>
+        <button class="catchup-btn-secondary" data-action="skip-catchup">เริ่มจดต่อ</button>
+      </div>
+      <button class="catchup-close" data-action="skip-catchup">✕</button>
+    </div>
+  `;
+}
+
+
+/* ===================================================================
    DASHBOARD VIEW
    =================================================================== */
 export function renderDashboard(container) {
@@ -296,7 +331,13 @@ export function renderDashboard(container) {
   const accounts = State.getAccounts();
   const threshold = State.getSettings().threshold_satang;
 
+  // --- Catchup banner (welcome back after long absence) ---
+  const catchupData = checkCatchupOpportunity();
+
   container.innerHTML = `
+    <!-- Catchup / welcome-back banner (แสดงเมื่อหยุดบันทึก ≥7 วัน + ไม่เปิดแอป ≥3 วัน) -->
+    ${catchupData ? renderCatchupBanner(catchupData) : ''}
+
     <!-- Page header (date as diary opening) -->
     <div class="page-header">
       <div class="page-meta">${monthNameTH(todayDate, true).toUpperCase()} · ${ceToBe(todayDate.getFullYear())}</div>
@@ -369,6 +410,16 @@ export function renderDashboard(container) {
   `;
 
   bindEntryActions(container);
+
+  // Catchup banner actions
+  container.querySelector('[data-action="skip-catchup"]')?.addEventListener('click', () => {
+    dismissCatchup();
+    container.querySelector('.catchup-banner')?.remove();
+  });
+  container.querySelector('[data-action="import-pdf"]')?.addEventListener('click', () => {
+    dismissCatchup();
+    document.querySelector('.nav-item[data-view="import"]')?.click();
+  });
 
   // "จัดการ" → navigate ไปหน้า Settings แล้ว scroll ไปส่วนบัญชีของฉัน
   container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
