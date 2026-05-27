@@ -1870,6 +1870,9 @@ function confirmImport(result) {
   State.addTransactionsBatch(cleanTxs);
   showToast(`นำเข้า ${cleanTxs.length} รายการเรียบร้อย${hadSampleData ? ' (ลบข้อมูลตัวอย่างออกแล้ว)' : ''}`);
 
+  // ไปหน้าบันทึกทันที — ให้เห็นรายการใหม่ที่นำเข้า
+  document.querySelector('.nav-item[data-view="list"]')?.click();
+
   // Aha-moment screen — แสดงครั้งแรกของแต่ละบัญชี (หลัง toast หน่อย)
   import('./aha-moments.js').then(({ showAhaMomentScreen, isFirstPdfForAccount }) => {
     if (isFirstPdfForAccount(_importedAccountId)) {
