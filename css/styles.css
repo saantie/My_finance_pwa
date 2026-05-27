@@ -3301,6 +3301,11 @@ html[data-theme="carbon"][data-dark="1"] .auth-badge.signed-in {
   background: #2a4e8c;
 }
 
+/* ซ่อน badge เมื่อ modal เปิด — modal และ badge เป็น sibling ใน #app */
+.modal:not(.hidden) ~ .auth-badge {
+  display: none;
+}
+
 
 /* ===================================================================
    Entry row — action buttons (edit / delete)
