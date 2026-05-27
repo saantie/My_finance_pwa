@@ -2018,30 +2018,51 @@ html, body {
 /* === 11. Toast + utilities ===================================== */
 #toast {
   position: fixed;
-  bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px);
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 14px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   width: max-content;
   max-width: calc(100vw - 32px);
 }
 .toast {
-  background: var(--ink);
-  color: white;
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-size: 13px;
+  /* Glassmorphism — ทำงานบน light และ dark bg */
+  background: rgba(22, 22, 28, 0.88);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  color: rgba(255, 255, 255, 0.95);
+
+  padding: 11px 20px;
+  border-radius: 14px;
+  font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.3);
-  animation: toast-in 0.25s ease, toast-out 0.25s ease 2.5s forwards;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-align: center;
+  max-width: min(360px, calc(100vw - 32px));
+  width: max-content;
+
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    0 2px 8px  rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* spring animation — เข้าด้วย overshoot เล็กน้อย */
+  animation: toast-in 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+             toast-out 0.25s ease 2.5s forwards;
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px) scale(0.90); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 @keyframes toast-out {
-  to { opacity: 0; transform: translateY(10px); }
+  to { opacity: 0; transform: translateY(6px) scale(0.96); }
 }
 
 /* Empty state */
@@ -3216,7 +3237,7 @@ html[data-dark="1"] body {
 }
 html[data-dark="1"] .card { box-shadow: none; border: 1px solid var(--rule); }
 html[data-dark="1"] .bottom-nav { border-top-color: var(--rule); }
-html[data-dark="1"] .toast { background: var(--card); color: var(--ink); border: 1px solid var(--rule); }
+/* .toast ใช้ glassmorphism — ทำงานบน dark mode โดยไม่ต้อง override */
 html[data-dark="1"] .setting-seg-btn.active {
   background: var(--terracotta);
   border-color: var(--terracotta);

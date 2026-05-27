@@ -3052,9 +3052,9 @@ export function showToast(message, duration = 3500) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = message;
-  // คำนวณ delay ก่อน fade-out: duration - 500ms (250 fade-in + 250 fade-out)
-  const fadeDelay = Math.max((duration - 500) / 1000, 0.5).toFixed(2);
-  el.style.animation = `toast-in 0.25s ease, toast-out 0.25s ease ${fadeDelay}s forwards`;
+  // คำนวณ delay ก่อน fade-out: duration - 630ms (380 spring-in + 250 fade-out)
+  const fadeDelay = Math.max((duration - 630) / 1000, 0.5).toFixed(2);
+  el.style.animation = `toast-in 0.38s cubic-bezier(0.34,1.56,0.64,1), toast-out 0.25s ease ${fadeDelay}s forwards`;
   container.appendChild(el);
   setTimeout(() => el.remove(), duration);
 }
