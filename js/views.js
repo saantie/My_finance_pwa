@@ -2581,7 +2581,7 @@ function renderAccountsSection() {
 
   // Google account card — sign in / sign out
   const googleCard = currentUser
-    ? `<div class="card" style="margin-bottom:8px">
+    ? `<div id="settings-signin" class="card" style="margin-bottom:8px">
         <div class="setting-row">
           <div style="flex:1;min-width:0">
             <div class="setting-label">ลงชื่อเข้าใช้แล้ว</div>
@@ -2590,7 +2590,7 @@ function renderAccountsSection() {
           <button class="setting-seg-btn" data-action="google-sign-out">ออกจากระบบ</button>
         </div>
       </div>`
-    : `<div class="card" style="margin-bottom:8px">
+    : `<div id="settings-signin" class="card" style="margin-bottom:8px">
         <div class="setting-row">
           <div style="flex:1;min-width:0">
             <div class="setting-label">บัญชีที่แชร์กับฉัน</div>
