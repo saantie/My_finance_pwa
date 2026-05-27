@@ -1035,14 +1035,6 @@ html, body {
   box-shadow: none;
 }
 
-.add-date {
-  text-align: center;
-  padding: 6px 20px 14px;
-  color: var(--ink-soft);
-  font-family: 'Noto Sans Thai', sans-serif;
-  font-size: 13px;
-}
-
 /* Segmented control: รายจ่าย / รายรับ / โอน */
 .add-segmented {
   display: grid;
@@ -1533,6 +1525,28 @@ html, body {
   grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px;
   border-top: 1px solid var(--rule);
+  /* slide-up transition */
+  overflow: hidden;
+  max-height: 260px;
+  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity     0.22s ease;
+  opacity: 1;
+}
+.keypad--hidden {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-color: transparent;
+  pointer-events: none;
+}
+
+/* Amount row — hint ว่า tap ได้ */
+.add-amount-row {
+  cursor: pointer;
+}
+.add-amount-row:active .add-amount-value {
+  opacity: 0.75;
 }
 .key {
   height: 48px;

@@ -135,6 +135,9 @@ function render() {
   const el = modal();
   if (!el || !draft) return;
 
+  // คง state keypad ก่อน re-render
+  const keypadVisible = !el.querySelector('.keypad')?.classList.contains('keypad--hidden');
+
   const cats = categoriesByType(draft.type);
   const accts = State.getAccounts();
   const acct = accts.find(a => a.id === draft.account_id) || accts[0];
@@ -163,8 +166,6 @@ function render() {
     else if (draft.frequency === 'monthly' || draft.frequency === 'weekly' || draft.frequency === 'yearly') titlePrefix = 'ประจำ · ';
     else if (draft.frequency === 'installment') titlePrefix = 'ผ่อน · ';
   }
-  const displayDate = draft.frequency === 'past' ? draft.first_due : draft.date;
-
   el.innerHTML = `
     <div class="add-topbar">
       <button class="add-close" data-action="close" aria-label="ปิด">
@@ -175,8 +176,6 @@ function render() {
         บันทึก
       </button>
     </div>
-
-    <div class="add-date">— ${formatLongDate(displayDate)} —</div>
 
     <div class="add-segmented">
       <div class="seg-item ${draft.type === 'expense' ? 'active' : ''}" data-type="expense">รายจ่าย</div>
@@ -202,7 +201,7 @@ function render() {
 
     <div class="add-amount">
       <div class="add-amount-label">ใส่จำนวน</div>
-      <div class="add-amount-row">
+      <div class="add-amount-row" data-action="show-keypad">
         <div class="voice-btn-spacer"></div>
         <div class="add-amount-value" data-type="${draft.type}">
           <span class="num">${escapeHtml(amountDisplay)}</span>
@@ -256,14 +255,19 @@ function render() {
       </div>
     </div>
 
-    <!-- Custom keypad -->
-    <div class="keypad">
+    <!-- Custom keypad (hidden until user taps amount) -->
+    <div class="keypad keypad--hidden">
       ${renderKey('1')}${renderKey('2')}${renderKey('3')}${renderKey('+', 'op')}
       ${renderKey('4')}${renderKey('5')}${renderKey('6')}${renderKey('-', 'op')}
       ${renderKey('7')}${renderKey('8')}${renderKey('9')}${renderKey('×', 'op', '*')}
       ${renderKey('.')}${renderKey('0')}${renderKeyDel()}${renderKey('=', 'op', '=')}
     </div>
   `;
+
+  // restore keypad visibility หลัง re-render
+  if (keypadVisible) {
+    el.querySelector('.keypad')?.classList.remove('keypad--hidden');
+  }
 
   bindEvents();
 }
@@ -420,6 +424,11 @@ function bindEvents() {
   // Note
   el.querySelector('[data-field="note"]')?.addEventListener('input', (e) => {
     draft.note = e.target.value;
+  });
+
+  // แสดง keypad เมื่อ tap ที่ amount row
+  el.querySelector('[data-action="show-keypad"]')?.addEventListener('click', () => {
+    el.querySelector('.keypad')?.classList.remove('keypad--hidden');
   });
 
   // Keypad
