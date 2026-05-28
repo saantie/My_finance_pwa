@@ -79,16 +79,16 @@ function renderScreen1(container, onNext) {
       ${svgIcon('shield', { size: 44, stroke: 1.8 })}
     </div>
 
-    <h1 style="${H1}">ข้อมูลทั้งหมด<br>อยู่ในเครื่องนี้</h1>
-    <p style="${SUB}">ไม่มี server · ไม่มีโฆษณา<br>ไม่เก็บข้อมูลของคุณ</p>
+    <h1 style="${H1}">ข้อมูลของคุณ<br>อยู่ในเครื่องเท่านั้น</h1>
+    <p style="${SUB}">ไม่มีเซิร์ฟเวอร์ ไม่มีโฆษณา<br>ไม่มีใครเห็นข้อมูลการเงินของคุณ</p>
 
     <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;margin-bottom:36px;">
-      ${privacyRow('shield', 'PDF ประมวลผลในเครื่อง', 'ไม่ส่งข้อมูลออกนอก browser')}
-      ${privacyRow('check',  'เก็บใน localStorage', 'ไม่มีบัญชี · ไม่ต้องสมัคร')}
-      ${privacyRow('close',  'ไม่มี analytics ติดตาม', 'พฤติกรรมการเงินเป็นของคุณ')}
+      ${privacyRow('shield', 'อ่าน PDF ในเครื่องทั้งหมด', 'ไม่มีการส่งข้อมูลออกไปที่ไหน')}
+      ${privacyRow('check',  'ไม่ต้องสมัครสมาชิก', 'เปิดใช้ได้ทันที ไม่มีเงื่อนไข')}
+      ${privacyRow('close',  'ไม่มีการติดตามพฤติกรรม', 'ข้อมูลการเงินคือเรื่องส่วนตัว')}
     </div>
 
-    <button id="ob-next-1" style="${BTN_PRIMARY}">เริ่มต้นใช้งาน →</button>
+    <button id="ob-next-1" style="${BTN_PRIMARY}">เริ่มใช้งาน →</button>
   `);
   container.querySelector('#ob-next-1').addEventListener('click', onNext);
 }
@@ -125,8 +125,8 @@ function renderScreen2(container, onImported, onSkip) {
       ${svgIcon('pdf', { size: 44, stroke: 1.5 })}
     </div>
 
-    <h1 style="${H1}">นำเข้า e-Statement<br>จากธนาคาร</h1>
-    <p style="${SUB}">ดาวน์โหลด PDF จากแอปธนาคาร<br>แล้วอัปโหลดที่นี่ — ระบบจัดการให้ทุกอย่าง</p>
+    <h1 style="${H1}">นำเข้าสเตทเมนต์<br>จากธนาคาร</h1>
+    <p style="${SUB}">ดาวน์โหลด PDF จากแอปธนาคาร<br>แล้วเลือกไฟล์ที่นี่ — ระบบอ่านและจัดหมวดหมู่ให้เลย</p>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px;">
       ${['กรุงไทย','กสิกร','ไทยพาณิชย์','กรุงเทพ','กรุงศรี'].map(b => `
@@ -151,7 +151,7 @@ function renderScreen2(container, onImported, onSkip) {
     <button id="ob-skip-btn" style="background:none;border:none;
       color:var(--ink-faint,#718096);font-size:14px;font-family:inherit;
       cursor:pointer;padding:8px 16px;text-decoration:underline;text-underline-offset:3px;">
-      ข้ามก่อน บันทึกเอง →
+      ข้ามก่อน บันทึกด้วยตัวเอง →
     </button>
   `);
 
@@ -307,17 +307,17 @@ function renderSkipNotice(container, onFinish) {
       ${svgIcon('alert', { size: 44, stroke: 1.8 })}
     </div>
 
-    <h1 style="${H1};font-size:22px;">ข้อมูลที่เห็นในแอป<br>เป็นข้อมูลสมมุติ</h1>
-    <p style="${SUB}">ระบบสร้างตัวอย่างให้ดูก่อน<br>เพื่อให้เห็นว่าแอปทำงานอย่างไร</p>
+    <h1 style="${H1};font-size:22px;">ตอนนี้จะเห็น<br>ข้อมูลตัวอย่างก่อน</h1>
+    <p style="${SUB}">ระบบสร้างข้อมูลสมมติให้ดูก่อน<br>เพื่อให้เห็นว่าแอปใช้งานอย่างไร</p>
 
     <!-- What to do next -->
     <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;margin-bottom:32px;">
-      ${nextStep('pdf',    'นำเข้า PDF จากธนาคาร',   'เมนู นำเข้า ที่แถบด้านล่าง')}
-      ${nextStep('plus',   'บันทึกรายการด้วยตนเอง',  'กดปุ่ม + ตรงกลาง')}
-      ${nextStep('upload', 'กู้คืนข้อมูลจากไฟล์',    'ตั้งค่า → ข้อมูล → กู้คืน')}
+      ${nextStep('pdf',    'นำเข้า PDF จากธนาคาร',   'แตะเมนู "นำเข้า" ที่แถบด้านล่าง')}
+      ${nextStep('mic',    'บันทึกรายการ',             'กดปุ่ม + หรือพูดบอกด้วยเสียงได้เลย')}
+      ${nextStep('upload', 'กู้คืนข้อมูลเดิม',        'ตั้งค่า → ข้อมูล → กู้คืนจากไฟล์')}
     </div>
 
-    <button id="ob-skip-done" style="${BTN_PRIMARY}">เข้าใจแล้ว เริ่มต้น →</button>
+    <button id="ob-skip-done" style="${BTN_PRIMARY}">เข้าใจแล้ว ไปเริ่มเลย →</button>
   `);
   container.querySelector('#ob-skip-done').addEventListener('click', onFinish);
 }
@@ -384,15 +384,15 @@ function renderScreen3(container, importedCount, onNext) {
         <div style="font-size:18px;margin-bottom:8px;">🎉</div>
         <div style="font-size:17px;font-weight:700;color:var(--ink,#2d3748);margin-bottom:6px;">พร้อมแล้ว!</div>
         <div style="font-size:14px;color:var(--ink-faint,#718096);line-height:1.5;">
-          กดปุ่ม + เพื่อบันทึกรายการแรก<br>หรือ นำเข้า PDF จากธนาคาร
+          กดปุ่ม + หรือพูดบอกด้วยเสียง<br>เพื่อบันทึกรายการแรก
         </div>
       `}
     </div>
 
-    <h2 style="${H1};font-size:22px;margin-bottom:8px;">${hasData ? 'เห็นแล้วใช่ไหม?' : 'เริ่มต้นได้เลย'}</h2>
+    <h2 style="${H1};font-size:22px;margin-bottom:8px;">${hasData ? 'เห็นภาพรวมแล้วใช่ไหม?' : 'เริ่มต้นได้เลย'}</h2>
     <p style="${SUB};margin-bottom:32px;">${hasData
-      ? 'ข้อมูลทั้งหมดอยู่ในเครื่องของคุณ<br>ปลอดภัย · ใช้ได้ออฟไลน์'
-      : 'บันทึกรายการแรกได้เลย<br>ไม่ต้องสมัคร · ใช้ได้ทันที'
+      ? 'ข้อมูลทั้งหมดอยู่ในเครื่องของคุณ<br>ปลอดภัย ใช้ได้แม้ไม่มีสัญญาณ'
+      : 'บันทึกรายการแรกได้เลย<br>ไม่ต้องสมัคร ใช้ได้ทันที'
     }</p>
 
     <button id="ob-next-3" style="${BTN_PRIMARY}">ต่อไป →</button>
@@ -412,8 +412,8 @@ function renderScreen4(container, onFinish) {
       ${svgIcon('cash', { size: 44, stroke: 1.8 })}
     </div>
 
-    <h1 style="${H1}">เงินสดในมือ<br>มีเท่าไหร่?</h1>
-    <p style="${SUB}">ช่วยให้ยอดเงินสดใน dashboard<br>ถูกต้องตั้งแต่วันแรก</p>
+    <h1 style="${H1}">ตอนนี้มี<br>เงินสดในมือเท่าไหร่?</h1>
+    <p style="${SUB}">ช่วยให้ยอดเงินสดบนหน้าหลัก<br>แสดงผลถูกต้องตั้งแต่วันนี้</p>
 
     <!-- Input row -->
     <div style="display:flex;align-items:center;gap:0;width:100%;max-width:320px;
@@ -432,7 +432,7 @@ function renderScreen4(container, onFinish) {
     <button id="ob-cash-skip" style="background:none;border:none;
       color:var(--ink-faint,#718096);font-size:14px;font-family:inherit;
       cursor:pointer;padding:8px 16px;text-decoration:underline;text-underline-offset:3px;">
-      ข้ามก่อน ตั้งทีหลัง
+      ข้ามก่อน ตั้งค่าทีหลัง
     </button>
   `);
 
