@@ -309,9 +309,10 @@ function _startTour() {
       /* อยู่ใน viewport แล้ว (fixed / บนสุดของหน้า) — rAF เพื่อให้ browser commit layout ก่อนวัด */
       requestAnimationFrame(() => _doSpotlight(i, el));
     } else {
-      /* อยู่นอก viewport — scroll เข้ากลางหน้าจอ รอ animation เสร็จ 500ms */
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => _doSpotlight(i, el), 500);
+      /* อยู่นอก viewport — instant scroll (ไม่มี animation → deterministic)
+         double-rAF รอ browser commit layout 2 รอบก่อนวัด */
+      el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      requestAnimationFrame(() => requestAnimationFrame(() => _doSpotlight(i, el)));
     }
   }
 
