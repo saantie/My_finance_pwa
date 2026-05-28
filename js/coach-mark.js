@@ -36,13 +36,6 @@ const STEPS = [
     body: 'กด + เพื่อบันทึก — พิมพ์ตัวเลข พูดด้วยเสียง หรือตั้งรายการประจำได้เลย',
     shape: 'circle',
   },
-  {
-    selector: '.nav-item[data-view="import"]',
-    title: 'นำเข้า PDF',
-    body: 'อัปโหลด e-Statement จากธนาคาร — ระบบอ่านทุกรายการให้อัตโนมัติ ไม่ต้องพิมพ์เอง',
-    shape: 'rect',
-  },
-
   // ── List (บันทึก) — navigate ก่อน ───────────────────────────
   {
     navigate: 'list',
