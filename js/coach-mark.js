@@ -87,6 +87,15 @@ const STEPS = [
     body: 'ดูยอดคงเหลือแต่ละบัญชีได้ที่นี่ — กด "จัดการ" เพื่อเพิ่ม แก้ไข หรือตั้งชื่อบัญชีได้เลย',
     shape: 'rect',
   },
+
+  // ── Import (จบ tour ที่หน้านี้) ──────────────────────────────
+  {
+    navigate: 'import',
+    selector: '.import-tile.pdf',
+    title: 'นำเข้า e-Statement',
+    body: 'กด เลือกไฟล์ แล้วเลือก PDF จากแอปธนาคาร — ระบบอ่านรายการและบันทึกให้อัตโนมัติ ไม่ต้องพิมพ์เอง',
+    shape: 'rect',
+  },
 ];
 
 
@@ -252,13 +261,8 @@ function _startTour() {
   function done() {
     localStorage.setItem(DONE_KEY, '1');
     overlay.style.opacity = '0';
-    setTimeout(() => {
-      overlay.remove();
-      // กลับ dashboard หลังจบ tour (ถ้าออกไปหน้าอื่น)
-      if (curView !== 'dashboard') {
-        document.querySelector('.nav-item[data-view="dashboard"]')?.click();
-      }
-    }, 260);
+    setTimeout(() => { overlay.remove(); }, 260);
+    // ไม่ navigate กลับ — จบที่หน้าใดก็อยู่ที่นั่น (step สุดท้ายคือหน้า import)
   }
 
   skipBtn.addEventListener('click', (e) => { e.stopPropagation(); done(); });
@@ -311,14 +315,6 @@ function _startTour() {
       return;
     }
 
-    /* Step 0 (hero-card): scroll page ไปบนสุดก่อนเสมอ
-       ป้องกัน hero-card ถูกเลื่อนออกจากตำแหน่งธรรมชาติ */
-    if (i === 0) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
-      requestAnimationFrame(() => requestAnimationFrame(() => _doSpotlight(i, el)));
-      return;
-    }
-
     const rect   = el.getBoundingClientRect();
     const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
 
@@ -337,7 +333,10 @@ function _startTour() {
     const s    = STEPS[i];
     const rect = el.getBoundingClientRect();
     const navH   = document.querySelector('.bottom-nav')?.offsetHeight ?? 68;
-    const safeVH = window.innerHeight - navH;   // พื้นที่ใช้งานได้เหนือ bottom nav
+    /* visualViewport.height = ความสูงที่มองเห็นจริง หักแล้วทั้ง browser toolbar iOS/Android
+       window.innerHeight อาจใหญ่กว่าจริงบน iOS Safari ทำให้ tooltip ถูก toolbar บัง */
+    const vpH    = window.visualViewport?.height ?? window.innerHeight;
+    const safeVH = vpH - navH;
 
     /* spotlight position */
     const sTop    = rect.top    - PAD;
