@@ -375,7 +375,7 @@ export function renderDashboard(container) {
     ${renderUpcomingSection()}
 
     <!-- Accounts — แสดงเฉพาะที่มียอดไม่ใช่ศูนย์ หรือมาจาก PDF (มี bank) หรือ user rename แล้ว -->
-    <div class="section">
+    <div class="section" id="dash-accounts-sect">
       <div class="section-head">
         <h2 class="section-title">บัญชีของฉัน</h2>
         <a class="section-action" data-action="manage-accounts">จัดการ</a>

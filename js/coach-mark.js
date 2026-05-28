@@ -78,6 +78,15 @@ const STEPS = [
     body: 'เพิ่มบัญชีธนาคาร กระเป๋าเงิน หรือบัตรเครดิตด้วยตนเอง — หรือให้ระบบสร้างอัตโนมัติเมื่อนำเข้า PDF',
     shape: 'rect',
   },
+
+  // ── Dashboard (กลับมา) ───────────────────────────────────────
+  {
+    navigate: 'dashboard',
+    selector: '#dash-accounts-sect',
+    title: 'บัญชีของฉัน',
+    body: 'ดูยอดคงเหลือแต่ละบัญชีได้ที่นี่ — กด "จัดการ" เพื่อเพิ่ม แก้ไข หรือตั้งชื่อบัญชีได้เลย',
+    shape: 'rect',
+  },
 ];
 
 
@@ -299,6 +308,14 @@ function _startTour() {
       } else {
         done();
       }
+      return;
+    }
+
+    /* Step 0 (hero-card): scroll page ไปบนสุดก่อนเสมอ
+       ป้องกัน hero-card ถูกเลื่อนออกจากตำแหน่งธรรมชาติ */
+    if (i === 0) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      requestAnimationFrame(() => requestAnimationFrame(() => _doSpotlight(i, el)));
       return;
     }
 
