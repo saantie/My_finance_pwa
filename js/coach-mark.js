@@ -409,13 +409,17 @@ function _startTour() {
         /* ไม่พอใต้ แต่พอเหนือ → วางเหนือ */
         top = sTop - th - gap;
       } else {
-        /* พื้นที่แคบทั้งสองฝั่ง → วางใต้ แล้วเลื่อนหน้าจออีกครั้ง */
+        /* พื้นที่แคบทั้งสองฝั่ง (เช่น hero-card ใหญ่บน screen เล็ก)
+           วางใต้ แต่ไม่ scroll page — clamp ด้านล่างจะดึงขึ้นมาให้ */
         top = sTop + sHeight + gap;
-        const overflow = (top + th) - (safeVH - 8);
-        if (overflow > 0) window.scrollTo(0, window.scrollY + overflow);
       }
 
-      tooltip.style.top     = `${Math.max(56, top)}px`;
+      /* Hard clamp ทุก path: ห้าม button "ถัดไป" ล้นเกิน safeVH
+         (กันกรณี hero-card+tooltip ใหญ่กว่าพื้นที่ว่างบน screen เล็ก) */
+      top = Math.min(top, safeVH - th - 8);
+      top = Math.max(56, top);   // ห้ามขึ้นบัง status bar
+
+      tooltip.style.top     = `${top}px`;
       tooltip.style.opacity = '1';
     });
 
