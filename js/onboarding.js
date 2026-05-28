@@ -36,8 +36,8 @@ export function showOnboarding(onComplete) {
   overlay.innerHTML = `
     <div style="
       flex:1;display:flex;flex-direction:column;align-items:center;
-      padding:52px 26px 44px;width:100%;max-width:480px;
-      margin:0 auto;box-sizing:border-box;
+      padding:52px 26px calc(env(safe-area-inset-bottom, 0px) + 64px);
+      width:100%;max-width:480px;margin:0 auto;box-sizing:border-box;
     ">
 
       <!-- App icon -->
@@ -55,13 +55,13 @@ export function showOnboarding(onComplete) {
       <p style="
         font-size:14px;color:var(--ink-faint,#718096);
         margin:0 0 30px;line-height:1.6;text-align:center;
-      ">แก้ปัญหาที่แอปอื่นทำไม่ได้</p>
+      ">ช่วยให้การจดรายรับรายจ่ายเป็นเรื่องง่าย</p>
 
       <!-- Feature rows -->
       <div style="width:100%;display:flex;flex-direction:column;gap:9px;margin-bottom:32px;">
 
         ${row('pdf',
-          'นำเข้า PDF จากธนาคารได้เลย',
+          'นำเข้า e-Statement จากธนาคารได้เลย',
           'อ่านทุกรายการทั้งเดือนอัตโนมัติ — ไม่ต้องพิมพ์เอง',
           '#e88e3c')}
 
@@ -71,18 +71,18 @@ export function showOnboarding(onComplete) {
           '#5e9bd6')}
 
         ${row('shield',
-          'ข้อมูลอยู่ในเครื่องเท่านั้น',
-          'ไม่มีเซิร์ฟเวอร์ ไม่มีโฆษณา ไม่มีใครเห็น',
+          'ข้อมูลอยู่ในอุปกรณ์ของคุณ',
+          'ข้อมูลไม่ขึ้นเซิร์ฟเวอร์ หากไม่เลือกแชร์บัญชีกับครอบครัว',
           '#5a9d63')}
 
-        ${row('check',
-          'ฟรีทุก feature ไม่มี paywall',
-          'ไม่มี subscription ใช้ได้ครบโดยไม่มีเงื่อนไข',
+        ${row('users',
+          'แชร์บัญชีกับครอบครัวหรือหวานใจ',
+          'เลือกแชร์บัญชีออมหรือบัญชีไหนก็ได้กับผู้ใช้คนอื่น',
           '#8b6db5')}
 
         ${row('upload',
           'สำรองและกู้คืนข้อมูลได้เอง',
-          'บันทึกลงไฟล์หรือ Google Drive ได้ทุกเมื่อ',
+          'จะเลือกบันทึกในอุปกรณ์หรือ Google Drive ก็ได้',
           '#c89368')}
 
       </div>
