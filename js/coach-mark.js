@@ -302,9 +302,17 @@ function _startTour() {
       return;
     }
 
-    /* smooth scroll กลางหน้าจอ → รอ 500ms ให้ animation จบก่อนวัดตำแหน่ง */
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => _doSpotlight(i, el), 500);
+    const rect   = el.getBoundingClientRect();
+    const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+
+    if (inView) {
+      /* อยู่ใน viewport แล้ว (fixed / บนสุดของหน้า) — rAF เพื่อให้ browser commit layout ก่อนวัด */
+      requestAnimationFrame(() => _doSpotlight(i, el));
+    } else {
+      /* อยู่นอก viewport — scroll เข้ากลางหน้าจอ รอ animation เสร็จ 500ms */
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => _doSpotlight(i, el), 500);
+    }
   }
 
   function _doSpotlight(i, el) {
