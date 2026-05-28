@@ -1253,9 +1253,20 @@ export function renderList(container) {
 
   const carry = State.getMonthSummaryWithCarry(listState.month);
 
+  // ยอดรวมแต่ละประเภทของเดือนที่เลือก (ไม่กรองตาม search/filter ปัจจุบัน)
+  const _mTxs       = State.getTransactions().filter(t => t.deleted_by == null && t.date?.startsWith(listState.month));
+  const _totExp      = _mTxs.filter(t => t.type === 'expense' ).reduce((s,t) => s + t.amount, 0);
+  const _totInc      = _mTxs.filter(t => t.type === 'income'  ).reduce((s,t) => s + t.amount, 0);
+  const _totTrf      = _mTxs.filter(t => t.type === 'transfer').reduce((s,t) => s + t.amount, 0);
+  const _netAll      = _totInc - _totExp;
+  const _fmt = (n) => n > 0 ? `${formatBaht(n)} ฿` : '—';
+  const _netFmt = _netAll === 0 ? '—'
+    : `${_netAll > 0 ? '+' : '−'}${formatBaht(Math.abs(_netAll))} ฿`;
+  const _netCls = _netAll > 0 ? 'pos' : _netAll < 0 ? 'neg' : '';
+
   container.innerHTML = `
     <div class="app-bar">
-      <h1 class="title">บันทึกทั้งหมด</h1>
+      <h1 class="title">ที่จดไว้</h1>
     </div>
 
     <div class="month-nav">
@@ -1266,14 +1277,26 @@ export function renderList(container) {
 
     <div class="search-bar">
       ${svgIcon('search', { size: 16, stroke: 2 })}
-      <input id="search-input" type="text" placeholder="ค้นหาบันทึก..." value="${escapeHtml(listState.search)}">
+      <input id="search-input" type="text" placeholder="ค้นหา..." value="${escapeHtml(listState.search)}">
     </div>
 
     <div class="filter-chips">
-      <button class="chip ${listState.filter === 'all' ? 'active' : ''}" data-filter="all">ทั้งหมด</button>
-      <button class="chip ${listState.filter === 'expense' ? 'active' : ''}" data-filter="expense">รายจ่าย</button>
-      <button class="chip ${listState.filter === 'income' ? 'active' : ''}" data-filter="income">รายรับ</button>
-      <button class="chip ${listState.filter === 'transfer' ? 'active' : ''}" data-filter="transfer">โอน</button>
+      <button class="chip ${listState.filter === 'all' ? 'active' : ''}" data-filter="all">
+        <span class="chip-label">ทั้งหมด</span>
+        <span class="chip-amt ${_netCls}">${_netFmt}</span>
+      </button>
+      <button class="chip ${listState.filter === 'expense' ? 'active' : ''}" data-filter="expense">
+        <span class="chip-label">รายจ่าย</span>
+        <span class="chip-amt exp">${_fmt(_totExp)}</span>
+      </button>
+      <button class="chip ${listState.filter === 'income' ? 'active' : ''}" data-filter="income">
+        <span class="chip-label">รายรับ</span>
+        <span class="chip-amt inc">${_fmt(_totInc)}</span>
+      </button>
+      <button class="chip ${listState.filter === 'transfer' ? 'active' : ''}" data-filter="transfer">
+        <span class="chip-label">โอน</span>
+        <span class="chip-amt trf">${_fmt(_totTrf)}</span>
+      </button>
     </div>
 
     <div class="month-carry-header">

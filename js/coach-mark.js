@@ -17,7 +17,7 @@ const PAD      = 10;   // padding รอบ spotlight (px)
 /* ─── Page names ────────────────────────────────────────────────── */
 const PAGE_NAMES = {
   dashboard: '🏠 หน้าหลัก',
-  list:      '📋 หน้าบันทึก',
+  list:      '📋 ที่จดไว้',
   settings:  '⚙️ หน้าตั้งค่า',
 };
 

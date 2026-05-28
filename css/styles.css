@@ -1663,28 +1663,49 @@ html, body {
 .filter-chips {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
   padding: 0 0 14px;
-  margin: 0 -20px;
-  padding-left: 20px;
-  padding-right: 20px;
-  scrollbar-width: none;
 }
-.filter-chips::-webkit-scrollbar { display: none; }
 .chip {
-  flex-shrink: 0;
-  padding: 6px 12px;
-  border-radius: 999px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 12px;
   background: var(--card);
   border: 1.5px solid var(--rule);
-  font-size: 12px;
+  min-width: 0;
+  cursor: pointer;
   color: var(--ink-soft);
 }
+.chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1;
+}
+.chip-amt {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1;
+  color: var(--ink-faint);
+}
+/* สียอดตาม type */
+.chip-amt.exp { color: var(--expense); }
+.chip-amt.inc { color: var(--income); }
+.chip-amt.trf { color: var(--transfer, #5e9bd6); }
+.chip-amt.pos { color: var(--income); }
+.chip-amt.neg { color: var(--expense); }
 .chip.active {
   background: var(--ink);
   color: white;
   border-color: var(--ink);
 }
+.chip.active .chip-label { color: white; }
+.chip.active .chip-amt   { color: rgba(255,255,255,0.7); }
 
 .month-carry-header {
   display: flex;
@@ -3510,11 +3531,14 @@ html[data-dark="1"] .chip {
   border-color: var(--rule);
   color: var(--ink-soft);
 }
+html[data-dark="1"] .chip-amt { color: var(--ink-faint); }
 html[data-dark="1"] .chip.active {
   background: var(--terracotta);
   color: white;
   border-color: var(--terracotta);
 }
+html[data-dark="1"] .chip.active .chip-label { color: white; }
+html[data-dark="1"] .chip.active .chip-amt   { color: rgba(255,255,255,0.7); }
 
 
 /* ===================================================================
