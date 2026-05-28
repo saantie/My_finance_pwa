@@ -281,16 +281,6 @@ function _startTour() {
     }
   }
 
-  /* ── scroll element ให้อยู่กลาง viewport จริง (เหนือ bottom nav) ── */
-  function _scrollToCenter(el) {
-    const navH   = document.querySelector('.bottom-nav')?.offsetHeight ?? 68;
-    const usable = window.innerHeight - navH;
-    const rect   = el.getBoundingClientRect();
-    const docTop = rect.top + window.scrollY;
-    const target = Math.max(0, docTop + rect.height / 2 - usable / 2);
-    window.scrollTo(0, target);   // instant — ไม่มี animation ดังนั้น BoundingClientRect ถูกต้องทันที
-  }
-
   /* ── render one step ────────────────────────────────────────── */
   function renderStep(i) {
     const s  = STEPS[i];
@@ -312,9 +302,9 @@ function _startTour() {
       return;
     }
 
-    /* Instant scroll → position ถูกต้องทันที ไม่ต้องรอ animation */
-    _scrollToCenter(el);
-    requestAnimationFrame(() => _doSpotlight(i, el));
+    /* smooth scroll กลางหน้าจอ → รอ 500ms ให้ animation จบก่อนวัดตำแหน่ง */
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => _doSpotlight(i, el), 500);
   }
 
   function _doSpotlight(i, el) {
