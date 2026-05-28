@@ -281,6 +281,16 @@ function _startTour() {
     }
   }
 
+  /* ── scroll element ให้อยู่กลาง viewport จริง (เหนือ bottom nav) ── */
+  function _scrollToCenter(el) {
+    const navH   = document.querySelector('.bottom-nav')?.offsetHeight ?? 68;
+    const usable = window.innerHeight - navH;
+    const rect   = el.getBoundingClientRect();
+    const docTop = rect.top + window.scrollY;
+    const target = Math.max(0, docTop + rect.height / 2 - usable / 2);
+    window.scrollTo(0, target);   // instant — ไม่มี animation ดังนั้น BoundingClientRect ถูกต้องทันที
+  }
+
   /* ── render one step ────────────────────────────────────────── */
   function renderStep(i) {
     const s  = STEPS[i];
@@ -292,7 +302,7 @@ function _startTour() {
       if (stepIndex < STEPS.length) {
         const nx = STEPS[stepIndex];
         if (nx.navigate && nx.navigate !== curView) {
-          advance(); // re-use navigate logic
+          advance();
         } else {
           renderStep(stepIndex);
         }
@@ -302,15 +312,16 @@ function _startTour() {
       return;
     }
 
-    /* เลื่อนให้ element อยู่กลางหน้าจอเสมอ — รอ smooth scroll เสร็จก่อน spotlight */
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => _doSpotlight(i, el), 450);
+    /* Instant scroll → position ถูกต้องทันที ไม่ต้องรอ animation */
+    _scrollToCenter(el);
+    requestAnimationFrame(() => _doSpotlight(i, el));
   }
 
   function _doSpotlight(i, el) {
     const s    = STEPS[i];
     const rect = el.getBoundingClientRect();
-    const vh   = window.innerHeight;
+    const navH   = document.querySelector('.bottom-nav')?.offsetHeight ?? 68;
+    const safeVH = window.innerHeight - navH;   // พื้นที่ใช้งานได้เหนือ bottom nav
 
     /* spotlight position */
     const sTop    = rect.top    - PAD;
@@ -330,18 +341,6 @@ function _startTour() {
     /* page pill label */
     pagePill.textContent = PAGE_NAMES[curView] || '';
 
-    /* tooltip — วางเหนือหรือใต้ spotlight */
-    const aboveSpace = sTop - PAD - 16;
-    const belowSpace = vh - (sTop + sHeight + PAD + 16);
-    const placeAbove = aboveSpace > 160 || belowSpace < 160;
-    const tooltipEstH = 155;
-    const tooltipTop  = placeAbove
-      ? Math.max(60, sTop - tooltipEstH - 16)
-      : sTop + sHeight + 16;
-
-    tooltip.style.top     = `${tooltipTop}px`;
-    tooltip.style.opacity = '0';
-
     /* progress dots */
     const dotsHtml = STEPS.map((_, j) => `
       <div style="
@@ -353,6 +352,9 @@ function _startTour() {
 
     const isLast = i === STEPS.length - 1;
 
+    /* render tooltip นอกหน้าจอก่อน เพื่อวัดความสูงจริง */
+    tooltip.style.opacity = '0';
+    tooltip.style.top     = '-9999px';
     tooltip.innerHTML = `
       <div style="
         font-size:18px;font-weight:700;color:#fff;
@@ -377,9 +379,29 @@ function _startTour() {
       </div>
     `;
 
-    /* fade tooltip in หลัง spotlight animate ก่อน */
+    /* วัดความสูง tooltip จริง แล้ววางตำแหน่งที่ไม่บัง spotlight */
     requestAnimationFrame(() => {
-      setTimeout(() => { tooltip.style.opacity = '1'; }, 80);
+      const th         = tooltip.offsetHeight;
+      const gap        = 16;
+      const spaceBelow = safeVH - (sTop + sHeight + PAD) - gap;
+      const spaceAbove = sTop - PAD - gap;
+
+      let top;
+      if (spaceBelow >= th) {
+        /* พื้นที่ใต้ spotlight พอ → วางใต้ */
+        top = sTop + sHeight + gap;
+      } else if (spaceAbove >= th) {
+        /* ไม่พอใต้ แต่พอเหนือ → วางเหนือ */
+        top = sTop - th - gap;
+      } else {
+        /* พื้นที่แคบทั้งสองฝั่ง → วางใต้ แล้วเลื่อนหน้าจออีกครั้ง */
+        top = sTop + sHeight + gap;
+        const overflow = (top + th) - (safeVH - 8);
+        if (overflow > 0) window.scrollTo(0, window.scrollY + overflow);
+      }
+
+      tooltip.style.top     = `${Math.max(56, top)}px`;
+      tooltip.style.opacity = '1';
     });
 
     tooltip.querySelector('#cm-next').addEventListener('click', (e) => {
