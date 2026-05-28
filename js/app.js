@@ -17,6 +17,7 @@ import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 import { checkReminders } from './reminders.js';
+import { checkCatchupOpportunity } from './catchup.js';
 
 
 /* === Globals ==================================================== */
@@ -389,8 +390,12 @@ function init() {
   // 7. PWA service worker
   registerSW();
 
-  // 8. Smart reminders (gentle) — หน่วง 1.5 วิหลัง app load เพื่อไม่บัง first paint
-  setTimeout(() => checkReminders(showToast), 1500);
+  // 8. Smart reminders — mutual exclusion กับ catchup banner
+  //    ถ้า catchup แสดงอยู่ → งด reminders วันนั้น (ไม่ซ้อน interruption)
+  setTimeout(() => {
+    const hasCatchup = !!checkCatchupOpportunity();
+    checkReminders(showToast, hasCatchup);
+  }, 1500);
 
   console.log('[diary] app ready', {
     transactions: State.getTransactions().length,

@@ -2,12 +2,14 @@
    reminders.js — Smart reminders (gentle, once-per-day)
    ===================================================================
    เรียกจาก app.js ตอน startup — แสดง toast ครั้งเดียวต่อวัน
-   ไม่ตัดสินผู้ใช้, แค่บอกข้อมูลที่เป็นประโยชน์
 
-   Check 3 เรื่อง:
-   1. Recurring templates ที่ครบกำหนดวันนี้
-   2. บัญชีที่ยอดต่ำกว่าเกณฑ์
-   3. Weekly digest (วันจันทร์)
+   Priority queue (สูง → ต่ำ):
+   1. รายการประจำครบกำหนด (สรุปรวม 1 toast แม้มีหลายตัว)
+   2. ยอดใกล้เกณฑ์ต่ำสุด
+   3. สรุปประจำสัปดาห์ (วันจันทร์เท่านั้น)
+
+   cap: แสดงสูงสุด 2 toasts ต่อวัน
+   mutual exclusion: ถ้ามี catchup banner → skip (ส่ง hasCatchup=true)
    =================================================================== */
 
 import { todayISO, formatBaht } from './utils.js';
@@ -17,48 +19,61 @@ import * as Recurring from './recurring.js';
 
 /**
  * ตรวจ + แสดง reminders ที่เหมาะสมสำหรับวันนี้
- * @param {Function} showToast — รับ message string (inject จาก app.js หลีกเลี่ยง circular import)
+ * @param {Function} showToast  — inject จาก app.js
+ * @param {boolean}  hasCatchup — true = มี catchup banner แสดงอยู่ → skip reminder วันนี้
  */
-export function checkReminders(showToast) {
+export function checkReminders(showToast, hasCatchup = false) {
   const today = todayISO();
 
   // ไม่แสดงซ้ำวันเดียวกัน
-  const shownDate = localStorage.getItem('reminder_shown_date');
-  if (shownDate === today) return;
+  if (localStorage.getItem('reminder_shown_date') === today) return;
 
+  // mutual exclusion — catchup banner แสดงอยู่ → งดวันนี้
+  if (hasCatchup) return;
+
+  const settings = State.getSettings();
   const toasts = [];
 
-  // --- 1. Recurring due today -------------------------------------------
-  // ใช้ next_due จาก template ตรงๆ — runScheduler วิ่งก่อนแล้ว
-  Recurring.getActiveTemplates()
-    .filter(t => t.next_due === today)
-    .forEach(t => {
+  // --- 1. Recurring due today (cap = 1 toast รวม) ------------------
+  if (settings.notify_recurring !== false) {
+    const dueToday = Recurring.getActiveTemplates()
+      .filter(t => t.next_due === today);
+
+    if (dueToday.length === 1) {
+      const t = dueToday[0];
       toasts.push(`📅 ${t.description} ครบกำหนดวันนี้ — ${formatBaht(t.amount)} ฿`);
-    });
+    } else if (dueToday.length > 1) {
+      // รวมเป็น toast เดียว ไม่ spam หลายอัน
+      const total = dueToday.reduce((s, t) => s + t.amount, 0);
+      toasts.push(`📅 มี ${dueToday.length} รายการประจำครบกำหนดวันนี้ — รวม ${formatBaht(total)} ฿`);
+    }
+  }
 
-  // --- 2. Min balance warning -------------------------------------------
-  // ใช้ computeAccountBalance (ยอดจริงจาก transactions) แทน a.current_balance
-  // ใช้ per-account threshold ถ้ามี มิฉะนั้น fallback เป็น global threshold
-  const globalThreshold = State.getSettings().threshold_satang;
+  // --- 2. Min balance warning (1 toast รวม ถ้ามีหลายบัญชี) ---------
+  if (settings.notify_low_balance !== false) {
+    const globalThreshold = settings.threshold_satang;
 
-  State.getAccounts()
-    .filter(a => {
-      // ข้ามบัญชีที่ไม่มีกิจกรรมเลย (default placeholder)
+    const lowAccounts = State.getAccounts().filter(a => {
       const bal = a.type === 'cash'
         ? State.getEffectiveCashBalance(a.id)
         : State.computeAccountBalance(a.id);
       const limit = (a.threshold && a.threshold > 0) ? a.threshold : globalThreshold;
       return bal < limit;
-    })
-    .forEach(a => {
+    });
+
+    if (lowAccounts.length === 1) {
+      const a = lowAccounts[0];
       const bal = a.type === 'cash'
         ? State.getEffectiveCashBalance(a.id)
         : State.computeAccountBalance(a.id);
       toasts.push(`⚠️ ${a.display_name} ยอดเหลือ ${formatBaht(bal)} ฿ — ใกล้เกณฑ์ต่ำสุด`);
-    });
+    } else if (lowAccounts.length > 1) {
+      toasts.push(`⚠️ ${lowAccounts.length} บัญชียอดใกล้เกณฑ์ต่ำสุด — ดูในแท็บ Dashboard`);
+    }
+  }
 
-  // --- 3. Weekly digest (วันจันทร์เท่านั้น) ----------------------------
-  if (new Date().getDay() === 1) {
+  // --- 3. Weekly digest (วันจันทร์เท่านั้น) -------------------------
+  if (settings.notify_weekly !== false && new Date().getDay() === 1) {
     const lastWeek = _getLastWeekSummary();
     if (lastWeek.count > 0) {
       toasts.push(
@@ -69,24 +84,21 @@ export function checkReminders(showToast) {
 
   if (toasts.length === 0) return;
 
-  // แสดง toast ทีละอัน — reminder มีตัวเลขให้อ่าน ใช้ 7 วิ, gap 3 วิ
-  const DURATION = 7000;   // ms ที่แสดงแต่ละ toast
-  const GAP      = 3000;   // ms ระหว่าง toast (ให้เวลาอ่านก่อนอันถัดมาขึ้น)
-  toasts.forEach((msg, i) => {
+  // cap: แสดงสูงสุด 2 toasts (priority อยู่ในลำดับ push ข้างต้น)
+  const queue = toasts.slice(0, 2);
+
+  const DURATION = 7000;
+  const GAP      = 3500;
+  queue.forEach((msg, i) => {
     setTimeout(() => showToast(msg, DURATION), i * GAP);
   });
 
-  // บันทึกวันที่แสดงแล้ว — ไม่แสดงซ้ำวันเดียวกัน
   localStorage.setItem('reminder_shown_date', today);
 }
 
 
 /* === Internal helpers ============================================ */
 
-/**
- * คำนวณสรุป 7 วันที่ผ่านมา (ไม่รวมวันนี้)
- * @returns {{ count: number, expense: number }}
- */
 function _getLastWeekSummary() {
   const today = new Date();
   const dates = new Set();

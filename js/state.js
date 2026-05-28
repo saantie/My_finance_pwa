@@ -65,7 +65,10 @@ const DEFAULT_STATE = {
     text_size: 'normal',         // 'normal' | 'large' | 'xlarge'
     language: 'th',
     display_name: '',            // ชื่อที่แสดงในบัญชีแชร์ (ไม่ใช่ชื่อ account)
-    last_drive_backup: null      // YYYY-MM-DD วันที่สำรอง Drive ล่าสุด
+    last_drive_backup: null,     // YYYY-MM-DD วันที่สำรอง Drive ล่าสุด
+    notify_recurring:  true,     // แจ้งเตือนรายการประจำครบกำหนด
+    notify_low_balance: true,    // แจ้งเตือนยอดใกล้เกณฑ์ต่ำสุด
+    notify_weekly:     true      // สรุปสัปดาห์ (วันจันทร์)
   },
   userProgress: { ...DEFAULT_USER_PROGRESS }
 };

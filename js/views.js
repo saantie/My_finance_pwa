@@ -2070,7 +2070,7 @@ export function renderSettings(container) {
       </div>
     </div>
 
-    <!-- Threshold -->
+    <!-- Threshold + Notification toggles -->
     <div class="section">
       <div class="section-head">
         <h2 class="section-title">การแจ้งเตือน</h2>
@@ -2082,6 +2082,40 @@ export function renderSettings(container) {
             <div class="setting-sub">เตือนเมื่อบัญชีต่ำกว่าค่านี้</div>
           </div>
           <div class="setting-value">${formatBaht(settings.threshold_satang)} ฿</div>
+        </div>
+        <div class="setting-divider"></div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">รายการประจำครบกำหนด</div>
+            <div class="setting-sub">เตือนเมื่อเปิดแอปวันที่ครบกำหนด</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" data-setting="notify_recurring"
+              ${settings.notify_recurring !== false ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">ยอดใกล้เกณฑ์ต่ำสุด</div>
+            <div class="setting-sub">เตือนเมื่อยอดบัญชีต่ำกว่าที่ตั้งไว้</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" data-setting="notify_low_balance"
+              ${settings.notify_low_balance !== false ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">สรุปประจำสัปดาห์</div>
+            <div class="setting-sub">สรุปรายจ่ายสัปดาห์ที่แล้ว ทุกวันจันทร์</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" data-setting="notify_weekly"
+              ${settings.notify_weekly !== false ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
       </div>
     </div>
@@ -2334,6 +2368,13 @@ export function renderSettings(container) {
     const val = e.target.checked;
     State.setSetting('dark', val);
     applyDark(val);
+  });
+
+  // Notification toggles (notify_recurring, notify_low_balance, notify_weekly)
+  container.querySelectorAll('[data-setting^="notify_"]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      State.setSetting(e.target.dataset.setting, e.target.checked);
+    });
   });
 
   // Theme toggle — State.setSetting → notify() → subscriber → renderCurrentView() อัตโนมัติ
