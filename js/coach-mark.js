@@ -3,8 +3,8 @@
    ===================================================================
    Flow:
    1. Prompt ถามก่อน — "ต้องการดูคำแนะนำไหม?"
-   2. Tour 7 steps ใน 3 หน้า (Dashboard → บันทึก → ตั้งค่า)
-   3. Navigate อัตโนมัติระหว่างหน้า + scroll ให้ element เข้า viewport
+   2. Tour 8 steps ใน 3 หน้า (Dashboard → บันทึก → ตั้งค่า)
+   3. Navigate อัตโนมัติระหว่างหน้า + scroll element กลางหน้าจอก่อน spotlight
 
    Trigger: app.js เรียก showCoachMark() หลัง onboarding onComplete
    Storage: localStorage 'coach_done' — แสดงครั้งเดียวตลอดชีพ
@@ -21,7 +21,7 @@ const PAGE_NAMES = {
   settings:  '⚙️ หน้าตั้งค่า',
 };
 
-/* ─── Steps definition (7 steps, 3 pages) ───────────────────────── */
+/* ─── Steps definition (8 steps, 3 pages) ───────────────────────── */
 const STEPS = [
   // ── Dashboard ─────────────────────────────────────────────────
   {
@@ -70,6 +70,12 @@ const STEPS = [
     selector: '.setting-row[data-action="export-json"]',
     title: 'สำรองข้อมูล',
     body: 'ดาวน์โหลดไฟล์สำรองเก็บไว้ในเครื่องได้ตลอดเวลา — ข้อมูลไม่หายแม้ถอนการติดตั้งแอป',
+    shape: 'rect',
+  },
+  {
+    selector: '[data-action="add-account"]',
+    title: 'เพิ่มและจัดการบัญชี',
+    body: 'เพิ่มบัญชีธนาคาร กระเป๋าเงิน หรือบัตรเครดิตด้วยตนเอง — หรือให้ระบบสร้างอัตโนมัติเมื่อนำเข้า PDF',
     shape: 'rect',
   },
 ];
@@ -296,17 +302,9 @@ function _startTour() {
       return;
     }
 
-    /* Scroll element into view ถ้าอยู่นอก viewport */
-    const preRect = el.getBoundingClientRect();
-    const vh = window.innerHeight;
-    const needsScroll = preRect.top < 80 || preRect.bottom > vh - 80;
-
-    if (needsScroll) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => _doSpotlight(i, el), 380);
-    } else {
-      _doSpotlight(i, el);
-    }
+    /* เลื่อนให้ element อยู่กลางหน้าจอเสมอ — รอ smooth scroll เสร็จก่อน spotlight */
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => _doSpotlight(i, el), 450);
   }
 
   function _doSpotlight(i, el) {
