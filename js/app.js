@@ -18,6 +18,7 @@ import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccou
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 import { checkReminders } from './reminders.js';
 import { checkCatchupOpportunity } from './catchup.js';
+import { shouldShowCoachMark, showCoachMark } from './coach-mark.js';
 
 
 /* === Globals ==================================================== */
@@ -363,6 +364,8 @@ function init() {
       // หลัง onboarding เสร็จ: ถ้ายังไม่มีข้อมูล (user ข้าม PDF) → seed ให้เห็นตัวอย่าง
       seedSampleDataIfEmpty();
       renderCurrentView();
+      // Coach mark: หน่วง 600ms ให้ DOM render ก่อน spotlight จะวัด getBoundingClientRect ได้ถูก
+      if (shouldShowCoachMark()) setTimeout(showCoachMark, 600);
     });
   } else {
     // ติดตั้งซ้ำ / มีข้อมูลแล้ว → seed ถ้าจำเป็น (fresh state ที่ผ่าน onboarding ไปแล้ว)
