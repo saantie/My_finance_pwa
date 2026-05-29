@@ -507,6 +507,13 @@ export function updateUserProgress(patch) {
 }
 
 
+/* === Demo mode ================================================== */
+
+export function isDemoMode()      { return _state.settings.demo_mode === true; }
+export function markAsDemoMode()  { _state.settings.demo_mode = true;  notify(); }
+export function markDemoComplete(){ delete _state.settings.demo_mode;  notify(); }
+
+
 /* === Computed / derived ========================================= */
 
 /** รายการที่ยังไม่ถูกลบ — base filter สำหรับ computed functions ทั้งหมด */

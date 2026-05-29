@@ -2160,8 +2160,17 @@ html, body {
   font-family: var(--font-accent);
   font-size: 20px;
   color: var(--ink);
-  margin: 0 0 20px;
+  margin: 0 0 8px;
   font-weight: 700;
+}
+.empty-subtitle {
+  font-size: 14px;
+  color: var(--ink-faint);
+  margin: 0 0 20px;
+  line-height: 1.55;
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .empty-actions {
   display: flex;
@@ -2196,6 +2205,44 @@ html, body {
   max-width: 280px;
 }
 .btn-ghost:hover { background: var(--rule-soft); }
+
+
+/* Demo mode banner */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--accent-soft, #fef3e7);
+  border: 1px solid var(--honey);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.demo-banner-text {
+  color: var(--ink-soft);
+  flex: 1;
+}
+.demo-clear-btn {
+  background: transparent;
+  border: 1.5px solid var(--rule);
+  color: var(--ink-soft);
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.demo-clear-btn:active { background: var(--rule); }
+
+html[data-dark="1"] .demo-banner {
+  background: rgba(255,200,100,0.08);
+  border-color: rgba(255,200,100,0.25);
+}
 
 
 .empty {

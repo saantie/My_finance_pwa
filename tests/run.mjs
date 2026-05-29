@@ -46,8 +46,11 @@ const {
   getMonthSummary, getTopCategories,
   getTransactionsByDay, getDailyExpenses,
   setSetting, getSettings, resetAll, exportJSON, importJSON,
-  getState
+  getState,
+  isDemoMode, markAsDemoMode, markDemoComplete, clearSampleData
 } = await import('../js/state.js');
+
+const { getDemoTransactions } = await import('../js/demo-data.js');
 
 const { parseIntent } = await import('../js/voice.js');
 
@@ -920,6 +923,76 @@ test('add.js: picker-add button present', () => {
 
 test('add.js: ESC key closes picker', () => {
   assert(addJsSrc.includes("e.key==='Escape'") || addJsSrc.includes('e.key === \'Escape\''), 'must handle ESC key');
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEMO MODE
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\ndemo mode');
+
+test('getDemoTransactions returns array of 30+ items', () => {
+  const txs = getDemoTransactions();
+  assert(Array.isArray(txs), 'should be array');
+  assert(txs.length >= 30, `should have ≥30 transactions, got ${txs.length}`);
+});
+
+test('getDemoTransactions: all items have source=sample', () => {
+  const txs = getDemoTransactions();
+  assert(txs.every(t => t.source === 'sample'), 'every tx must have source: sample');
+});
+
+test('getDemoTransactions: has income and expense types', () => {
+  const txs = getDemoTransactions();
+  assert(txs.some(t => t.type === 'income'),  'must include income tx');
+  assert(txs.some(t => t.type === 'expense'), 'must include expense tx');
+});
+
+test('isDemoMode: false by default', () => {
+  resetAll();
+  eq(isDemoMode(), false, 'should be false on fresh state');
+});
+
+test('markAsDemoMode: sets demo mode', () => {
+  resetAll();
+  markAsDemoMode();
+  eq(isDemoMode(), true, 'should be true after markAsDemoMode');
+});
+
+test('markDemoComplete: clears demo mode', () => {
+  resetAll();
+  markAsDemoMode();
+  markDemoComplete();
+  eq(isDemoMode(), false, 'should be false after markDemoComplete');
+});
+
+test('loadDemoData flow: addTransactionsBatch + markAsDemoMode → has transactions', () => {
+  resetAll();
+  markAsDemoMode();
+  addTransactionsBatch(getDemoTransactions());
+  assert(isDemoMode(), 'demo mode should be set');
+  assert(getTransactions().length >= 30, 'should have ≥30 transactions');
+});
+
+test('clearDemoData flow: clearSampleData removes sample txs', () => {
+  resetAll();
+  markAsDemoMode();
+  addTransactionsBatch(getDemoTransactions());
+  assert(getTransactions().length >= 30, 'precondition: has demo data');
+  clearSampleData();
+  markDemoComplete();
+  eq(getTransactions().length, 0, 'all sample transactions should be removed');
+  eq(isDemoMode(), false, 'demo mode should be cleared');
+});
+
+test('clearSampleData preserves non-sample transactions', () => {
+  resetAll();
+  markAsDemoMode();
+  addTransactionsBatch(getDemoTransactions());
+  addTransaction({ date: todayISO(), type: 'expense', amount: 5000, group: 'food', description: 'real tx' });
+  clearSampleData();
+  eq(getTransactions().length, 1, 'real transaction should survive clearSampleData');
+  eq(getTransactions()[0].description, 'real tx', 'should keep the real tx');
 });
 
 

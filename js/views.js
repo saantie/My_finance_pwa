@@ -25,6 +25,7 @@ import {
   updateSharedWith, migrateAccountToCloud
 } from './firebase.js';
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
+import { getDemoTransactions } from './demo-data.js';
 
 
 /* === Skeleton loading =========================================== */
@@ -41,6 +42,32 @@ export function renderDashboardSkeleton() {
         <div class="skeleton" style="height:16px;width:70px"></div>
       </div>
     `).join('')}
+  `;
+}
+
+
+/* === Empty state component ====================================== */
+/**
+ * @param {object} opts
+ * @param {string} opts.icon    — ชื่อ icon ใน ICONS
+ * @param {string} opts.title   — หัวข้อหลัก
+ * @param {string} [opts.subtitle] — ข้อความรอง (optional)
+ * @param {Array}  [opts.actions] — [{label, style, action}] (optional)
+ */
+function renderEmptyState({ icon, title, subtitle = '', actions = [] }) {
+  return `
+    <div class="empty-state">
+      <div class="empty-icon">${svgIcon(icon, { size: 48, stroke: 1.5 })}</div>
+      <h3 class="empty-title">${title}</h3>
+      ${subtitle ? `<p class="empty-subtitle">${subtitle}</p>` : ''}
+      ${actions.length ? `
+        <div class="empty-actions">
+          ${actions.map(a =>
+            `<button class="${a.style || 'btn-ghost'}" data-action="${a.action}">${a.label}</button>`
+          ).join('')}
+        </div>
+      ` : ''}
+    </div>
   `;
 }
 
@@ -354,6 +381,38 @@ function renderCatchupBanner({ daysSinceLastTx, lastTxDate, missedRecurring }) {
    DASHBOARD VIEW
    =================================================================== */
 export function renderDashboard(container) {
+  // === Empty state: fresh install (ไม่มีรายการใดๆ) ===
+  if (State.getTransactions().length === 0) {
+    const today = todayISO();
+    const todayDate = parseLocalDate(today);
+    container.innerHTML = `
+      <div class="page-header">
+        <div class="page-meta">${monthNameTH(todayDate, true).toUpperCase()} · ${ceToBe(todayDate.getFullYear())}</div>
+        <h1 class="page-date">วัน${dayNameTH(todayDate)} <span class="accent">ที่ ${todayDate.getDate()}</span></h1>
+        <div class="page-sub">— สมุดบันทึกของฉัน —</div>
+      </div>
+      ${SQUIGGLE}
+      ${renderEmptyState({
+        icon:     'book-open',
+        title:    'เริ่มต้นกันเถอะ',
+        subtitle: 'บันทึกแรกใน 3 tap หรือนำเข้า PDF จากธนาคารเพื่อเห็นภาพรวมทันที',
+        actions:  [
+          { label: 'นำเข้า PDF ธนาคาร',   style: 'btn-primary', action: 'import-pdf' },
+          { label: 'ลองข้อมูลตัวอย่าง',    style: 'btn-ghost',   action: 'load-demo'  },
+        ]
+      })}
+    `;
+    container.querySelector('[data-action="import-pdf"]')?.addEventListener('click', () => {
+      document.querySelector('.nav-item[data-view="import"]')?.click();
+    });
+    container.querySelector('[data-action="load-demo"]')?.addEventListener('click', () => {
+      State.markAsDemoMode();
+      State.addTransactionsBatch(getDemoTransactions());
+      showToast('ใส่ข้อมูลตัวอย่างแล้ว — ลองสำรวจแอปได้เลย');
+    });
+    return;
+  }
+
   const today = todayISO();
   const todayDate = parseLocalDate(today);
   const monthSummary = State.getMonthSummary();
@@ -365,7 +424,16 @@ export function renderDashboard(container) {
   // --- Catchup banner (welcome back after long absence) ---
   const catchupData = checkCatchupOpportunity();
 
+  // --- Demo banner ---
+  const demoBannerHtml = State.isDemoMode() ? `
+    <div class="demo-banner">
+      <span class="demo-banner-text">📊 กำลังดูข้อมูลตัวอย่าง</span>
+      <button class="demo-clear-btn" data-action="clear-demo">ลบ + เริ่มใช้งานจริง</button>
+    </div>
+  ` : '';
+
   container.innerHTML = `
+    ${demoBannerHtml}
     <!-- Catchup / welcome-back banner (แสดงเมื่อหยุดบันทึก ≥7 วัน + ไม่เปิดแอป ≥3 วัน) -->
     ${catchupData ? renderCatchupBanner(catchupData) : ''}
 
@@ -451,9 +519,18 @@ export function renderDashboard(container) {
     dismissCatchup();
     container.querySelector('.catchup-banner')?.remove();
   });
-  container.querySelector('[data-action="import-pdf"]')?.addEventListener('click', () => {
+  container.querySelectorAll('[data-action="import-pdf"]').forEach(btn => btn.addEventListener('click', () => {
     dismissCatchup();
     document.querySelector('.nav-item[data-view="import"]')?.click();
+  }));
+
+  // Demo mode: ลบข้อมูลตัวอย่าง + เริ่มใช้งานจริง
+  container.querySelector('[data-action="clear-demo"]')?.addEventListener('click', () => {
+    if (confirm('ลบข้อมูลตัวอย่างทั้งหมดและเริ่มใช้งานจริง?')) {
+      State.clearSampleData();
+      State.markDemoComplete();
+      showToast('พร้อมแล้ว — เริ่มบันทึกข้อมูลจริงได้เลย');
+    }
   });
 
   // "จัดการ" → navigate ไปหน้า Settings แล้ว scroll ไปส่วนบัญชีของฉัน
@@ -756,6 +833,24 @@ function getForecastData() {
 /** HTML card สำหรับ forecast — chart init ผ่าน initForecastChart() */
 function renderForecastCard() {
   const { days, avgDailyExpense, varDailyIncome, tplDailyExpense, daysElapsed, dataSource } = getForecastData();
+
+  // ข้อมูลน้อยเกินไป → แสดง empty state แทนกราฟ
+  if (daysElapsed < 7) {
+    return `
+      <div class="section">
+        <div class="section-head">
+          <h2 class="section-title">เงินใน 30 วันข้างหน้า</h2>
+        </div>
+        <div class="card card-padded">
+          ${renderEmptyState({
+            icon:     'trending',
+            title:    'ยังไม่พอสร้างกราฟ',
+            subtitle: 'ต้องการข้อมูลอย่างน้อย 7 วัน — กลับมาดูสัปดาห์หน้า',
+          })}
+        </div>
+      </div>
+    `;
+  }
   const threshold   = State.getSettings().threshold_satang;
   const minBalance  = Math.min(...days.map(d => d.balance));
   const dangerDays  = days.filter(d => d.balance < threshold);
@@ -1433,15 +1528,29 @@ export function renderList(container) {
     </div>
 
     ${groups.length === 0
-      ? `<div class="empty">
-           <div class="icon">📖</div>
-           <div class="title">ไม่มีรายการในเดือนนี้</div>
-           <div class="desc">— ลองเลื่อนไปเดือนอื่น หรือเพิ่มรายการใหม่ —</div>
-         </div>`
+      ? listState.search
+        ? renderEmptyState({
+            icon:     'search',
+            title:    'หาไม่เจอ',
+            subtitle: `ไม่มีรายการที่ตรงกับ "${escapeHtml(listState.search)}" — ลองคำอื่น หรือล้างการค้นหา`,
+            actions:  [{ label: 'ล้างการค้นหา', style: 'btn-ghost', action: 'clear-search' }],
+          })
+        : `<div class="empty">
+             <div class="icon">📖</div>
+             <div class="title">ไม่มีรายการในเดือนนี้</div>
+             <div class="desc">— ลองเลื่อนไปเดือนอื่น หรือเพิ่มรายการใหม่ —</div>
+           </div>`
       : groups.map(g => renderDayGroup(g)).join('')}
   `;
 
   // === Bind events ===
+
+  // "clear-search" จาก empty state ของผลค้นหาว่าง
+  container.querySelector('[data-action="clear-search"]')?.addEventListener('click', () => {
+    listState.search = '';
+    renderList(container);
+  });
+
   const searchInput = container.querySelector('#search-input');
   if (searchInput) {
     searchInput.addEventListener('input', debounce(e => {
@@ -2598,6 +2707,11 @@ export function renderSettings(container) {
     });
   });
 
+  // "open-add" จาก empty state ของรายการประจำ
+  container.querySelector('[data-action="open-add"]')?.addEventListener('click', () => {
+    document.getElementById('fab')?.click();
+  });
+
   // Toggle share — แสดง share panel (sign in ก่อนถ้ายังไม่ได้ login)
   container.querySelectorAll('[data-action="toggle-share"]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -3161,12 +3275,12 @@ function renderRecurringSection() {
           <h2 class="section-title">รายการประจำ / ผ่อน</h2>
         </div>
         <div class="card card-padded">
-          <div class="empty" style="padding: 18px;">
-            <div class="desc">— ยังไม่มีรายการประจำ —</div>
-            <div class="setting-sub" style="margin-top: 6px;">
-              กดปุ่ม + แล้วเลือก "ทุกเดือน" หรือ "ผ่อน"
-            </div>
-          </div>
+          ${renderEmptyState({
+            icon:     'repeat',
+            title:    'ยังไม่มีรายการประจำ',
+            subtitle: 'กดปุ่ม + แล้วเลือก "ทุกเดือน" หรือ "ผ่อน" เพื่อตั้งค่ารายจ่ายที่เกิดซ้ำ',
+            actions:  [{ label: '+ เพิ่มรายการประจำ', style: 'btn-primary', action: 'open-add' }],
+          })}
         </div>
       </div>
     `;
