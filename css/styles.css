@@ -900,14 +900,52 @@ html, body {
 
 /* Today entries (recent transactions) */
 .entry {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px dotted var(--rule);
+}
+.entry:last-child { border-bottom: none; }
+
+/* Inner content — slides left on swipe */
+.entry-inner {
   display: grid;
   grid-template-columns: 36px 36px 1fr auto;
   gap: 12px;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px dotted var(--rule);
+  background: var(--card);
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s ease;
 }
-.entry:last-child { border-bottom: none; }
+
+/* Swipe-reveal action panel (mobile only) */
+.entry-swipe-actions {
+  display: none;
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 80px;
+  align-items: stretch;
+}
+@media (hover: none) {
+  .entry-swipe-actions { display: flex; }
+}
+.swipe-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  transition: filter 0.15s;
+}
+.swipe-btn:active { filter: brightness(0.88); }
+.swipe-edit { background: var(--primary, #e88e3c); }
+.swipe-del  { background: var(--clay, #c0694c); }
+
+/* Swiped state */
+.entry.swiped .entry-inner { transform: translateX(-80px); }
 
 .entry-time {
   font-size: 11px;
@@ -3627,9 +3665,9 @@ html[data-theme="carbon"][data-dark="1"] .auth-badge.signed-in {
   opacity: 1;
 }
 
-/* บน mobile — แสดงเสมอ (ไม่มี hover) */
+/* Mobile — ซ่อน inline buttons; ใช้ swipe panel แทน */
 @media (hover: none) {
-  .entry-actions { opacity: 1; }
+  .entry-actions { display: none !important; }
 }
 
 .entry-action-btn {
@@ -3715,8 +3753,12 @@ html[data-dark="1"] .entry-acct-line {
 .entry-deleted .entry-amt {
   text-decoration: line-through;
 }
-.entry-deleted .entry-actions {
-  display: flex;
+/* Desktop: always show delete button on soft-deleted rows */
+@media (hover: hover) {
+  .entry-deleted .entry-actions {
+    display: flex;
+    opacity: 1;
+  }
 }
 
 
