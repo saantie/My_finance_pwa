@@ -99,7 +99,7 @@ let _heroChartInstance = null;
 let _ChartClass        = null;
 let _heroChartPayload  = null;  // ข้อมูลสำหรับ initHeroChart ที่เรียกหลัง DOM insert
 
-// Recurring suggestions ที่ detect หลัง PDF import (module-level, reset เมื่อ dismiss)
+// Recurring suggestions ที่ detect หลัง e-Statement import (module-level, reset เมื่อ dismiss)
 let _recurSuggestions = [];
 
 /** คืน yearMonth ก่อนหน้า เช่น "2026-05" → "2026-04" */
@@ -363,12 +363,12 @@ function renderCatchupBanner({ daysSinceLastTx, lastTxDate, missedRecurring }) {
       <div class="catchup-body">
         บันทึกล่าสุดเมื่อ <strong>${daysSinceLastTx} วันที่แล้ว</strong>
         (${lastDateFmt})
-        <br>อยากนำเข้า PDF เดือน${monthLabel}
+        <br>อยากนำเข้า e-Statement เดือน${monthLabel}
         เพื่อตามให้ทันไหม?
         ${recurringNote}
       </div>
       <div class="catchup-actions">
-        <button class="catchup-btn-primary" data-action="import-pdf">นำเข้า PDF ตอนนี้</button>
+        <button class="catchup-btn-primary" data-action="import-pdf">นำเข้า e-Statement ตอนนี้</button>
         <button class="catchup-btn-secondary" data-action="skip-catchup">เริ่มจดต่อ</button>
       </div>
       <button class="catchup-close" data-action="skip-catchup">✕</button>
@@ -395,9 +395,9 @@ export function renderDashboard(container) {
       ${renderEmptyState({
         icon:     'book-open',
         title:    'เริ่มต้นกันเถอะ',
-        subtitle: 'บันทึกแรกใน 3 tap หรือนำเข้า PDF จากธนาคารเพื่อเห็นภาพรวมทันที',
+        subtitle: 'บันทึกแรกใน 3 tap หรือนำเข้า e-Statement จากธนาคารเพื่อเห็นภาพรวมทันที',
         actions:  [
-          { label: 'นำเข้า PDF ธนาคาร',   style: 'btn-primary', action: 'import-pdf' },
+          { label: 'นำเข้า e-Statement',   style: 'btn-primary', action: 'import-pdf' },
           { label: 'ลองข้อมูลตัวอย่าง',    style: 'btn-ghost',   action: 'load-demo'  },
         ]
       })}
@@ -473,7 +473,7 @@ export function renderDashboard(container) {
     <!-- Upcoming recurring/scheduled -->
     ${renderUpcomingSection()}
 
-    <!-- Accounts — แสดงเฉพาะที่มียอดไม่ใช่ศูนย์ หรือมาจาก PDF (มี bank) หรือ user rename แล้ว -->
+    <!-- Accounts — แสดงเฉพาะที่มียอดไม่ใช่ศูนย์ หรือมาจาก e-Statement (มี bank) หรือ user rename แล้ว -->
     <div class="section" id="dash-accounts-sect">
       <div class="section-head">
         <h2 class="section-title">บัญชีของฉัน</h2>
@@ -1336,8 +1336,14 @@ function renderEntryRow(tx, decimals = 0) {
   `;
 }
 
+// ป้องกัน bindEntryActions ถูกเรียกซ้ำบน container เดิม (event delegation ผูกครั้งเดียวพอ)
+const _boundEntryContainers = new WeakSet();
+
 /** Bind edit/delete actions บน container ที่มี entry rows */
 export function bindEntryActions(container) {
+  if (_boundEntryContainers.has(container)) return;
+  _boundEntryContainers.add(container);
+
   // === Click / tap ===
   container.addEventListener('click', async (e) => {
     const editBtn = e.target.closest('[data-action="edit-tx"]');
@@ -1447,7 +1453,7 @@ export function renderList(container) {
         <div class="empty-icon">${svgIcon('book-open', { size: 48, stroke: 1.5 })}</div>
         <h3 class="empty-title">เริ่มต้นกันเถอะ</h3>
         <div class="empty-actions">
-          <button data-action="import-pdf" class="btn-primary">นำเข้า PDF ธนาคาร</button>
+          <button data-action="import-pdf" class="btn-primary">นำเข้า e-Statement</button>
           <button id="fab-trigger" class="btn-ghost">บันทึกรายการแรก</button>
         </div>
       </div>
@@ -1639,7 +1645,7 @@ function renderDayGroup(g) {
 
 
 /* ===================================================================
-   IMPORT VIEW (PDF / Slip)
+   IMPORT VIEW (e-Statement / Slip)
    =================================================================== */
 export function renderImport(container) {
   container.innerHTML = `
@@ -1648,14 +1654,14 @@ export function renderImport(container) {
       <div class="import-sub">เลือกวิธีที่สะดวก — รวบยอดเดือน หรือสแกนทีละรายการ</div>
     </div>
 
-    <!-- PDF tile -->
+    <!-- e-Statement tile -->
     <div class="import-tile pdf" data-action="import-pdf">
       <div class="tile-icon">
         ${svgIcon('pdf', { size: 26, stroke: 1.6 })}
-        <span class="badge">PDF</span>
+        <span class="badge">eS</span>
       </div>
       <div class="tile-title">e-Statement</div>
-      <div class="tile-desc">ลาก PDF จากแอปธนาคาร — รวบทั้งเดือน</div>
+      <div class="tile-desc">ลาก e-Statement จากแอปธนาคาร — รวบทั้งเดือน</div>
       <button class="tile-btn">เลือกไฟล์</button>
     </div>
 
@@ -1691,7 +1697,7 @@ export function renderImport(container) {
       ${svgIcon('shield', { size: 18, stroke: 2 })}
       <div class="text">
         <strong>ข้อมูลของคุณอยู่ในเครื่องเท่านั้น</strong><br>
-        PDF และรายการทั้งหมดประมวลผลในเครื่อง — ไม่ส่งออกไปไหน
+        e-Statement และรายการทั้งหมดประมวลผลในเครื่อง — ไม่ส่งออกไปไหน
       </div>
     </div>
 
@@ -1763,7 +1769,7 @@ async function handleSlipScan(file) {
 }
 
 
-/* === PDF import handler ========================================
+/* === e-Statement import handler ================================
    Flow: parse (handle password) → confidence check → review / AI
 ================================================================ */
 async function handlePdfImport(file) {
@@ -1771,7 +1777,7 @@ async function handlePdfImport(file) {
   let result;
 
   // ── first attempt ──────────────────────────────────────────────
-  const prog1 = createProgressModal('กำลังประมวลผล PDF');
+  const prog1 = createProgressModal('กำลังประมวลผล e-Statement');
   document.body.appendChild(prog1.el);
   try {
     result = await parsePDF(file, null, step => prog1.update(step));
@@ -1780,16 +1786,16 @@ async function handlePdfImport(file) {
     prog1.el.remove();
     if (err.name !== 'PasswordException') {
       console.error('PDF parse failed', err);
-      showToast('อ่าน PDF ไม่สำเร็จ: ' + (err.message || 'unknown'));
+      showToast('อ่าน e-Statement ไม่สำเร็จ: ' + (err.message || 'unknown'));
       return;
     }
 
     // ── password prompt ──────────────────────────────────────────
-    const password = prompt('PDF นี้มีรหัสผ่าน กรุณาใส่รหัส:');
+    const password = prompt('e-Statement นี้มีรหัสผ่าน กรุณาใส่รหัส:');
     if (!password) return;
 
     // ── retry with password ──────────────────────────────────────
-    const prog2 = createProgressModal('กำลังประมวลผล PDF');
+    const prog2 = createProgressModal('กำลังประมวลผล e-Statement');
     document.body.appendChild(prog2.el);
     try {
       result = await parsePDF(file, password, step => prog2.update(step));
@@ -1800,7 +1806,7 @@ async function handlePdfImport(file) {
         showToast('รหัสผ่านไม่ตรง — ลองใหม่');
       } else {
         console.error('PDF parse failed', err2);
-        showToast('อ่าน PDF ไม่สำเร็จ: ' + (err2.message || 'unknown'));
+        showToast('อ่าน e-Statement ไม่สำเร็จ: ' + (err2.message || 'unknown'));
       }
       return;
     }
@@ -1812,7 +1818,7 @@ async function handlePdfImport(file) {
     const useAI = confirm(
       `อ่านได้ ${result.transactions.length} รายการ (ความแม่นยำต่ำ)\n` +
       `ต้องการให้ AI ช่วยวิเคราะห์ไหม?\n` +
-      `(ข้อความจาก PDF จะถูกส่งไปยัง Google AI)`
+      `(ข้อความจาก e-Statement จะถูกส่งไปยัง Google AI)`
     );
     if (useAI) {
       await handleGeminiFallback(result.extractedText);
@@ -1825,8 +1831,8 @@ async function handlePdfImport(file) {
 
 
 /* === Gemini AI fallback =========================================
-   ส่ง extractedText (plain text จาก PDF) แทนไฟล์ PDF โดยตรง
-   เพราะ PDF เข้ารหัสส่ง Gemini ไม่ได้
+   ส่ง extractedText (plain text จาก e-Statement) แทนไฟล์โดยตรง
+   เพราะ e-Statement เข้ารหัสส่ง Gemini ไม่ได้
 ================================================================ */
 async function handleGeminiFallback(extractedText) {
   showToast('Gemini AI fallback — จะพัฒนาในเวอร์ชันต่อไป');
@@ -2138,7 +2144,7 @@ function bankDisplayName(bank) {
 }
 
 
-/** Dialog ถามยอดเงินสดจริงในมือ — แสดงหลัง PDF import มี ATM / หรือกด แก้ไข ใน settings */
+/** Dialog ถามยอดเงินสดจริงในมือ — แสดงหลัง e-Statement import มี ATM / หรือกด แก้ไข ใน settings */
 function showCashOverrideDialog(cashAcct) {
   const existing = cashAcct.cash_balance_override != null
     ? (cashAcct.cash_balance_override / 100).toFixed(0)
@@ -3228,7 +3234,7 @@ function renderRecurringSuggestions() {
   return `
     <div class="section">
       <div class="section-head">
-        <h2 class="section-title">พบรายการประจำจาก PDF</h2>
+        <h2 class="section-title">พบรายการประจำจาก e-Statement</h2>
         <span class="section-action" style="color:var(--primary)">${_recurSuggestions.length} รายการ</span>
       </div>
       <div class="card card-padded">

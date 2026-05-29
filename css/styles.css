@@ -177,6 +177,9 @@ html[data-text-size="xlarge"] {
   --plum:          #b378c0;  /* shopping, decorative */
   --honey:         #e8b649;  /* utility, warning-soft */
 
+  /* Primary alias — resolves to current theme's --terracotta automatically */
+  --primary:       var(--terracotta);
+
   /* Sizing */
   --r-card:   16px;
   --r-pill:   999px;
