@@ -281,10 +281,10 @@ function computeNextDue(currentISO, frequency) {
  *   { description, amount, type, group, frequency, next_due, confidence, sampleDates }
  */
 export function detectRecurringPatterns(transactions) {
-  // เฉพาะ expense / income ที่ไม่ถูกลบ + มี description
+  // เฉพาะ expense ที่ไม่ถูกลบ + มี description (รายรับไม่นำมาแนะนำ)
   const eligible = transactions.filter(tx =>
     tx.deleted_by == null &&
-    (tx.type === 'expense' || tx.type === 'income') &&
+    tx.type === 'expense' &&
     tx.description && tx.description.trim().length > 0
   );
 
@@ -333,9 +333,9 @@ export function detectRecurringPatterns(transactions) {
     if (intervals.every(iv => iv >= 25 && iv <= 35)) frequency = 'monthly';
     if (!frequency) continue;
 
-    // confidence
-    const confidence = Math.min(sorted.length / 5, 1) * (1 - amountVariance);
-    if (confidence < 0.8) continue;
+    // confidence: 3+ ครั้ง = 1.0 (amountVariance ≤ 0.1 ผ่าน check ข้างบนแล้ว)
+    const confidence = Math.min(sorted.length / 3, 1) * (1 - amountVariance);
+    if (confidence < 0.5) continue;
 
     // ข้ามถ้ามี template ที่ match อยู่แล้ว
     const alreadyExists = _templates.some(t =>

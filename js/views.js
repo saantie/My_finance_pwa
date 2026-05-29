@@ -2680,6 +2680,8 @@ export function renderSettings(container) {
       const idx = Number(btn.dataset.idx);
       const s = _recurSuggestions[idx];
       if (!s) return;
+      // splice ก่อน addTemplate เพราะ addTemplate trigger re-render ซิงโครนัส
+      _recurSuggestions.splice(idx, 1);
       Recurring.addTemplate({
         type:        s.type,
         amount:      s.amount,
@@ -2688,9 +2690,8 @@ export function renderSettings(container) {
         frequency:   s.frequency,
         first_due:   s.next_due
       });
-      _recurSuggestions.splice(idx, 1);
       showToast(`เพิ่ม "${s.description}" เป็นรายการประจำแล้ว ✓`);
-      // Recurring.addTemplate → save() → listeners → renderCurrentView() (re-render อัตโนมัติ)
+      // addTemplate → save() → listener → renderCurrentView() (re-render อัตโนมัติ พร้อม _recurSuggestions ที่ splice แล้ว)
     });
   });
 
