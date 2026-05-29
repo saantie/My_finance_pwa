@@ -27,6 +27,24 @@ import {
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
 
 
+/* === Skeleton loading =========================================== */
+export function renderDashboardSkeleton() {
+  return `
+    <div class="skeleton" style="height:80px;margin:16px 0 8px;border-radius:18px"></div>
+    ${[1, 2, 3].map(() => `
+      <div style="display:flex;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--rule)">
+        <div class="skeleton" style="width:36px;height:36px;border-radius:10px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skeleton" style="height:14px;width:60%;margin-bottom:6px"></div>
+          <div class="skeleton" style="height:12px;width:40%"></div>
+        </div>
+        <div class="skeleton" style="height:16px;width:70px"></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+
 /* === Hero amount counter animation ============================== */
 function animateCount(el, target) {
   const start = performance.now();
@@ -1324,6 +1342,30 @@ export function bindEntryActions(container) {
 let listState = { search: '', filter: 'all', month: todayISO().slice(0, 7) };
 
 export function renderList(container) {
+  // Empty state — ยังไม่มีรายการใดๆ เลย
+  if (State.getTransactions().length === 0) {
+    container.innerHTML = `
+      <div class="app-bar">
+        <h1 class="title">ที่จดไว้</h1>
+      </div>
+      <div class="empty-state">
+        <div class="empty-icon">${svgIcon('book-open', { size: 48, stroke: 1.5 })}</div>
+        <h3 class="empty-title">เริ่มต้นกันเถอะ</h3>
+        <div class="empty-actions">
+          <button data-action="import-pdf" class="btn-primary">นำเข้า PDF ธนาคาร</button>
+          <button id="fab-trigger" class="btn-ghost">บันทึกรายการแรก</button>
+        </div>
+      </div>
+    `;
+    container.querySelector('[data-action="import-pdf"]')?.addEventListener('click', () => {
+      document.querySelector('.nav-item[data-view="import"]')?.click();
+    });
+    container.querySelector('#fab-trigger')?.addEventListener('click', () => {
+      document.getElementById('fab')?.click();
+    });
+    return;
+  }
+
   const filterFn = makeFilterFn(listState);
   const groups = State.getTransactionsByDay(filterFn);
 

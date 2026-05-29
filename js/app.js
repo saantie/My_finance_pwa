@@ -12,7 +12,7 @@
 
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
-import { renderDashboard, renderList, renderImport, renderSettings, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
+import { renderDashboard, renderList, renderImport, renderSettings, renderDashboardSkeleton, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
@@ -386,9 +386,11 @@ function init() {
   State.subscribe(() => renderCurrentView());
   Recurring.subscribe(() => renderCurrentView());
 
-  // 6. Initial render — ตั้ง history state เริ่มต้นก่อน
+  // 6. Initial render — แสดง skeleton ก่อน 1 frame แล้วค่อย render จริง
   history.replaceState({ view: 'dashboard' }, '', '#');
-  switchView('dashboard');
+  const _viewEl = document.getElementById('view');
+  if (_viewEl) _viewEl.innerHTML = renderDashboardSkeleton();
+  requestAnimationFrame(() => switchView('dashboard'));
 
   // 7. PWA service worker
   registerSW();

@@ -2127,6 +2127,77 @@ html, body {
 }
 
 /* Empty state */
+/* ===================================================================
+   Skeleton loading
+   =================================================================== */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--rule-soft) 25%,
+    var(--rule)      50%,
+    var(--rule-soft) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+}
+
+/* Empty state (รายการว่างทั้งแอป) */
+.empty-state {
+  text-align: center;
+  padding: 56px 24px 32px;
+}
+.empty-icon {
+  color: var(--ink-faint);
+  margin-bottom: 16px;
+  opacity: 0.55;
+}
+.empty-title {
+  font-family: var(--font-accent);
+  font-size: 20px;
+  color: var(--ink);
+  margin: 0 0 20px;
+  font-weight: 700;
+}
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  max-width: 280px;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1.5px solid var(--rule);
+  padding: 11px 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  max-width: 280px;
+}
+.btn-ghost:hover { background: var(--rule-soft); }
+
+
 .empty {
   text-align: center;
   padding: 48px 24px;
