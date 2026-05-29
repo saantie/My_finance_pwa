@@ -1179,25 +1179,23 @@ function renderEntryRow(tx, decimals = 0) {
 
   return `
     <div class="entry${isDeleted ? ' entry-deleted' : ''}" data-tx-id="${tx.id}">
-      <div class="entry-inner">
-        <span class="entry-time">${time}</span>
-        <div class="entry-icon" style="background: ${def.color}">
-          ${svgIcon(def.icon, { size: 16, stroke: 2 })}
-        </div>
-        <div class="entry-body">
-          <div class="entry-name">${escapeHtml(tx.description || def.label)}${tx.source === 'sample' ? ' <span class="demo-tag">Demo</span>' : ''}</div>
-          <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
-            ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
-            : ''}</div>
-          ${acctLine}
-          ${authorNote}
-        </div>
-        <div class="entry-right">
-          <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount, { decimals })} ฿</div>
-          <div class="entry-actions">
-            ${isDeleted ? '' : `<button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 13, stroke: 2 })}</button>`}
-            <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}" title="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 13, stroke: 2 })}</button>
-          </div>
+      <span class="entry-time">${time}</span>
+      <div class="entry-icon" style="background: ${def.color}">
+        ${svgIcon(def.icon, { size: 16, stroke: 2 })}
+      </div>
+      <div class="entry-body">
+        <div class="entry-name">${escapeHtml(tx.description || def.label)}${tx.source === 'sample' ? ' <span class="demo-tag">Demo</span>' : ''}</div>
+        <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
+          ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
+          : ''}</div>
+        ${acctLine}
+        ${authorNote}
+      </div>
+      <div class="entry-right">
+        <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount, { decimals })} ฿</div>
+        <div class="entry-actions">
+          ${isDeleted ? '' : `<button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 13, stroke: 2 })}</button>`}
+          <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}" title="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 13, stroke: 2 })}</button>
         </div>
       </div>
       <div class="entry-swipe-actions">
@@ -1254,58 +1252,40 @@ export function bindEntryActions(container) {
   });
 
   // === Swipe-left gesture (touch devices) ===
-  let _startX = 0, _startY = 0, _dir = null;
-  let _swipeEl = null, _innerEl = null;
+  let _startX = 0, _startY = 0, _dir = null, _swipeEl = null;
 
   container.addEventListener('touchstart', e => {
-    // Close other open swipe panels
     const touched = e.target.closest('.entry');
     container.querySelectorAll('.entry.swiped').forEach(el => {
       if (el !== touched) el.classList.remove('swiped');
     });
-
-    const entry = e.target.closest('.entry');
-    if (!entry) { _swipeEl = null; return; }
-    _startX   = e.touches[0].clientX;
-    _startY   = e.touches[0].clientY;
-    _swipeEl  = entry;
-    _innerEl  = entry.querySelector('.entry-inner');
-    _dir      = null;
+    if (!touched) { _swipeEl = null; return; }
+    _startX  = e.touches[0].clientX;
+    _startY  = e.touches[0].clientY;
+    _swipeEl = touched;
+    _dir     = null;
   }, { passive: true });
 
   container.addEventListener('touchmove', e => {
-    if (!_swipeEl || !_innerEl) return;
+    if (!_swipeEl) return;
     const dx = e.touches[0].clientX - _startX;
     const dy = e.touches[0].clientY - _startY;
-
     if (!_dir) {
       if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
       _dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
     }
-    if (_dir === 'v') { _swipeEl = null; return; }
-
-    const wasSwiped = _swipeEl.classList.contains('swiped');
-    const base = wasSwiped ? -80 : 0;
-    const translate = Math.min(0, Math.max(base + dx, -80));
-    _innerEl.style.transition = 'none';
-    _innerEl.style.transform  = `translateX(${translate}px)`;
+    if (_dir === 'v') _swipeEl = null;
   }, { passive: true });
 
   container.addEventListener('touchend', e => {
-    if (!_swipeEl || !_innerEl) return;
+    if (!_swipeEl) return;
     const dx = e.changedTouches[0].clientX - _startX;
-    const wasSwiped = _swipeEl.classList.contains('swiped');
-
-    _innerEl.style.transition = '';
-    _innerEl.style.transform  = '';
-
-    if (wasSwiped) {
-      if (dx > 40) _swipeEl.classList.remove('swiped'); // swipe right to close
+    if (_swipeEl.classList.contains('swiped')) {
+      if (dx > 40) _swipeEl.classList.remove('swiped');
     } else {
-      if (dx < -60) _swipeEl.classList.add('swiped');   // swipe left to open
+      if (dx < -60) _swipeEl.classList.add('swiped');
     }
-
-    _swipeEl = null; _innerEl = null; _dir = null;
+    _swipeEl = null; _dir = null;
   }, { passive: true });
 }
 
