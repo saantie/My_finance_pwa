@@ -38,7 +38,8 @@ const modal = () => document.getElementById('add-modal');
 
 /* === Draft state ================================================ */
 let draft = null;
-let editingTxId = null;   // ถ้าไม่ null = edit mode
+let editingTxId       = null;   // ถ้าไม่ null = edit transaction mode
+let editingTemplateId = null;   // ถ้าไม่ null = edit recurring template mode
 
 function freshDraft() {
   return {
@@ -122,10 +123,38 @@ export function openEditModal(tx) {
   haptic(8);
 }
 
+/** เปิด modal โดย pre-fill จาก recurring template (edit template mode) */
+export function openEditTemplateModal(template) {
+  editingTxId = null;
+  editingTemplateId = template.id;
+
+  // map 'one-time' → 'scheduled' เพราะ draft ไม่มี 'one-time'
+  const freqMap = { 'one-time': 'scheduled' };
+  const draftFreq = freqMap[template.frequency] || template.frequency || 'monthly';
+
+  draft = {
+    type:              template.type || 'expense',
+    expression:        String(template.amount / 100),
+    amount:            template.amount,
+    group:             template.group || 'other',
+    account_id:        template.account_id || (State.getAccounts()[0]?.id || 'cash:default'),
+    note:              template.description || '',
+    date:              todayISO(),
+    frequency:         draftFreq,
+    first_due:         template.next_due || todayISO(),
+    installment_total: template.installment_total || 12
+  };
+
+  render();
+  modal().classList.remove('hidden');
+  haptic(8);
+}
+
 export function closeAddModal() {
   modal().classList.add('hidden');
   draft = null;
-  editingTxId = null;
+  editingTxId       = null;
+  editingTemplateId = null;
 }
 
 
@@ -153,14 +182,14 @@ function render() {
     : '0';
 
   const titleByType = {
-    expense:  editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
-    income:   editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
-    transfer: editingTxId ? 'แก้ไขการโอน' : 'โอนระหว่างบัญชี'
+    expense:  editingTemplateId ? 'แก้ไขรายการประจำ' : editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
+    income:   editingTemplateId ? 'แก้ไขรายการประจำ' : editingTxId ? 'แก้ไขรายการ' : 'บันทึกรายการ',
+    transfer: editingTemplateId ? 'แก้ไขรายการประจำ' : editingTxId ? 'แก้ไขการโอน' : 'โอนระหว่างบัญชี'
   };
 
-  // Title prefix ถ้าเป็น recurring (ไม่แสดงใน edit mode)
+  // Title prefix ถ้าเป็น recurring (ไม่แสดงใน edit mode ทั้งสองแบบ)
   let titlePrefix = '';
-  if (!editingTxId) {
+  if (!editingTxId && !editingTemplateId) {
     if (draft.frequency === 'past') titlePrefix = 'ย้อนหลัง · ';
     else if (draft.frequency === 'scheduled') titlePrefix = 'ล่วงหน้า · ';
     else if (draft.frequency === 'monthly' || draft.frequency === 'weekly' || draft.frequency === 'yearly') titlePrefix = 'ประจำ · ';
@@ -232,13 +261,13 @@ function render() {
         </div>
       </div>
 
-      <!-- Frequency / scheduling (ซ่อนใน edit mode) -->
+      <!-- Frequency / scheduling (ซ่อนใน edit tx mode; template edit mode แสดงแต่ตัวเลือก recurring) -->
       ${editingTxId ? '' : `
       <div class="meta-block">
         <div class="meta-label">เกิดเมื่อไหร่</div>
         <div class="freq-grid">
-          ${renderFreqOption('today',       'วันนี้',      'check')}
-          ${renderFreqOption('past',        'ย้อนหลัง',   'clock')}
+          ${!editingTemplateId ? renderFreqOption('today',       'วันนี้',      'check')      : ''}
+          ${!editingTemplateId ? renderFreqOption('past',        'ย้อนหลัง',   'clock')      : ''}
           ${renderFreqOption('scheduled',   'ล่วงหน้า',   'plus')}
           ${renderFreqOption('monthly',     'ทุกเดือน',   'transfer')}
           ${renderFreqOption('weekly',      'ทุกสัปดาห์', 'transfer')}
@@ -734,6 +763,32 @@ async function save() {
 
   const description = draft.note || getCategory(draft.group).label;
   const category = getCategory(draft.group).label;
+
+  // === Template edit mode: อัปเดต recurring template ===
+  if (editingTemplateId) {
+    let perOccurrenceAmount = draft.amount;
+    if (draft.frequency === 'installment' && draft.installment_total > 0) {
+      perOccurrenceAmount = Math.round(draft.amount / draft.installment_total);
+    }
+    const tmplFreq = (draft.frequency === 'scheduled' || draft.frequency === 'today' || draft.frequency === 'past')
+      ? 'one-time' : draft.frequency;
+
+    Recurring.updateTemplate(editingTemplateId, {
+      type:              draft.type,
+      amount:            perOccurrenceAmount,
+      group:             draft.group,
+      category:          getCategory(draft.group).label,
+      description,
+      account_id:        draft.account_id,
+      frequency:         tmplFreq,
+      first_due:         draft.first_due,
+      installment_total: draft.frequency === 'installment' ? draft.installment_total : null
+    });
+    haptic([5, 30, 50]);
+    showToast('แก้ไขรายการประจำแล้ว');
+    closeAddModal();
+    return;
+  }
 
   // === Edit mode: อัปเดตรายการที่มีอยู่ ===
   if (editingTxId) {

@@ -2704,12 +2704,13 @@ export function renderSettings(container) {
     });
   });
 
-  // Tap template row → edit modal (ยกเว้นกดปุ่มลบ)
+  // Tap template row → เปิด add modal ใน edit template mode
   container.querySelectorAll('.template-row[data-tmpl-id]').forEach(row => {
     row.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="delete-template"]')) return;
       const tmpl = Recurring.getTemplate(row.dataset.tmplId);
-      if (tmpl) showEditTemplateModal(tmpl, container);
+      if (!tmpl) return;
+      import('./add.js').then(({ openEditTemplateModal }) => openEditTemplateModal(tmpl));
     });
   });
 
@@ -3371,72 +3372,6 @@ function renderTemplateRow(t) {
       </div>
     </div>
   `;
-}
-
-
-/* === Edit recurring template modal ============================= */
-function showEditTemplateModal(tmpl, settingsContainer) {
-  const amtBaht = (tmpl.amount / 100).toFixed(2).replace(/\.00$/, '');
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal-card" style="max-width:340px">
-      <div class="modal-head">
-        <span class="modal-title">แก้ไขรายการ</span>
-        <button class="modal-close" aria-label="ปิด">${svgIcon('x', { size: 18, stroke: 2 })}</button>
-      </div>
-      <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
-        <div class="seg" role="group">
-          <button class="seg-item${tmpl.type === 'expense' ? ' active' : ''}" data-val="expense">รายจ่าย</button>
-          <button class="seg-item${tmpl.type === 'income'  ? ' active' : ''}" data-val="income">รายรับ</button>
-        </div>
-        <div>
-          <div style="font-size:12px;color:var(--ink-faint);margin-bottom:4px">ชื่อรายการ</div>
-          <input id="tmpl-edit-desc" class="input-field"
-            value="${escapeHtml(tmpl.description || '')}" placeholder="ชื่อรายการ">
-        </div>
-        <div>
-          <div style="font-size:12px;color:var(--ink-faint);margin-bottom:4px">จำนวนเงิน (บาท)</div>
-          <input id="tmpl-edit-amount" class="input-field" type="number"
-            inputmode="decimal" value="${amtBaht}" placeholder="0">
-        </div>
-        <button class="add-save" id="tmpl-edit-save">บันทึก</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-  overlay.querySelector('#tmpl-edit-desc')?.focus();
-
-  let selectedType = tmpl.type;
-  overlay.querySelectorAll('.seg-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedType = btn.dataset.val;
-      overlay.querySelectorAll('.seg-item').forEach(b => b.classList.toggle('active', b === btn));
-    });
-  });
-
-  const close = () => overlay.remove();
-  overlay.querySelector('.modal-close')?.addEventListener('click', close);
-  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-
-  overlay.querySelector('#tmpl-edit-save')?.addEventListener('click', () => {
-    const desc   = overlay.querySelector('#tmpl-edit-desc').value.trim();
-    const amtVal = parseFloat(overlay.querySelector('#tmpl-edit-amount').value);
-    if (!desc || isNaN(amtVal) || amtVal <= 0) {
-      showToast('กรุณากรอกข้อมูลให้ครบ');
-      return;
-    }
-    Recurring.updateTemplate(tmpl.id, {
-      description: desc,
-      amount:      Math.round(amtVal * 100),
-      type:        selectedType,
-    });
-    showToast('บันทึกแล้ว');
-    close();
-    renderSettings(settingsContainer);
-  });
 }
 
 
