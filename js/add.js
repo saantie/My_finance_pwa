@@ -795,6 +795,15 @@ async function save() {
     const reward = claimDailyCoin();
     if (reward) showCoinToast(reward);
     closeAddModal();
+    const fab = document.getElementById('fab');
+    if (fab) {
+      fab.innerHTML = svgIcon('check', { size: 22, stroke: 2.5 });
+      fab.style.background = 'var(--sage)';
+      setTimeout(() => {
+        fab.innerHTML = svgIcon('plus', { size: 22, stroke: 2 });
+        fab.style.background = '';
+      }, 700);
+    }
     return;
   }
 

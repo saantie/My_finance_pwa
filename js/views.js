@@ -27,6 +27,19 @@ import {
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
 
 
+/* === Hero amount counter animation ============================== */
+function animateCount(el, target) {
+  const start = performance.now();
+  const dur = 600;
+  (function step(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = formatBaht(Math.round(target * eased));
+    if (p < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
+
 /* === Squiggle SVG (decorative divider) ========================== */
 const SQUIGGLE = `<svg class="squiggle" viewBox="0 0 200 12" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
   <path d="M0 6 Q 10 0, 20 6 T 40 6 T 60 6 T 80 6 T 100 6 T 120 6 T 140 6 T 160 6 T 180 6 T 200 6"/>
@@ -127,7 +140,7 @@ function renderHeroCard() {
       <!-- 1. ตัวเลขหลัก -->
       <div class="hero-card-main">
         <div class="hero-card-label">${remaining < 0 ? 'ตอนนี้คุณขาด' : 'ตอนนี้คุณเหลือ'}</div>
-        <div class="hero-card-amount" style="color:${amountColor}">${formatBaht(Math.abs(remaining))} <span class="hero-card-unit">฿</span></div>
+        <div class="hero-card-amount" style="color:${amountColor}"><span id="hero-val" data-target="${Math.abs(remaining)}">${formatBaht(Math.abs(remaining))}</span> <span class="hero-card-unit">฿</span></div>
       </div>
 
       <!-- 2. Legend -->
@@ -410,6 +423,10 @@ export function renderDashboard(container) {
   `;
 
   bindEntryActions(container);
+
+  // Hero amount counter animation
+  const heroVal = container.querySelector('#hero-val');
+  if (heroVal) animateCount(heroVal, +heroVal.dataset.target);
 
   // Catchup banner actions
   container.querySelector('[data-action="skip-catchup"]')?.addEventListener('click', () => {
@@ -1246,8 +1263,19 @@ export function bindEntryActions(container) {
       const isPermanent = tx.deleted_by != null;
       const msg = isPermanent ? `ลบถาวร "${desc}"?\nรายการจะหายจากทุกฝ่าย` : `ลบ "${desc}"?`;
       if (!confirm(msg)) return;
-      State.deleteTransaction(id);
-      showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
+      const entryEl = delBtn.closest('.entry');
+      if (entryEl) {
+        entryEl.style.transition = 'transform 0.2s, opacity 0.2s';
+        entryEl.style.transform  = 'translateX(100%)';
+        entryEl.style.opacity    = '0';
+        setTimeout(() => {
+          State.deleteTransaction(id);
+          showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
+        }, 200);
+      } else {
+        State.deleteTransaction(id);
+        showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
+      }
     }
   });
 
