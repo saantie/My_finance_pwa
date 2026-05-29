@@ -488,7 +488,21 @@ export function renderDashboard(container) {
             return bal !== 0 || a.bank || a.user_renamed;
           });
           if (!visible.length) return `<div class="empty" style="padding:20px 12px;"><div class="desc">— ยังไม่มีบัญชี กด <strong>จัดการ</strong> เพื่อเพิ่ม —</div></div>`;
-          return visible.map(a => renderAccountRow(a, threshold)).join('');
+          // คำนวณยอดรวม bank+cash+ewallet เทียบกับเกณฑ์ (ไม่เทียบทีละบัญชี)
+          const liquidTypes = new Set(['bank', 'cash', 'ewallet']);
+          const totalLiquid = visible
+            .filter(a => liquidTypes.has(a.type) || a.bank)
+            .reduce((s, a) => {
+              const b = a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id);
+              return s + b;
+            }, 0);
+          const belowThreshold = totalLiquid > 0 && totalLiquid < threshold;
+          const warnBar = belowThreshold ? `
+            <div class="balance-threshold-warning">
+              ${svgIcon('alert-triangle', { size: 13, stroke: 2 })}
+              ยอดรวมต่ำกว่าเกณฑ์ — มี ${formatBaht(totalLiquid)} ฿ (เกณฑ์ ${formatBaht(threshold)} ฿)
+            </div>` : '';
+          return warnBar + visible.map(a => renderAccountRow(a)).join('');
         })()}
       </div>
     </div>
@@ -536,10 +550,20 @@ export function renderDashboard(container) {
   // "จัดการ" → navigate ไปหน้า Settings แล้ว scroll ไปส่วนบัญชีของฉัน
   container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
     document.querySelector('.nav-item[data-view="settings"]')?.click();
-    // รอให้ renderSettings วาด DOM เสร็จก่อน scroll
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         document.getElementById('settings-accounts')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  });
+
+  // "จัดการ" ในส่วนรายการล่วงหน้า → navigate ไปหน้า Settings ส่วนรายการประจำ
+  container.querySelector('[data-action="view-recurring"]')?.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-view="settings"]')?.click();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById('recurring-section')
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
@@ -1197,22 +1221,13 @@ function renderUpcomingRow(u) {
 /* === Helper: account row ======================================== */
 const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', credit_card: 'CC', ewallet: 'EW' };
 
-function renderAccountRow(acct, globalThreshold) {
-  const threshold = acct.threshold || globalThreshold;
+function renderAccountRow(acct) {
   const balance = acct.type === 'cash'
     ? State.getEffectiveCashBalance(acct.id)
     : State.computeAccountBalance(acct.id);
-  const alertable = acct.type !== 'cash'
-    && acct.type !== 'debt'
-    && acct.type !== 'investment'
-    && acct.type !== 'credit_card';
   const isNegative = balance < 0;
-  const isWarning  = alertable && !isNegative && balance < threshold;
-  const isDanger   = isWarning && balance < threshold * 0.5;
-  const rowClass   = isNegative ? 'account-row--danger'
-    : isDanger ? 'account-row--danger'
-    : isWarning ? 'account-row--warning' : '';
-  const initial = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
+  const rowClass   = isNegative ? 'account-row--danger' : '';
+  const initial    = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
 
   return `
     <div class="acct${rowClass ? ` ${rowClass}` : ''}">
@@ -1222,11 +1237,6 @@ function renderAccountRow(acct, globalThreshold) {
         ${acct.account_number_masked
           ? `<div class="acct-num">${escapeHtml(acct.account_number_masked)}</div>`
           : ''}
-        ${isWarning ? `
-        <div class="account-warning-text">
-          ${svgIcon('alert-triangle', { size: 12, stroke: 2 })}
-          ยอดต่ำกว่าเกณฑ์ (${formatBaht(threshold)} ฿)
-        </div>` : ''}
       </div>
       <div>
         <div class="acct-balance" style="${isNegative ? 'color:var(--expense,#d96b5e)' : ''}">${formatBaht(balance)} ฿</div>
@@ -2693,6 +2703,15 @@ export function renderSettings(container) {
     });
   });
 
+  // Tap template row → edit modal (ยกเว้นกดปุ่มลบ)
+  container.querySelectorAll('.template-row[data-tmpl-id]').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="delete-template"]')) return;
+      const tmpl = Recurring.getTemplate(row.dataset.tmplId);
+      if (tmpl) showEditTemplateModal(tmpl, container);
+    });
+  });
+
   // Delete recurring templates
   container.querySelectorAll('[data-action="delete-template"]').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -2703,7 +2722,6 @@ export function renderSettings(container) {
       if (confirm(`ลบ "${tmpl.description || 'รายการนี้'}"?\nรายการที่สร้างไปแล้วจะไม่ถูกลบ`)) {
         Recurring.deleteTemplate(id);
         showToast('ลบรายการประจำแล้ว');
-        // Recurring.deleteTemplate → notify() → Recurring.subscribe → renderCurrentView()
       }
     });
   });
@@ -3271,7 +3289,7 @@ function renderRecurringSection() {
   if (templates.length === 0) {
     return `
       ${suggestionsHtml}
-      <div class="section">
+      <div class="section" id="recurring-section">
         <div class="section-head">
           <h2 class="section-title">รายการประจำ / ผ่อน</h2>
         </div>
@@ -3289,7 +3307,7 @@ function renderRecurringSection() {
 
   return `
     ${suggestionsHtml}
-    <div class="section">
+    <div class="section" id="recurring-section">
       <div class="section-head">
         <h2 class="section-title">รายการประจำ / ผ่อน</h2>
         <span class="section-action">${templates.length} รายการ</span>
@@ -3352,6 +3370,72 @@ function renderTemplateRow(t) {
       </div>
     </div>
   `;
+}
+
+
+/* === Edit recurring template modal ============================= */
+function showEditTemplateModal(tmpl, settingsContainer) {
+  const amtBaht = (tmpl.amount / 100).toFixed(2).replace(/\.00$/, '');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:340px">
+      <div class="modal-head">
+        <span class="modal-title">แก้ไขรายการ</span>
+        <button class="modal-close" aria-label="ปิด">${svgIcon('x', { size: 18, stroke: 2 })}</button>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+        <div class="seg" role="group">
+          <button class="seg-item${tmpl.type === 'expense' ? ' active' : ''}" data-val="expense">รายจ่าย</button>
+          <button class="seg-item${tmpl.type === 'income'  ? ' active' : ''}" data-val="income">รายรับ</button>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-bottom:4px">ชื่อรายการ</div>
+          <input id="tmpl-edit-desc" class="input-field"
+            value="${escapeHtml(tmpl.description || '')}" placeholder="ชื่อรายการ">
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-bottom:4px">จำนวนเงิน (บาท)</div>
+          <input id="tmpl-edit-amount" class="input-field" type="number"
+            inputmode="decimal" value="${amtBaht}" placeholder="0">
+        </div>
+        <button class="add-save" id="tmpl-edit-save">บันทึก</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#tmpl-edit-desc')?.focus();
+
+  let selectedType = tmpl.type;
+  overlay.querySelectorAll('.seg-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedType = btn.dataset.val;
+      overlay.querySelectorAll('.seg-item').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close')?.addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#tmpl-edit-save')?.addEventListener('click', () => {
+    const desc   = overlay.querySelector('#tmpl-edit-desc').value.trim();
+    const amtVal = parseFloat(overlay.querySelector('#tmpl-edit-amount').value);
+    if (!desc || isNaN(amtVal) || amtVal <= 0) {
+      showToast('กรุณากรอกข้อมูลให้ครบ');
+      return;
+    }
+    Recurring.updateTemplate(tmpl.id, {
+      description: desc,
+      amount:      Math.round(amtVal * 100),
+      type:        selectedType,
+    });
+    showToast('บันทึกแล้ว');
+    close();
+    renderSettings(settingsContainer);
+  });
 }
 
 

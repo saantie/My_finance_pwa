@@ -735,16 +735,22 @@ html, body {
   background: rgba(176, 58, 46, 0.04);
   padding-left: 13px;
 }
-.account-row--warning .acct-balance,
 .account-row--danger .acct-balance { color: var(--clay); }
-.account-warning-text {
+
+/* Total-balance threshold warning banner (แทนการเตือนทีละบัญชี) */
+.balance-threshold-warning {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--clay);
-  margin-top: 2px;
+  gap: 6px;
+  background: rgba(232, 182, 73, 0.12);
+  border: 1px solid var(--honey);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 4px;
 }
+.balance-threshold-warning svg { flex-shrink: 0; color: var(--honey); }
 
 .card-padded { padding: 4px 18px; }
 
@@ -2953,7 +2959,11 @@ html[data-dark="1"] .aha-card {
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px dotted var(--rule);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s;
 }
+.template-row:active { background: var(--accent-soft); }
 .template-row:last-child { border-bottom: none; }
 .template-body { min-width: 0; }
 .template-del {
