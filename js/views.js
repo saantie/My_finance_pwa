@@ -2095,14 +2095,9 @@ function confirmImport(result) {
   // ลบข้อมูลสมมุติออกก่อน import ข้อมูลจริง (ถ้ามี)
   const hadSampleData = State.clearSampleData();
   if (hadSampleData) {
-    // ลบ recurring templates ที่ผูกกับ sample accounts ด้วย
-    Recurring.getTemplates()
-      .filter(t => {
-        const acct = State.getAccount(t.account_id);
-        // account_id ไม่พบใน state แล้ว = ถูกลบไปพร้อม sample data
-        return t.account_id && !acct;
-      })
-      .forEach(t => Recurring.deleteTemplate(t.id));
+    State.markDemoComplete();
+    // ลบ recurring templates ทั้งหมดที่สร้างจาก demo context
+    Recurring.getTemplates().forEach(t => Recurring.deleteTemplate(t.id));
   }
 
   State.addTransactionsBatch(cleanTxs);
@@ -3234,7 +3229,7 @@ function renderRecurringSuggestions() {
   return `
     <div class="section">
       <div class="section-head">
-        <h2 class="section-title">พบรายการประจำจาก e-Statement</h2>
+        <h2 class="section-title">ตรวจพบรายการประจำ</h2>
         <span class="section-action" style="color:var(--primary)">${_recurSuggestions.length} รายการ</span>
       </div>
       <div class="card card-padded">

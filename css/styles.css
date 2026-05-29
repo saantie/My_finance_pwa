@@ -922,6 +922,7 @@ html, body {
 /* Swipe-reveal action panel — slides in from right (mobile only) */
 .entry-swipe-actions {
   display: none;
+  pointer-events: none;
   position: absolute;
   right: 0; top: 0; bottom: 0;
   width: 80px;
@@ -932,7 +933,10 @@ html, body {
 @media (hover: none) {
   .entry-swipe-actions { display: flex; }
 }
-.entry.swiped .entry-swipe-actions { transform: translateX(0); }
+.entry.swiped .entry-swipe-actions {
+  transform: translateX(0);
+  pointer-events: auto;
+}
 
 .swipe-btn {
   flex: 1;
