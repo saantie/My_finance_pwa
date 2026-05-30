@@ -52,6 +52,10 @@ const {
 
 const { getDemoTransactions } = await import('../js/demo-data.js');
 
+const {
+  track, sanitize, withRageTap, getAllowedEvents, initAnalytics
+} = await import('../js/analytics.js');
+
 const { parseIntent } = await import('../js/voice.js');
 
 const {
@@ -993,6 +997,225 @@ test('clearSampleData preserves non-sample transactions', () => {
   clearSampleData();
   eq(getTransactions().length, 1, 'real transaction should survive clearSampleData');
   eq(getTransactions()[0].description, 'real tx', 'should keep the real tx');
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nanalytics.js');
+
+// Reset state + re-init analytics before each analytics test
+function resetForAnalytics() {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+}
+
+// ── sanitize ──────────────────────────────────────────────────────────
+
+test('sanitize boolean: coerces truthy/falsy values', () => {
+  eq(sanitize(1, 'boolean'), true);
+  eq(sanitize(0, 'boolean'), false);
+  eq(sanitize('yes', 'boolean'), true);
+  eq(sanitize(false, 'boolean'), false);
+});
+
+test('sanitize number: accepts finite number', () => {
+  eq(sanitize(42, 'number'), 42);
+  eq(sanitize(0, 'number'), 0);
+  eq(sanitize(-5.5, 'number'), -5.5);
+});
+
+test('sanitize number: rejects string', () => {
+  eq(sanitize('42', 'number'), undefined);
+});
+
+test('sanitize number: rejects NaN', () => {
+  eq(sanitize(NaN, 'number'), undefined);
+});
+
+test('sanitize number: rejects Infinity', () => {
+  eq(sanitize(Infinity, 'number'), undefined);
+  eq(sanitize(-Infinity, 'number'), undefined);
+});
+
+test('sanitize string: returns string as-is under 100 chars', () => {
+  eq(sanitize('hello', 'string'), 'hello');
+});
+
+test('sanitize string: truncates to 100 chars', () => {
+  const long = 'x'.repeat(150);
+  eq(sanitize(long, 'string').length, 100);
+});
+
+test('sanitize string: rejects non-string', () => {
+  eq(sanitize(123, 'string'), undefined);
+  eq(sanitize(null, 'string'), undefined);
+});
+
+test('sanitize enum: accepts value in list', () => {
+  eq(sanitize('manual', ['manual', 'voice', 'pdf']), 'manual');
+  eq(sanitize('pdf', ['manual', 'voice', 'pdf']), 'pdf');
+});
+
+test('sanitize enum: rejects value not in list', () => {
+  eq(sanitize('other', ['manual', 'voice', 'pdf']), undefined);
+  eq(sanitize('', ['manual', 'voice', 'pdf']), undefined);
+});
+
+test('sanitize unknown type: returns undefined', () => {
+  eq(sanitize('value', 'object'), undefined);
+});
+
+// ── track ─────────────────────────────────────────────────────────────
+
+test('track: non-whitelisted event warns + does not throw', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warns.push(args.join(' '));
+  track('unknown_event_xyz', {});
+  console.warn = origWarn;
+  assert(warns.some(w => w.includes('not in whitelist')), 'should warn about unknown event');
+});
+
+test('track: whitelisted event with unknown field drops the field', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('transaction_added', { source: 'manual', secret_amount: 99999 });
+  global.window = undefined;
+  assert(captured.length === 1, 'should have captured one event');
+  assert(!('secret_amount' in captured[0].props), 'unknown field must be dropped');
+  eq(captured[0].props.source, 'manual', 'known field must be present');
+});
+
+test('track: user opt-out → no send', () => {
+  resetAll();
+  setSetting('analytics_opt_out', true);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('transaction_added', { source: 'manual' });
+  global.window = undefined;
+  eq(captured.length, 0, 'should not send when opt-out is true');
+});
+
+test('track: opt-in sends valid event', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('session_length_sec', { value: 120 });
+  global.window = undefined;
+  eq(captured.length, 1, 'should capture event');
+  eq(captured[0].name, 'session_length_sec');
+  eq(captured[0].props.value, 120);
+});
+
+test('track: enum field with invalid value → field dropped', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('transaction_added', { source: 'unknown_source' });
+  global.window = undefined;
+  assert(captured.length === 1, 'event still fires');
+  assert(!('source' in captured[0].props), 'invalid enum value should be dropped');
+});
+
+test('track: event with empty schema sends empty props', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('app_first_open', { extra: 'data' });
+  global.window = undefined;
+  eq(captured.length, 1, 'should capture event');
+  eq(Object.keys(captured[0].props).length, 0, 'no props from empty schema');
+});
+
+test('track: number field with string value → field dropped', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+  track('session_length_sec', { value: '120' });
+  global.window = undefined;
+  assert(captured.length === 1, 'event fires');
+  assert(!('value' in captured[0].props), 'string passed as number should be dropped');
+});
+
+// ── getAllowedEvents ──────────────────────────────────────────────────
+
+test('getAllowedEvents returns copy of whitelist', () => {
+  const events = getAllowedEvents();
+  assert('app_first_open' in events, 'should have app_first_open');
+  assert('transaction_added' in events, 'should have transaction_added');
+  assert('rage_tap_detected' in events, 'should have rage_tap_detected');
+  // Verify it's a copy, not the original
+  events.injected_event = {};
+  const events2 = getAllowedEvents();
+  assert(!('injected_event' in events2), 'mutations to copy should not affect original');
+});
+
+// ── withRageTap ───────────────────────────────────────────────────────
+
+test('withRageTap: 3 taps within 1.5s triggers rage_tap_detected', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+
+  const handler = withRageTap('test_button', () => {});
+  handler({});
+  handler({});
+  handler({});
+
+  global.window = undefined;
+  const rageTaps = captured.filter(c => c.name === 'rage_tap_detected');
+  eq(rageTaps.length, 1, 'should trigger exactly once on 3rd tap');
+  eq(rageTaps[0].props.feature, 'test_button', 'should include feature name');
+});
+
+test('withRageTap: resets after trigger, needs 3 more taps', () => {
+  resetAll();
+  setSetting('analytics_opt_out', false);
+  initAnalytics({ getSettings });
+  const captured = [];
+  global.window = { posthog: { capture: (name, props) => captured.push({ name, props }) } };
+
+  const handler = withRageTap('reset_test', () => {});
+  handler({}); handler({}); handler({}); // first rage tap
+  handler({}); handler({}); // only 2 after reset → no second trigger
+
+  global.window = undefined;
+  const rageTaps = captured.filter(c => c.name === 'rage_tap_detected');
+  eq(rageTaps.length, 1, 'should only trigger once after reset with 2 more taps');
+});
+
+test('withRageTap: calls original handler', () => {
+  let called = 0;
+  const handler = withRageTap('btn', () => { called++; });
+  handler({});
+  eq(called, 1, 'original handler should be called');
+});
+
+test('withRageTap: works without original handler', () => {
+  const handler = withRageTap('btn_no_handler');
+  // Should not throw
+  handler({});
+  assert(true, 'no error when originalHandler is undefined');
 });
 
 

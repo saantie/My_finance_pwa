@@ -21,6 +21,7 @@ import { checkCatchupOpportunity } from './catchup.js';
 import { shouldShowCoachMark, showCoachMark } from './coach-mark.js';
 import { setCustomCategoryRegistry } from './icons.js';
 import { setCustomCategoryParserRegistry } from './parsers.js';
+import { initAnalytics, trackFirstOpenIfNeeded, markSessionAction, track } from './analytics.js';
 
 
 /* === Globals ==================================================== */
@@ -97,6 +98,8 @@ function renderCurrentView() {
 
 function switchView(viewName) {
   if (!VIEW_RENDERERS[viewName]) return;
+  markSessionAction();
+  track('feature_used', { feature: viewName });
 
   if (viewName !== 'dashboard') {
     history.pushState({ view: viewName }, '', `#${viewName}`);
@@ -392,7 +395,23 @@ function init() {
   State.subscribe(() => renderCurrentView());
   Recurring.subscribe(() => renderCurrentView());
 
-  // 5a. Init + subscribe custom category registries (icons.js + parsers.js)
+  // 5-track. Transaction-added analytics subscriber
+  let _prevTxCount = State.getTransactions().length;
+  State.subscribe(() => {
+    const txs = State.getTransactions();
+    if (txs.length > _prevTxCount) {
+      const latest = txs[0]; // sorted newest first
+      if (latest) track('transaction_added', { source: latest.source });
+      markSessionAction();
+    }
+    _prevTxCount = txs.length;
+  });
+
+  // 5a. Init analytics — pass state module so opt-out check works synchronously
+  initAnalytics(State);
+  trackFirstOpenIfNeeded();
+
+  // 5b. Init + subscribe custom category registries (icons.js + parsers.js)
   function syncCategoryRegistries() {
     const cats = State.getCustomCategories();
     setCustomCategoryRegistry(cats);

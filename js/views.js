@@ -13,6 +13,7 @@
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
 import { svgIcon, CATEGORIES, getCategory, ICON_PICKER_KEYS, COLOR_PALETTE } from './icons.js';
+import { track } from './analytics.js';
 import {
   formatBaht, formatLongDate, formatShortDate, formatTime,
   todayISO, parseLocalDate, dayNameTH, monthNameTH, ceToBe, debounce, haptic, offsetDateISO
@@ -2400,6 +2401,26 @@ export function renderSettings(container) {
       </div>
     </div>
 
+    <!-- Analytics opt-out -->
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">Privacy</h2>
+      </div>
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">ส่งข้อมูลใช้งานแบบไม่ระบุตัวตน</div>
+            <div class="setting-sub">ช่วยปรับปรุงแอป — ไม่เก็บยอดเงิน รายการ หรือชื่อ</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="analytics-toggle"
+              ${!settings.analytics_opt_out ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Recurring templates -->
     ${renderRecurringSection()}
 
@@ -2634,6 +2655,7 @@ export function renderSettings(container) {
     a.download = `diary-finance-${todayISO()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    track('export_used', { format: 'json' });
     showToast('สำรองข้อมูลเรียบร้อย');
   });
 
@@ -2669,6 +2691,11 @@ export function renderSettings(container) {
     const val = e.target.checked;
     State.setSetting('dark', val);
     applyDark(val);
+  });
+
+  // Analytics opt-out toggle
+  container.querySelector('#analytics-toggle')?.addEventListener('change', (e) => {
+    State.setSetting('analytics_opt_out', !e.target.checked);
   });
 
   // Notification toggles (notify_recurring, notify_low_balance, notify_weekly)

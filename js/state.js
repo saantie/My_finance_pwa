@@ -70,7 +70,8 @@ const DEFAULT_STATE = {
     last_drive_backup: null,     // YYYY-MM-DD วันที่สำรอง Drive ล่าสุด
     notify_recurring:  true,     // แจ้งเตือนรายการประจำครบกำหนด
     notify_low_balance: true,    // แจ้งเตือนยอดใกล้เกณฑ์ต่ำสุด
-    notify_weekly:     true      // สรุปสัปดาห์ (วันจันทร์)
+    notify_weekly:     true,     // สรุปสัปดาห์ (วันจันทร์)
+    analytics_opt_out: false     // true = user ปิด analytics
   },
   userProgress: { ...DEFAULT_USER_PROGRESS }
 };
