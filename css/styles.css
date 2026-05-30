@@ -4131,7 +4131,7 @@ html[data-dark="1"] .entry-acct-line {
   padding-bottom: 2px;
 }
 .cat-item--builtin {
-  opacity: 0.65;
+  pointer-events: none;
 }
 .cat-item-icon {
   width: 44px;

@@ -3494,6 +3494,8 @@ const MAX_CUSTOM_CATEGORIES = 37; // 50 total - 13 built-in
 
 /** เปิด overlay จัดการหมวดหมู่ */
 export function openCategoryManager() {
+  history.pushState({ view: 'modal', modal: 'cat-manager' }, '', '#cat-manager');
+
   const overlay = document.createElement('div');
   overlay.className = 'overlay cat-manager-overlay';
   overlay.innerHTML = `
@@ -3507,6 +3509,13 @@ export function openCategoryManager() {
     </div>
   `;
   document.body.appendChild(overlay);
+
+  function closeOverlay() {
+    overlay.remove();
+    window.removeEventListener('popstate', onPopState);
+  }
+  function onPopState() { closeOverlay(); }
+  window.addEventListener('popstate', onPopState);
 
   function renderBody() {
     const body = overlay.querySelector('#cat-manager-body');
@@ -3576,7 +3585,7 @@ export function openCategoryManager() {
 
   renderBody();
 
-  overlay.querySelector('.cat-manager-back').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('.cat-manager-back').addEventListener('click', () => history.back());
   overlay.querySelector('#cat-add-btn').addEventListener('click', () => {
     const custom = State.getCustomCategories();
     if (custom.length >= MAX_CUSTOM_CATEGORIES) {
