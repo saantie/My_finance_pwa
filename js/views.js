@@ -2626,6 +2626,7 @@ export function renderSettings(container) {
   container.querySelector('[data-action="reset-all"]')?.addEventListener('click', () => {
     if (confirm('ลบข้อมูลทั้งหมด ยกเลิกไม่ได้\nโปรดยืนยันอีกครั้ง')) {
       State.resetAll();
+      Recurring.getTemplates().forEach(t => Recurring.deleteTemplate(t.id));
       showToast('ลบข้อมูลทั้งหมดแล้ว');
     }
   });
