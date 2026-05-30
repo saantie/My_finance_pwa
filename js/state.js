@@ -395,6 +395,7 @@ export function addAccount(account) {
     id: account.id || uuid(),
     bank: account.bank || null,
     account_number_masked: account.account_number_masked || '',
+    account_number_user: account.account_number_user || '',
     display_name: account.display_name || 'บัญชีใหม่',
     type: account.type || 'bank',
     current_balance: account.current_balance ?? 0,

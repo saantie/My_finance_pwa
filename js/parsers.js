@@ -119,11 +119,12 @@ export async function parsePDF(file, password = null, onProgress = null) {
   step('แยกรายการ...');
   const rawTransactions = parseTransactions(allRows, bank);
 
-  // Auto-classify — ส่ง ownMasks เพื่อ detect โอนระหว่างบัญชีตัวเอง
+  // Auto-classify — รวมทั้ง account_number_masked (จาก PDF) และ account_number_user (user กรอก)
   const State2  = await getState();
-  const ownMasks = State2.getAccounts()
-    .map(a => a.account_number_masked)
-    .filter(Boolean);
+  const ownMasks = State2.getAccounts().flatMap(a => [
+    a.account_number_masked,
+    a.account_number_user
+  ]).filter(Boolean);
   const transactions = rawTransactions.map(tx => ({
     ...tx,
     type: autoClassifyType(tx, ownMasks),
@@ -465,6 +466,38 @@ export function parseTransactions(rows, bank) {
 }
 
 
+/* === Own-account matching ====================================== */
+
+/** ดึงเฉพาะตัวเลขทั้งหมดออกจาก string */
+function normDigits(s) { return s.replace(/\D/g, ''); }
+
+/**
+ * ตรวจว่า text มีเลขบัญชีของตัวเองปรากฏอยู่หรือไม่
+ * รองรับทุกรูปแบบ: มีขีด / เว้นวรรค / ไม่มี separator
+ *
+ * Algorithm:
+ *   1. ดึง digit-runs ≥ 4 หลักจาก text (หลีกเลี่ยงจำนวนเงินที่มี , .)
+ *   2. สำหรับแต่ละบัญชี:
+ *      - suffix match: บัญชีลงท้ายด้วย run นี้ (ใช้ 4+ หลักสุดท้าย)
+ *      - substring match: run ≥ 6 หลักและปรากฏอยู่ใน acctDigits
+ */
+function matchesOwnAccount(text, ownNumbers) {
+  const runs = text.match(/\d{4,}/g);
+  if (!runs) return false;
+
+  for (const raw of ownNumbers) {
+    const acctDigits = normDigits(raw);
+    if (acctDigits.length < 4) continue;
+
+    for (const run of runs) {
+      if (acctDigits.endsWith(run)) return true;
+      if (run.length >= 6 && acctDigits.includes(run)) return true;
+    }
+  }
+  return false;
+}
+
+
 /* === Auto-classification ======================================= */
 
 export function autoClassifyType(tx, ownAccountMasks = []) {
@@ -473,10 +506,7 @@ export function autoClassifyType(tx, ownAccountMasks = []) {
   // direction จาก column detection (primary signal)
   if (tx.direction === 'in') {
     if (/(?:cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) return 'transfer';
-    if (ownAccountMasks.some(mask => {
-      const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
-      return last4 && t.includes(last4);
-    })) return 'transfer';
+    if (matchesOwnAccount(t, ownAccountMasks)) return 'transfer';
     return 'income';
   }
 
@@ -484,10 +514,7 @@ export function autoClassifyType(tx, ownAccountMasks = []) {
     if (/(?:atm|withdraw|ถอน|cdm)/i.test(t)) return 'transfer';
     if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t)) return 'transfer';
     if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) return 'transfer';
-    if (ownAccountMasks.some(mask => {
-      const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
-      return last4 && t.includes(last4);
-    })) return 'transfer';
+    if (matchesOwnAccount(t, ownAccountMasks)) return 'transfer';
     return 'expense';
   }
 
@@ -495,10 +522,7 @@ export function autoClassifyType(tx, ownAccountMasks = []) {
   if (/(?:atm|withdraw|ถอน|cash\s*deposit|ฝากเงินสด|cdm)/i.test(t)) return 'transfer';
   if (/(?:credit\s*card|บัตรเครดิต|ชำระบัตร|cc\s*payment)/i.test(t))  return 'transfer';
   if (/(?:transfer.*own|โอนภายใน|own\s*account|to\s*saving|ไปออม)/i.test(t)) return 'transfer';
-  if (ownAccountMasks.some(mask => {
-    const last4 = mask.replace(/[^0-9]/g, '').slice(-4);
-    return last4 && t.includes(last4);
-  })) return 'transfer';
+  if (matchesOwnAccount(t, ownAccountMasks)) return 'transfer';
 
   if (/(?:เงินเดือน|salary|payroll|bonus|deposit|รับโอน|โอนเข้า|เงินเข้า|รับเงิน|เครดิตเงิน|transfer\s*in|received|interest|ดอกเบี้ย|cashback|cash\s*back|refund|คืนเงิน|รับ\s)/i.test(t)) {
     return 'income';

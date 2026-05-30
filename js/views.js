@@ -3156,6 +3156,9 @@ function showAccountModal(existingAcct, settingsContainer) {
   const currentThreshold = existingAcct?.threshold
     ? (existingAcct.threshold / 100).toFixed(0)
     : '';
+  // ประเภทที่มีเลขบัญชี (ใช้ detect inter-account transfer ใน PDF import)
+  const HAS_ACCT_NUM = new Set(['bank', 'credit_card', 'ewallet']);
+  const showAcctNum = HAS_ACCT_NUM.has(currentType);
 
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
@@ -3173,6 +3176,14 @@ function showAccountModal(existingAcct, settingsContainer) {
           ${TYPE_OPTIONS.map(t => `
             <button class="acct-type-btn ${currentType === t.value ? 'active' : ''}"
                     data-type="${t.value}">${t.label}</button>`).join('')}
+        </div>
+
+        <div id="am-acctnum-row" style="${showAcctNum ? '' : 'display:none'}">
+          <label class="acct-field-label">เลขบัญชี <span style="font-weight:400;color:var(--ink-faint)">(ไม่บังคับ)</span></label>
+          <input class="acct-field-input" id="am-acctnum" type="text"
+                 inputmode="numeric" placeholder="เช่น 012-3-45678-9"
+                 value="${escapeHtml(existingAcct?.account_number_user || '')}">
+          <div class="acct-field-hint">ช่วยจับการโอนระหว่างบัญชีตัวเองจาก e-Statement — ใส่หรือไม่ใส่ก็ได้ รองรับทุกรูปแบบ (มี/ไม่มีขีด)</div>
         </div>
 
         <label class="acct-field-label">ยอดเปิดบัญชี (฿)</label>
@@ -3197,10 +3208,12 @@ function showAccountModal(existingAcct, settingsContainer) {
   document.body.appendChild(overlay);
 
   let selectedType = currentType;
+  const acctNumRow = overlay.querySelector('#am-acctnum-row');
   overlay.querySelectorAll('.acct-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       selectedType = btn.dataset.type;
       overlay.querySelectorAll('.acct-type-btn').forEach(b => b.classList.toggle('active', b === btn));
+      acctNumRow.style.display = HAS_ACCT_NUM.has(selectedType) ? '' : 'none';
     });
   });
 
@@ -3215,6 +3228,7 @@ function showAccountModal(existingAcct, settingsContainer) {
     const balSatang = balRaw !== '' ? Math.round(Number(balRaw) * 100) : 0;
     const thrRaw = overlay.querySelector('#am-threshold').value;
     const thrSatang = thrRaw !== '' ? Math.round(Number(thrRaw) * 100) : settings.threshold_satang;
+    const acctNumUser = (overlay.querySelector('#am-acctnum')?.value || '').trim();
 
     if (isEdit) {
       State.updateAccount(existingAcct.id, {
@@ -3222,6 +3236,7 @@ function showAccountModal(existingAcct, settingsContainer) {
         type: selectedType,
         current_balance: balSatang,
         threshold: thrSatang,
+        account_number_user: acctNumUser,
         user_renamed: true
       });
       showToast('แก้ไขบัญชีแล้ว');
@@ -3231,6 +3246,7 @@ function showAccountModal(existingAcct, settingsContainer) {
         type: selectedType,
         current_balance: balSatang,
         threshold: thrSatang,
+        account_number_user: acctNumUser,
         user_renamed: true
       });
       showToast('เพิ่มบัญชีแล้ว');
