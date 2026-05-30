@@ -45,7 +45,8 @@ function makeDefaultAccount(def) {
     storage: 'local',
     shared_with: [],
     cash_balance_override: null,
-    override_date: null
+    override_date: null,
+    exclude_from_summary: false
   };
 }
 
@@ -396,6 +397,7 @@ export function addAccount(account) {
     bank: account.bank || null,
     account_number_masked: account.account_number_masked || '',
     account_number_user: account.account_number_user || '',
+    exclude_from_summary: account.exclude_from_summary ?? false,
     display_name: account.display_name || 'บัญชีใหม่',
     type: account.type || 'bank',
     current_balance: account.current_balance ?? 0,
@@ -522,6 +524,17 @@ function activeTxs() {
   return _state.transactions.filter(t => t.deleted_by == null);
 }
 
+/** รายการสำหรับ summary/calculation — กรอง deleted + excluded accounts ออก */
+function summaryTxs() {
+  const excluded = new Set(
+    _state.accounts.filter(a => a.exclude_from_summary).map(a => a.id)
+  );
+  if (!excluded.size) return activeTxs();
+  return activeTxs().filter(t =>
+    !excluded.has(t.account_from) && !excluded.has(t.account_to)
+  );
+}
+
 /**
  * คำนวณยอดคงเหลือของบัญชีจากรายการที่บันทึกไว้
  *
@@ -606,7 +619,7 @@ export function setCashOverride(accountId, amount, date) {
  * @param {string} yearMonth "YYYY-MM"; default = เดือนปัจจุบัน
  */
 export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
-  const txs = activeTxs().filter(t => t.date.startsWith(yearMonth));
+  const txs = summaryTxs().filter(t => t.date.startsWith(yearMonth));
   let income = 0, expense = 0;
   for (const t of txs) {
     if (t.type === 'income') income += t.amount;
@@ -634,22 +647,25 @@ export function getMonthSummary(yearMonth = todayISO().slice(0, 7)) {
 export function getOpeningBalance(yearMonth) {
   const cutoff = yearMonth + '-01';
 
+  const stxs = summaryTxs();
+
   // ถ้าไม่มีรายการก่อนเดือนนี้เลย → เดือนแรกสุด → ยกมา 0
-  const hasHistory = activeTxs().some(t => t.date < cutoff);
+  const hasHistory = stxs.some(t => t.date < cutoff);
   if (!hasHistory) return 0;
 
-  // ยอดรวมปัจจุบันของทุกบัญชี (ใช้ logic เดียวกับ dashboard)
-  const totalCurrent = getAccounts().reduce((s, acct) => {
-    const bal = acct.type === 'cash'
-      ? getEffectiveCashBalance(acct.id)
-      : computeAccountBalance(acct.id);
-    return s + bal;
-  }, 0);
+  // ยอดรวมปัจจุบันเฉพาะบัญชีที่ไม่ถูก exclude
+  const totalCurrent = getAccounts()
+    .filter(a => !a.exclude_from_summary)
+    .reduce((s, acct) => {
+      const bal = acct.type === 'cash'
+        ? getEffectiveCashBalance(acct.id)
+        : computeAccountBalance(acct.id);
+      return s + bal;
+    }, 0);
 
   // หัก income / บวกคืน expense ที่เกิดตั้งแต่ cutoff เป็นต้นไป
-  // (transfers ไม่นับ — เท่ากันทั้งสองบัญชีจึงตัดกันเองที่ portfolio level)
   let futureIncome = 0, futureExpense = 0;
-  for (const t of activeTxs()) {
+  for (const t of stxs) {
     if (t.date < cutoff) continue;
     if (t.type === 'income')  futureIncome  += t.amount;
     else if (t.type === 'expense') futureExpense += t.amount;
@@ -673,7 +689,7 @@ export function getMonthSummaryWithCarry(yearMonth) {
  * @returns array ของ { group, total, count, percent }
  */
 export function getTopCategories(yearMonth = todayISO().slice(0, 7), limit = 5) {
-  const txs = activeTxs().filter(t =>
+  const txs = summaryTxs().filter(t =>
     t.date.startsWith(yearMonth) && t.type === 'expense'
   );
   const totals = {};
@@ -745,7 +761,7 @@ export function getTransactionsByDay(filterFn = null) {
 export function getDailyExpenses(days = 14) {
   const result = [];
   const today = new Date();
-  const active = activeTxs();
+  const active = summaryTxs();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
@@ -766,7 +782,7 @@ export function getDailyExpenses(days = 14) {
 export function getMonthComparison() {
   const today = new Date();
   const dayOfMonth = today.getDate();
-  const active = activeTxs();
+  const active = summaryTxs();
 
   // เดือนนี้: วันที่ 1 ถึงวันนี้
   const thisYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;

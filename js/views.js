@@ -488,10 +488,10 @@ export function renderDashboard(container) {
             return bal !== 0 || a.bank || a.user_renamed;
           });
           if (!visible.length) return `<div class="empty" style="padding:20px 12px;"><div class="desc">— ยังไม่มีบัญชี กด <strong>จัดการ</strong> เพื่อเพิ่ม —</div></div>`;
-          // คำนวณยอดรวม bank+cash+ewallet เทียบกับเกณฑ์ (ไม่เทียบทีละบัญชี)
+          // คำนวณยอดรวม bank+cash+ewallet เทียบกับเกณฑ์ (ไม่นับบัญชีที่ exclude_from_summary)
           const liquidTypes = new Set(['bank', 'cash', 'ewallet']);
           const totalLiquid = visible
-            .filter(a => liquidTypes.has(a.type) || a.bank)
+            .filter(a => (liquidTypes.has(a.type) || a.bank) && !a.exclude_from_summary)
             .reduce((s, a) => {
               const b = a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id);
               return s + b;
@@ -1081,7 +1081,7 @@ async function initForecastChart() {
 
 /* === เดิม: SVG-based forecast (ถูกแทนที่โดย renderForecastCard ด้านบน) === */
 function renderForecastChart() {
-  const accounts = State.getAccounts();
+  const accounts = State.getAccounts().filter(a => !a.exclude_from_summary);
   const totalBalance = accounts.reduce((s, a) =>
     s + (a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id)), 0);
   const threshold = State.getSettings().threshold_satang;
@@ -1233,7 +1233,7 @@ function renderAccountRow(acct) {
     <div class="acct${rowClass ? ` ${rowClass}` : ''}">
       <div class="acct-icon ${acct.bank || acct.type}">${initial}</div>
       <div class="acct-body">
-        <div class="acct-name">${escapeHtml(acct.display_name)}${acct._sample ? ' <span class="demo-tag">Demo</span>' : ''}</div>
+        <div class="acct-name">${escapeHtml(acct.display_name)}${acct._sample ? ' <span class="demo-tag">Demo</span>' : ''}${acct.exclude_from_summary ? ' <span class="excl-badge">ไม่นับสรุป</span>' : ''}</div>
         ${acct.account_number_masked
           ? `<div class="acct-num">${escapeHtml(acct.account_number_masked)}</div>`
           : ''}
@@ -3200,6 +3200,17 @@ function showAccountModal(existingAcct, settingsContainer) {
         <input class="acct-field-input" id="am-balance" type="number"
                inputmode="numeric" placeholder="0" value="${currentBalance}">
         <div class="acct-field-hint">ยอดตั้งต้นก่อนบันทึกรายการ (ถ้าไม่ใส่ = เริ่มที่ 0)</div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)">
+          <div>
+            <div class="acct-field-label" style="margin-bottom:2px">ไม่นำยอดไปคำนวณสรุป</div>
+            <div class="acct-field-hint" style="margin:0">รายการยังแสดงในหน้าบันทึก แต่ไม่นับใน dashboard และสถิติ</div>
+          </div>
+          <label class="toggle-switch" style="flex-shrink:0;margin-left:12px">
+            <input type="checkbox" id="am-exclude" ${existingAcct?.exclude_from_summary ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="acct-modal-footer">
         <button class="cancel" id="am-cancel">ยกเลิก</button>
@@ -3230,6 +3241,7 @@ function showAccountModal(existingAcct, settingsContainer) {
     const balRaw = overlay.querySelector('#am-balance').value;
     const balSatang = balRaw !== '' ? Math.round(Number(balRaw) * 100) : 0;
     const acctNumUser = (overlay.querySelector('#am-acctnum')?.value || '').trim();
+    const excludeFromSummary = overlay.querySelector('#am-exclude').checked;
 
     if (isEdit) {
       State.updateAccount(existingAcct.id, {
@@ -3237,6 +3249,7 @@ function showAccountModal(existingAcct, settingsContainer) {
         type: selectedType,
         current_balance: balSatang,
         account_number_user: acctNumUser,
+        exclude_from_summary: excludeFromSummary,
         user_renamed: true
       });
       showToast('แก้ไขบัญชีแล้ว');
@@ -3246,6 +3259,7 @@ function showAccountModal(existingAcct, settingsContainer) {
         type: selectedType,
         current_balance: balSatang,
         account_number_user: acctNumUser,
+        exclude_from_summary: excludeFromSummary,
         user_renamed: true
       });
       showToast('เพิ่มบัญชีแล้ว');
