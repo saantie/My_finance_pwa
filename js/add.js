@@ -338,7 +338,7 @@ function renderFreqDetails() {
     return `
       <div class="freq-detail">
         <label>เริ่มวันแรก</label>
-        <input type="date" data-field="first_due" value="${draft.first_due}">
+        <input type="date" data-field="first_due" value="${draft.first_due}" min="${todayISO()}">
         <div class="freq-hint">— จะสร้างรายการให้อัตโนมัติทุกครั้งเมื่อถึงกำหนด</div>
       </div>
     `;

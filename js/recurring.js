@@ -179,12 +179,14 @@ export function runScheduler() {
   const today = todayISO();
   let executed = 0;
   let skipped = 0;
+  let templateCount = 0;  // จำนวน templates ที่ได้รับการ execute จริง
 
   for (const t of _templates) {
     if (!t.active) continue;
 
     // Loop: อาจ overdue หลายงวด (เช่น ไม่ได้เปิดแอป 2 เดือน)
     let safety = 24;  // กันลูปไม่จบ
+    let templateExecuted = 0;
     while (t.active && t.next_due && t.next_due <= today && safety-- > 0) {
       // Skip ถ้ามี transaction จาก template นี้ในวันเดียวกันแล้ว (ป้องกัน duplicate)
       const existing = State.getTransactions().filter(tx =>
@@ -210,6 +212,7 @@ export function runScheduler() {
           user_classified: false
         });
         executed++;
+        templateExecuted++;
       } else {
         skipped++;
       }
@@ -217,10 +220,11 @@ export function runScheduler() {
       // Advance
       advanceTemplate(t);
     }
+    if (templateExecuted > 0) templateCount++;
   }
 
   if (executed > 0) save();
-  return { executed, skipped };
+  return { executed, skipped, templateCount };
 }
 
 /** Internal: ขยับ template ไปงวดต่อไป */

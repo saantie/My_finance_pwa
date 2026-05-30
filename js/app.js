@@ -375,7 +375,11 @@ function init() {
   // 3. Run scheduler — สร้าง transaction จาก template ที่ครบกำหนดแล้ว
   const sched = Recurring.runScheduler();
   if (sched.executed > 0) {
-    setTimeout(() => showToast(`สร้างรายการประจำ ${sched.executed} รายการ`), 800);
+    const catchup = sched.executed > sched.templateCount;
+    const msg = catchup
+      ? `สร้างรายการประจำ ${sched.executed} งวด (จาก ${sched.templateCount} รายการ)`
+      : `สร้างรายการประจำ ${sched.templateCount} รายการ`;
+    setTimeout(() => showToast(msg), 800);
   }
 
   // 4. Setup navigation handlers + auth badge
