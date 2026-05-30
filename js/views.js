@@ -2116,13 +2116,6 @@ function confirmImport(result) {
   // ไปหน้าบันทึกทันที — ให้เห็นรายการใหม่ที่นำเข้า
   document.querySelector('.nav-item[data-view="list"]')?.click();
 
-  // Aha-moment screen — แสดงครั้งแรกของแต่ละบัญชี (หลัง toast หน่อย)
-  import('./aha-moments.js').then(({ showAhaMomentScreen, isFirstPdfForAccount }) => {
-    if (isFirstPdfForAccount(_importedAccountId)) {
-      setTimeout(() => showAhaMomentScreen(cleanTxs, _importedAccountId), 600);
-    }
-  });
-
   // ตรวจหา recurring patterns อัตโนมัติหลัง import
   const suggestions = Recurring.detectRecurringPatterns(State.getTransactions());
   if (suggestions.length > 0) {
@@ -2130,14 +2123,29 @@ function confirmImport(result) {
     setTimeout(() => showToast(`พบ ${suggestions.length} รายการประจำที่น่าตั้งไว้ → ดูใน ตั้งค่า`), 800);
   }
 
-  // ตรวจว่ามี cash account ที่ยังไม่มี override — ถ้ามี ATM ใน batch ให้ถาม
+  // Aha-moment screen — แสดงหลัง cash dialog ปิด (ไม่ overlap กัน)
+  const triggerAhaMoment = () => {
+    import('./aha-moments.js').then(({ showAhaMomentScreen, isFirstPdfForAccount }) => {
+      if (isFirstPdfForAccount(_importedAccountId)) {
+        showAhaMomentScreen(cleanTxs, _importedAccountId);
+      }
+    });
+  };
+
+  // ถ้ามี ATM → ถามยอดเงินสดก่อน แล้วค่อยแสดง aha-moment หลังปิด
   const hasAtm = cleanTxs.some(t =>
     t.type === 'transfer' && /(?:atm|ถอน|withdraw)/i.test(t.description || '')
   );
   if (hasAtm) {
     const cashAcct = State.getAccounts().find(a => a.type === 'cash' && !a.override_date);
-    if (cashAcct) showCashOverrideDialog(cashAcct);
+    if (cashAcct) {
+      showCashOverrideDialog(cashAcct, triggerAhaMoment);
+      return;
+    }
   }
+
+  // ไม่มี ATM dialog → แสดง aha-moment โดยตรงหลัง toast
+  setTimeout(triggerAhaMoment, 600);
 }
 
 function bankDisplayName(bank) {
@@ -2150,7 +2158,7 @@ function bankDisplayName(bank) {
 
 
 /** Dialog ถามยอดเงินสดจริงในมือ — แสดงหลัง e-Statement import มี ATM / หรือกด แก้ไข ใน settings */
-function showCashOverrideDialog(cashAcct) {
+function showCashOverrideDialog(cashAcct, onClose = null) {
   const existing = cashAcct.cash_balance_override != null
     ? (cashAcct.cash_balance_override / 100).toFixed(0)
     : '';
@@ -2202,7 +2210,12 @@ function showCashOverrideDialog(cashAcct) {
   input.focus();
   input.select();
 
-  overlay.querySelector('#cash-override-skip').addEventListener('click', () => overlay.remove());
+  const closeDialog = () => {
+    overlay.remove();
+    onClose?.();
+  };
+
+  overlay.querySelector('#cash-override-skip').addEventListener('click', closeDialog);
 
   overlay.querySelector('#cash-override-save').addEventListener('click', () => {
     const val = parseFloat(input.value);
@@ -2212,7 +2225,7 @@ function showCashOverrideDialog(cashAcct) {
     }
     State.setCashOverride(cashAcct.id, Math.round(val * 100), todayISO());
     showToast('บันทึกยอดเงินสดแล้ว');
-    overlay.remove();
+    closeDialog();
   });
 }
 
