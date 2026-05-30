@@ -19,6 +19,8 @@ import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 import { checkReminders } from './reminders.js';
 import { checkCatchupOpportunity } from './catchup.js';
 import { shouldShowCoachMark, showCoachMark } from './coach-mark.js';
+import { setCustomCategoryRegistry } from './icons.js';
+import { setCustomCategoryParserRegistry } from './parsers.js';
 
 
 /* === Globals ==================================================== */
@@ -389,6 +391,15 @@ function init() {
   // 5. Subscribe state changes → re-render เมื่อข้อมูลเปลี่ยน
   State.subscribe(() => renderCurrentView());
   Recurring.subscribe(() => renderCurrentView());
+
+  // 5a. Init + subscribe custom category registries (icons.js + parsers.js)
+  function syncCategoryRegistries() {
+    const cats = State.getCustomCategories();
+    setCustomCategoryRegistry(cats);
+    setCustomCategoryParserRegistry(cats);
+  }
+  syncCategoryRegistries();
+  State.subscribe(syncCategoryRegistries);
 
   // 6. Initial render — แสดง skeleton ก่อน 1 frame แล้วค่อย render จริง
   history.replaceState({ view: 'dashboard' }, '', '#');

@@ -59,6 +59,7 @@ const DEFAULT_USER_PROGRESS = {
 const DEFAULT_STATE = {
   transactions: [],
   accounts: DEFAULT_ACCOUNTS.map(makeDefaultAccount),
+  customCategories: [],
   settings: {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
@@ -176,6 +177,7 @@ function loadFromStorage() {
     return {
       transactions: (parsed.transactions || []).map(expandTx),
       accounts,
+      customCategories: parsed.customCategories || [],
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
         ...DEFAULT_USER_PROGRESS,
@@ -206,6 +208,7 @@ function saveToStorage() {
       transactions: _state.transactions
         .filter(t => !excludedIds.has(t.account_from) && !excludedIds.has(t.account_to))
         .map(compactTx),
+      customCategories: _state.customCategories || [],
       settings: _state.settings,
       userProgress: _state.userProgress
     }));
@@ -811,6 +814,45 @@ export function getMonthComparison() {
 
 /* === Reset / debug ============================================== */
 
+/* === Mutations: Custom Categories =============================== */
+
+export function getCustomCategories() {
+  return _state.customCategories || [];
+}
+
+export function addCustomCategory(cat) {
+  const newCat = {
+    id: uuid(),
+    label: (cat.label || 'หมวดใหม่').slice(0, 20),
+    icon: cat.icon || 'circle',
+    color: cat.color || '#e88563',
+    type: Array.isArray(cat.type) ? cat.type : ['expense'],
+    keywords: Array.isArray(cat.keywords) ? cat.keywords : []
+  };
+  if (!_state.customCategories) _state.customCategories = [];
+  _state.customCategories.push(newCat);
+  notify();
+  return newCat;
+}
+
+export function updateCustomCategory(id, patch) {
+  if (!_state.customCategories) return null;
+  const idx = _state.customCategories.findIndex(c => c.id === id);
+  if (idx === -1) return null;
+  _state.customCategories[idx] = { ..._state.customCategories[idx], ...patch };
+  notify();
+  return _state.customCategories[idx];
+}
+
+export function deleteCustomCategory(id) {
+  if (!_state.customCategories) return;
+  _state.customCategories = _state.customCategories.filter(c => c.id !== id);
+  notify();
+}
+
+
+/* === Reset / debug ============================================== */
+
 /** ลบข้อมูลทั้งหมด — ใช้ใน Settings */
 export function resetAll() {
   _state = structuredClone(DEFAULT_STATE);
@@ -827,6 +869,7 @@ export function exportJSON() {
     transactions: _state.transactions.filter(t =>
       !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
     ),
+    customCategories: _state.customCategories || [],
     settings: _state.settings
   }, null, 2);
 }
@@ -854,6 +897,7 @@ export function importJSON(json) {
         ...parsed.accounts.filter(a => !cloudIds.has(a.id)),
         ...cloudAccounts
       ],
+      customCategories: parsed.customCategories || [],
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
         ...DEFAULT_USER_PROGRESS,

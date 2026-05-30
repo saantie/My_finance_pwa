@@ -22,6 +22,12 @@
 // firebase และ state โหลด lazily เฉพาะใน parsePDF() เพื่อให้ test รันใน Node.js ได้
 let _firebase = null, _state = null, _pdfjs = null;
 
+/* custom category keywords registry — set from app.js */
+let _customCategoryRegistry = [];
+export function setCustomCategoryParserRegistry(cats) {
+  _customCategoryRegistry = Array.isArray(cats) ? cats : [];
+}
+
 async function getFirebase() {
   if (!_firebase) _firebase = await import('./firebase.js');
   return _firebase;
@@ -577,6 +583,14 @@ export function verifyParseResult(transactions) {
 
 export function autoClassifyGroup(tx) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
+
+  // ตรวจ custom categories ก่อน (user-defined keywords มีลำดับความสำคัญสูงกว่า)
+  for (const cat of _customCategoryRegistry) {
+    if (!cat.keywords || cat.keywords.length === 0) continue;
+    for (const kw of cat.keywords) {
+      if (kw && kw.trim().length > 0 && new RegExp(kw.trim(), 'i').test(t)) return cat.id;
+    }
+  }
 
   if (/(?:เงินเดือน|salary|payroll)/i.test(t)) return 'salary';
   if (/(?:ดอกเบี้ย|interest)/i.test(t)) return 'bonus';
