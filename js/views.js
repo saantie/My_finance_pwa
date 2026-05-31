@@ -419,8 +419,6 @@ export function renderDashboard(container) {
   const monthSummary = State.getMonthSummary();
   const topCats = State.getTopCategories();
   const todayTxs = State.getTodayTransactions();
-  const accounts = State.getAccounts();
-  const threshold = State.getSettings().threshold_satang;
 
   // --- Catchup banner (welcome back after long absence) ---
   const catchupData = checkCatchupOpportunity();
@@ -474,40 +472,6 @@ export function renderDashboard(container) {
     <!-- Upcoming recurring/scheduled -->
     ${renderUpcomingSection()}
 
-    <!-- Accounts — แสดงเฉพาะที่มียอดไม่ใช่ศูนย์ หรือมาจาก e-Statement (มี bank) หรือ user rename แล้ว -->
-    <div class="section" id="dash-accounts-sect">
-      <div class="section-head">
-        <h2 class="section-title">บัญชีของฉัน</h2>
-        <a class="section-action" data-action="manage-accounts">จัดการ</a>
-      </div>
-      <div class="card card-padded">
-        ${(() => {
-          const visible = accounts.filter(a => {
-            const bal = a.type === 'cash'
-              ? State.getEffectiveCashBalance(a.id)
-              : State.computeAccountBalance(a.id);
-            return bal !== 0 || a.bank || a.user_renamed;
-          });
-          if (!visible.length) return `<div class="empty" style="padding:20px 12px;"><div class="desc">— ยังไม่มีบัญชี กด <strong>จัดการ</strong> เพื่อเพิ่ม —</div></div>`;
-          // คำนวณยอดรวม bank+cash+ewallet เทียบกับเกณฑ์ (ไม่นับบัญชีที่ exclude_from_summary)
-          const liquidTypes = new Set(['bank', 'cash', 'ewallet']);
-          const totalLiquid = visible
-            .filter(a => (liquidTypes.has(a.type) || a.bank) && !a.exclude_from_summary)
-            .reduce((s, a) => {
-              const b = a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id);
-              return s + b;
-            }, 0);
-          const belowThreshold = totalLiquid > 0 && totalLiquid < threshold;
-          const warnBar = belowThreshold ? `
-            <div class="balance-threshold-warning">
-              ${svgIcon('alert-triangle', { size: 13, stroke: 2 })}
-              ยอดรวมต่ำกว่าเกณฑ์ — มี ${formatBaht(totalLiquid)} ฿ (เกณฑ์ ${formatBaht(threshold)} ฿)
-            </div>` : '';
-          return warnBar + visible.map(a => renderAccountRow(a)).join('');
-        })()}
-      </div>
-    </div>
-
     <!-- Top categories -->
     ${topCats.length > 0 ? `
     <div class="section">
@@ -546,17 +510,6 @@ export function renderDashboard(container) {
       State.markDemoComplete();
       showToast('พร้อมแล้ว — เริ่มบันทึกข้อมูลจริงได้เลย');
     }
-  });
-
-  // "จัดการ" → navigate ไปหน้า Settings แล้ว scroll ไปส่วนบัญชีของฉัน
-  container.querySelector('[data-action="manage-accounts"]')?.addEventListener('click', () => {
-    document.querySelector('.nav-item[data-view="settings"]')?.click();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.getElementById('settings-accounts')
-          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
   });
 
   // "จัดการ" ในส่วนรายการล่วงหน้า → navigate ไปหน้า Settings ส่วนรายการประจำ
