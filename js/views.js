@@ -1820,7 +1820,9 @@ async function handlePdfImport(file) {
       `(ข้อความจาก e-Statement จะถูกส่งไปยัง Google AI)`
     );
     if (useAI) {
-      await handleGeminiFallback(result.extractedText);
+      // PDF มีรหัส → ส่ง extractedText (string); PDF ปกติ → ส่งไฟล์ (File)
+      const fileOrText = result.extractedText ? result.extractedText : file;
+      await handleGeminiFallback(fileOrText, file.name);
       return;
     }
   }
@@ -1830,11 +1832,49 @@ async function handlePdfImport(file) {
 
 
 /* === Gemini AI fallback =========================================
-   ส่ง extractedText (plain text จาก e-Statement) แทนไฟล์โดยตรง
-   เพราะ e-Statement เข้ารหัสส่ง Gemini ไม่ได้
+   fileOrText: string (extractedText จาก PDF มีรหัส) หรือ File (PDF ปกติ)
+   throw 'AI_STUDIO_TERMS_NOT_ACCEPTED' → dialog แนะนำแสดงไปแล้วใน gemini.js
 ================================================================ */
-async function handleGeminiFallback(extractedText) {
-  showToast('Gemini AI fallback — จะพัฒนาในเวอร์ชันต่อไป');
+async function handleGeminiFallback(fileOrText, fileName) {
+  const { getAccessToken } = await import('./firebase.js');
+  const token = getAccessToken();
+  if (!token) {
+    showToast('ต้องลงชื่อเข้าใช้ก่อนใช้ AI วิเคราะห์');
+    return;
+  }
+
+  const prog = createProgressModal('AI กำลังวิเคราะห์ e-Statement');
+  document.body.appendChild(prog.el);
+
+  try {
+    const { parseStatementWithGemini } = await import('./gemini.js');
+    const geminiResult = await parseStatementWithGemini(fileOrText, token);
+    prog.el.remove();
+
+    // แปลงผล Gemini → รูปแบบเดียวกับ parsePDF result
+    const transactions = (geminiResult.transactions || []).map(t => ({
+      date:        t.date,
+      amount:      Math.abs(t.amount || 0),
+      description: t.description || '',
+      type:        t.type || 'expense',
+      balance:     t.balance ?? null,
+      source:      'pdf',
+    }));
+
+    const result = {
+      transactions,
+      bank:        geminiResult.bank_name || null,
+      accountInfo: { account_number_last4: geminiResult.account_number_last4 || null },
+      extractedText: typeof fileOrText === 'string' ? fileOrText : '',
+    };
+
+    showReviewModal(result, fileName || 'gemini-import');
+  } catch (err) {
+    prog.el.remove();
+    if (err.message === 'AI_STUDIO_TERMS_NOT_ACCEPTED') return; // dialog แสดงแล้ว
+    console.error('[gemini fallback]', err);
+    showToast('AI วิเคราะห์ไม่สำเร็จ: ' + (err.message || 'unknown'));
+  }
 }
 
 
