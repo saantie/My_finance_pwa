@@ -456,8 +456,18 @@ function bindEvents() {
   });
 
   // แสดง keypad เมื่อ tap ที่ amount row
-  el.querySelector('[data-action="show-keypad"]')?.addEventListener('click', () => {
+  el.querySelector('[data-action="show-keypad"]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     el.querySelector('.keypad')?.classList.remove('keypad--hidden');
+  });
+
+  // ซ่อน keypad เมื่อ tap นอก amount row และนอก keypad
+  el.addEventListener('click', (e) => {
+    const keypad = el.querySelector('.keypad');
+    if (!keypad || keypad.classList.contains('keypad--hidden')) return;
+    if (!e.target.closest('.keypad') && !e.target.closest('[data-action="show-keypad"]')) {
+      keypad.classList.add('keypad--hidden');
+    }
   });
 
   // Keypad
