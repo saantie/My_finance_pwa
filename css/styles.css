@@ -4044,7 +4044,7 @@ html[data-dark="1"] .entry-acct-line {
   background: none;
 }
 .cat-manager {
-  background: var(--bg);
+  background: var(--paper);
   width: 100%;
   height: 100%;
   display: flex;
