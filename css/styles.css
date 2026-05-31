@@ -755,42 +755,87 @@ html, body {
 .card-padded { padding: 4px 18px; }
 
 
-/* Categories breakdown */
-.cats { padding: 18px 18px 14px; }
-.cat-row {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  gap: 10px;
+/* Donut chart — category breakdown */
+.donut-card { padding: 14px 16px; }
+.donut-wrap {
+  display: flex;
   align-items: center;
-  padding: 8px 0;
-  font-size: 14px;
+  gap: 16px;
 }
-.cat-bullet {
+.donut-svg-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+.donut-svg {
+  width: 100%;
+  height: 100%;
+}
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: none;
+}
+.donut-center-sub {
+  font-size: 9px;
+  color: var(--ink-faint);
+  line-height: 1;
+}
+.donut-center-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.donut-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.donut-leg-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.donut-leg-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-left: 6px;
+  flex-shrink: 0;
 }
-.cat-name { color: var(--ink); }
-.cat-amt {
-  color: var(--ink-soft);
-  font-size: 13px;
-  font-weight: 500;
-}
-.cat-bar-wrap {
-  grid-column: 1 / -1;
-  margin: -4px 0 6px;
-  padding-left: 22px;
-}
-.cat-bar {
-  height: 3px;
-  border-radius: 999px;
-  background: var(--rule-soft);
+.donut-leg-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--ink);
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.cat-bar-fill {
-  height: 100%;
-  border-radius: 999px;
+.donut-leg-right {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.donut-leg-amt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.donut-leg-pct {
+  font-size: 11px;
+  color: var(--ink-faint);
+  min-width: 26px;
+  text-align: right;
 }
 
 

@@ -514,8 +514,8 @@ export function renderDashboard(container) {
       <div class="section-head">
         <h2 class="section-title">ใช้ไปกับอะไร</h2>
       </div>
-      <div class="card cats">
-        ${topCats.map(c => renderCategoryRow(c)).join('')}
+      <div class="card donut-card">
+        ${renderDonutChart(topCats)}
       </div>
     </div>
     ` : ''}
@@ -1248,19 +1248,54 @@ function renderAccountRow(acct) {
 }
 
 
-/* === Helper: category breakdown row ============================= */
-function renderCategoryRow(c) {
-  const def = getCategory(c.group);
+/* === Helper: category donut chart ================================ */
+function renderDonutChart(cats) {
+  const r = 38, cx = 50, cy = 50;
+  const totalCirc = 2 * Math.PI * r;
+  const grandTotal = cats.reduce((s, c) => s + c.total, 0);
+
+  let cumLen = 0;
+  const segs = cats.map(c => {
+    const segLen = grandTotal > 0 ? (c.total / grandTotal) * totalCirc : 0;
+    const offset = cumLen;
+    cumLen += segLen;
+    const def = getCategory(c.group);
+    return { segLen, offset, rest: totalCirc - segLen, color: def.color, label: def.label, pct: c.percent, total: c.total };
+  });
+
+  const segsSVG = segs.map(s =>
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="14"
+      stroke-dasharray="${s.segLen.toFixed(2)} ${s.rest.toFixed(2)}"
+      stroke-dashoffset="${(-s.offset).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})"/>`
+  ).join('');
+
+  const legendHTML = segs.map(s => `
+    <div class="donut-leg-row">
+      <span class="donut-leg-dot" style="background:${s.color}"></span>
+      <span class="donut-leg-name">${s.label}</span>
+      <span class="donut-leg-right">
+        <span class="donut-leg-amt">${formatBaht(s.total)}</span>
+        <span class="donut-leg-pct">${s.pct}%</span>
+      </span>
+    </div>`
+  ).join('');
+
   return `
-    <div class="cat-row">
-      <span class="cat-bullet" style="background: ${def.color}"></span>
-      <span class="cat-name">${def.label}</span>
-      <span class="cat-amt">${formatBaht(c.total)} ฿ · ${c.percent}%</span>
-      <div class="cat-bar-wrap">
-        <div class="cat-bar"><div class="cat-bar-fill" style="width: ${c.percent}%; background: ${def.color}"></div></div>
+    <div class="donut-wrap">
+      <div class="donut-svg-wrap">
+        <svg viewBox="0 0 100 100" class="donut-svg">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--rule)" stroke-width="14"/>
+          ${segsSVG}
+        </svg>
+        <div class="donut-center">
+          <div class="donut-center-sub">รายจ่าย</div>
+          <div class="donut-center-val">${formatBaht(grandTotal)}</div>
+          <div class="donut-center-sub">฿</div>
+        </div>
       </div>
-    </div>
-  `;
+      <div class="donut-legend">${legendHTML}</div>
+    </div>`;
 }
 
 
