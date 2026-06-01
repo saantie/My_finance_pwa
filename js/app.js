@@ -168,6 +168,15 @@ function setupNav() {
     openAddModalWithVoice();
   });
 
+  // Export dialog
+  document.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-action="open-export"]')) {
+      e.preventDefault();
+      const { openExportDialog } = await import('./export.js');
+      openExportDialog();
+    }
+  });
+
   // ESC key → ปิด modal ผ่าน history.back (popstate จัดการ)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

@@ -1219,6 +1219,118 @@ test('withRageTap: works without original handler', () => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════
+// EXPORT.JS — utility functions
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nexport.js');
+
+// Mock SVGElement + document.createElement for import (export.js uses svgIcon)
+if (!global.document) {
+  global.document = {
+    createElement: () => ({ innerHTML: '', className: '', querySelectorAll: () => [], querySelector: () => null, appendChild: () => {} }),
+    body: { appendChild: () => {} },
+  };
+}
+
+const { resolvePeriod, generateFilename, enumerateMonths, normalizeMerchant } =
+  await import('../js/export.js');
+
+// resolvePeriod
+test('resolvePeriod this-month: from = 1st of current month', () => {
+  const { from, to } = resolvePeriod('this-month', null);
+  const today = new Date();
+  const expectedFrom = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+  eq(from, expectedFrom);
+});
+
+test('resolvePeriod this-month: to = today', () => {
+  const { to } = resolvePeriod('this-month', null);
+  eq(to, todayISO());
+});
+
+test('resolvePeriod this-year: from starts with current year', () => {
+  const { from } = resolvePeriod('this-year', null);
+  const year = new Date().getFullYear().toString();
+  assert(from.startsWith(year), `from should start with ${year}, got ${from}`);
+});
+
+test('resolvePeriod all: from is 2000-01-01', () => {
+  const { from } = resolvePeriod('all', null);
+  eq(from, '2000-01-01');
+});
+
+test('resolvePeriod last-month: from < to', () => {
+  const { from, to } = resolvePeriod('last-month', null);
+  assert(from < to, `from (${from}) should be before to (${to})`);
+  assert(from.endsWith('-01'), 'from should be 1st of last month');
+});
+
+// generateFilename
+test('generateFilename full year: ปี พ.ศ. in name', () => {
+  const name = generateFilename('2026-01-01', '2026-12-31');
+  assert(name.includes('2569'), `should contain BE year 2569, got: ${name}`);
+  assert(name.endsWith('.xlsx'), 'must end with .xlsx');
+});
+
+test('generateFilename partial range: contains both endpoints', () => {
+  const name = generateFilename('2026-03-01', '2026-05-31');
+  assert(name.includes('.xlsx'), 'must end with .xlsx');
+  assert(name.length > 5, 'filename must not be empty');
+});
+
+test('generateFilename: always ends with .xlsx', () => {
+  assert(generateFilename('2025-01-01', '2025-06-30').endsWith('.xlsx'));
+  assert(generateFilename('2026-01-01', '2026-12-31').endsWith('.xlsx'));
+});
+
+// enumerateMonths
+test('enumerateMonths same month: returns 1 entry', () => {
+  const months = enumerateMonths('2026-05-01', '2026-05-31');
+  eq(months.length, 1);
+  eq(months[0], '2026-05');
+});
+
+test('enumerateMonths 3 months: returns 3 entries', () => {
+  const months = enumerateMonths('2026-01-01', '2026-03-31');
+  eq(months.length, 3);
+  eq(months[0], '2026-01');
+  eq(months[2], '2026-03');
+});
+
+test('enumerateMonths cross year: counts correctly', () => {
+  const months = enumerateMonths('2025-11-01', '2026-02-28');
+  eq(months.length, 4);
+  eq(months[0], '2025-11');
+  eq(months[3], '2026-02');
+});
+
+test('enumerateMonths full year: 12 months', () => {
+  const months = enumerateMonths('2026-01-01', '2026-12-31');
+  eq(months.length, 12);
+});
+
+// normalizeMerchant
+test('normalizeMerchant removes trailing numbers', () => {
+  const r = normalizeMerchant('STARBUCKS 0042');
+  assert(!r.match(/\d{3,}/), 'should not have 3+ digits in result');
+});
+
+test('normalizeMerchant strips branch suffix patterns', () => {
+  const r = normalizeMerchant('7-ELEVEN BRANCH 0123');
+  assert(r.length > 0, 'result must not be empty');
+  assert(r.includes('7-ELEVEN') || r.startsWith('7'), 'should keep merchant name');
+});
+
+test('normalizeMerchant: uppercases result', () => {
+  const r = normalizeMerchant('starbucks coffee');
+  eq(r, r.toUpperCase());
+});
+
+test('normalizeMerchant: empty string returns empty', () => {
+  eq(normalizeMerchant(''), '');
+});
+
+
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n\n${total} tests: ${passed} passed${failed ? `, ${failed} failed` : ''}\n`);

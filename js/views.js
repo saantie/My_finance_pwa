@@ -484,6 +484,18 @@ export function renderDashboard(container) {
     </div>
     ` : ''}
 
+    <!-- Export card -->
+    <div class="card export-card">
+      <div class="export-card-content">
+        <div class="export-card-icon">${svgIcon('download', { size: 24, stroke: 2 })}</div>
+        <div class="export-card-body">
+          <div class="export-card-title">ส่งออกข้อมูล</div>
+          <div class="export-card-sub">ดาวน์โหลดรายงาน Excel สำหรับยื่นภาษี, ขอสินเชื่อ, หรือเก็บไว้</div>
+        </div>
+        <button class="btn-primary" data-action="open-export">ส่งออก</button>
+      </div>
+    </div>
+
     <div class="signoff">— จบหน้าวันนี้ —</div>
   `;
 
