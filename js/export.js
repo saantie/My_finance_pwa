@@ -134,10 +134,12 @@ export function openExportDialog() {
   function updateInfo() {
     const period     = resolvePeriod(currentPreset, el);
     const accountIds = getSelectedAccounts();
-    const filtered   = State.getTransactions().filter(t =>
-      t.date >= period.from && t.date <= period.to &&
-      (accountIds.includes(t.account_from) || accountIds.includes(t.account_to))
-    );
+    const filtered   = State.getTransactions().filter(t => {
+      if (t.date < period.from || t.date > period.to) return false;
+      // รวม tx ที่ไม่มีบัญชี (unattributed) เสมอ; tx มีบัญชี → ตรวจว่าอยู่ใน selection
+      const noAccount = !t.account_from && !t.account_to;
+      return noAccount || accountIds.includes(t.account_from) || accountIds.includes(t.account_to);
+    });
     const count  = filtered.length;
     const sizeKB = Math.round(count * 0.12 + 20);
     el.querySelector('#export-info-count').textContent = `${count} รายการ`;
@@ -290,10 +292,10 @@ export async function exportToExcel({ from, to, accountIds }) {
   const allTxs = State.getTransactions();
   const txs = allTxs
     .filter(t => t.date >= from && t.date <= to)
-    .filter(t =>
-      (t.account_from && accountIds.includes(t.account_from)) ||
-      (t.account_to   && accountIds.includes(t.account_to))
-    )
+    .filter(t => {
+      const noAccount = !t.account_from && !t.account_to;
+      return noAccount || accountIds.includes(t.account_from) || accountIds.includes(t.account_to);
+    })
     .sort((a, b) =>
       a.date.localeCompare(b.date) ||
       (a.createdAt || '').localeCompare(b.createdAt || '')

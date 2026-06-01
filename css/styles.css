@@ -840,37 +840,44 @@ html, body {
 
 
 /* Export card (dashboard) */
-.export-card { padding: 14px 16px; }
-.export-card-content {
+.export-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.export-card-top {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 .export-card-icon {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: var(--accent-soft);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--primary);
 }
-.export-card-body {
-  flex: 1;
-  min-width: 0;
-}
+.export-card-text { flex: 1; min-width: 0; }
 .export-card-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink);
+  line-height: 1.3;
 }
 .export-card-sub {
   font-size: 11px;
   color: var(--ink-faint);
-  margin-top: 2px;
-  line-height: 1.4;
+  margin-top: 3px;
+  letter-spacing: 0.01em;
+}
+.export-card-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  padding: 10px 0;
 }
 
 /* Export modal */
