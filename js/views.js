@@ -490,7 +490,6 @@ export function renderDashboard(container) {
         <div class="export-card-icon">${svgIcon('download', { size: 20, stroke: 2 })}</div>
         <div class="export-card-text">
           <div class="export-card-title">ส่งออกรายงานเป็นไฟล์ Excel</div>
-          <div class="export-card-sub">8 แผ่น&ensp;·&ensp;ยื่นภาษี&ensp;·&ensp;ขอสินเชื่อ&ensp;·&ensp;เก็บไว้ใช้เอง</div>
         </div>
       </div>
       <button class="btn-primary export-card-btn" data-action="open-export">
