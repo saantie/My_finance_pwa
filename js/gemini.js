@@ -1,13 +1,14 @@
 /* ===================================================================
    gemini.js — AI fallback สำหรับ parse PDF/slip ที่ parsers.js อ่านไม่ได้
    ===================================================================
-   เรียกผ่าน Firebase Cloud Function (geminiProxy)
-   - API key อยู่ server-side เท่านั้น
-   - จำกัด 10 ครั้ง/user/วัน
-   - user ต้อง sign-in ด้วย Google
+   Auth: GEMINI_API_KEY จาก config.js (restrict domain ใน AI Studio)
+   user ไม่ต้องทำอะไร
    =================================================================== */
 
-import { callGeminiProxy } from './firebase.js';
+import { GEMINI_API_KEY } from './config.js';
+
+const GEMINI_MODEL    = 'gemini-2.0-flash';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const STATEMENT_PROMPT = `
 คุณเป็น expert accountant ที่อ่าน bank statement ภาษาไทย
@@ -31,13 +32,9 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
 
 /* === parse e-Statement =========================================== */
 
-/**
- * @param {File|string} fileOrText
- *   File   = PDF ไม่มีรหัสผ่าน → ส่งเป็น base64
- *   string = extractedText จาก PDF ที่ decrypt แล้ว → ส่งเป็น text
- * @returns {{ account_number_last4, bank_name, transactions[] }}
- */
 export async function parseStatementWithGemini(fileOrText) {
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
+
   let parts;
   if (typeof fileOrText === 'string') {
     parts = [{ text: STATEMENT_PROMPT + '\n\nข้อความจาก statement:\n' + fileOrText }];
@@ -54,11 +51,8 @@ export async function parseStatementWithGemini(fileOrText) {
 
 /* === scan slip/receipt =========================================== */
 
-/**
- * @param {File} imageFile — image/jpeg หรือ image/png
- * @returns {{ amount, date, ref, bank }}
- */
 export async function scanSlipWithGemini(imageFile) {
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
   return _call([
@@ -71,17 +65,22 @@ export async function scanSlipWithGemini(imageFile) {
 /* === internal helpers ============================================ */
 
 async function _call(parts) {
-  let data;
-  try {
-    data = await callGeminiProxy([{ parts }]);
-  } catch (err) {
-    // Firebase callable error — แปลงเป็น error ที่อ่านง่าย
-    const msg = err.message || '';
-    if (msg.startsWith('RATE_LIMIT:')) throw new Error('GEMINI_RATE_LIMIT');
-    if (err.code === 'functions/unauthenticated') throw new Error('GEMINI_NOT_SIGNED_IN');
-    throw new Error(msg || 'Gemini proxy error');
+  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ contents: [{ parts }] }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err?.error?.message || '';
+    if (res.status === 400 && msg.toLowerCase().includes('api key')) {
+      throw new Error('GEMINI_BAD_KEY');
+    }
+    throw new Error(msg || `Gemini HTTP ${res.status}`);
   }
 
+  const data  = await res.json();
   const text  = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   const clean = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
   try {

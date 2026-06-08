@@ -1872,12 +1872,12 @@ async function _runGeminiFallback(fileOrText, fileName) {
     }, fileName || 'gemini-import');
   } catch (err) {
     prog.el.remove();
-    if (err.message === 'GEMINI_RATE_LIMIT') {
-      showToast('ใช้ AI ครบ 10 ครั้งวันนี้แล้ว — ลองใหม่พรุ่งนี้');
+    if (err.message === 'GEMINI_NO_KEY') {
+      showToast('ยังไม่ได้ตั้งค่า Gemini API Key ใน config.js');
       return;
     }
-    if (err.message === 'GEMINI_NOT_SIGNED_IN') {
-      showToast('ต้องลงชื่อเข้าใช้ก่อนใช้ AI วิเคราะห์');
+    if (err.message === 'GEMINI_BAD_KEY') {
+      showToast('Gemini API Key ไม่ถูกต้อง — ตรวจสอบ config.js');
       return;
     }
     console.error('[gemini fallback]', err);
@@ -1888,6 +1888,7 @@ async function _runGeminiFallback(fileOrText, fileName) {
 async function handleGeminiFallback(fileOrText, fileName) {
   await _runGeminiFallback(fileOrText, fileName);
 }
+
 
 
 /* === Progress modal ============================================ */
