@@ -1848,33 +1848,69 @@ async function handlePdfImport(file) {
    fileOrText: string (extractedText จาก PDF มีรหัส) หรือ File (PDF ปกติ)
    throw 'AI_STUDIO_TERMS_NOT_ACCEPTED' → dialog แนะนำแสดงไปแล้วใน gemini.js
 ================================================================ */
-async function handleGeminiFallback(fileOrText, fileName) {
-  // ดึง token — ถ้าหายหลัง reload ให้ขอใหม่ผ่าน popup
-  let token = getAccessToken();
-  if (!token && getCurrentUser()) {
-    try {
-      showToast('กำลังขอ access token ใหม่…');
-      const res = await signInWithGoogle();
-      token = res.accessToken || getAccessToken();
-    } catch {
-      showToast('ไม่สามารถขอ token ได้ — กรุณาออกจากระบบแล้วลงชื่อเข้าใหม่');
+/* แสดง dialog ให้ user ใส่ Gemini API key แล้ว callback เมื่อ save */
+function showGeminiKeyDialog(onSaved) {
+  const el = document.createElement('div');
+  el.className = 'gemini-key-wrap';
+  el.innerHTML = `
+    <div class="gemini-key-overlay"></div>
+    <div class="gemini-key-sheet">
+      <div class="gemini-key-head">
+        <div class="gemini-key-title">ตั้งค่า Gemini API Key</div>
+      </div>
+      <div class="gemini-key-body">
+        <p class="gemini-key-desc">
+          AI วิเคราะห์ e-Statement ใช้ Gemini ของ Google<br>
+          ใช้ Key ของคุณเอง — ฟรี · ใช้ quota ของคุณ · เก็บในเครื่องเท่านั้น
+        </p>
+        <ol class="gemini-key-steps">
+          <li>กดปุ่มด้านล่าง → เปิด Google AI Studio</li>
+          <li>กด <strong>Get API key</strong> → <strong>Create API key</strong></li>
+          <li>Copy key แล้ว วางด้านล่าง</li>
+        </ol>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener"
+           class="btn-ghost gemini-key-link">เปิด Google AI Studio →</a>
+        <input class="gemini-key-input" type="password"
+               placeholder="AIzaSy…" autocomplete="off" spellcheck="false">
+        <div class="gemini-key-err" id="gemini-key-err" style="display:none">Key ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง</div>
+      </div>
+      <div class="gemini-key-foot">
+        <button class="btn-ghost" id="gemini-key-cancel">ยกเลิก</button>
+        <button class="btn-primary" id="gemini-key-save">บันทึก</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  const input  = el.querySelector('.gemini-key-input');
+  const errBox = el.querySelector('#gemini-key-err');
+
+  el.querySelector('#gemini-key-cancel').addEventListener('click', () => el.remove());
+  el.querySelector('.gemini-key-overlay').addEventListener('click', () => el.remove());
+
+  el.querySelector('#gemini-key-save').addEventListener('click', () => {
+    const key = input.value.trim();
+    if (!key.startsWith('AIza') || key.length < 30) {
+      errBox.style.display = '';
+      input.focus();
       return;
     }
-  }
-  if (!token) {
-    showToast('ต้องลงชื่อเข้าใช้ก่อนใช้ AI วิเคราะห์');
-    return;
-  }
+    State.setSetting('gemini_api_key', key);
+    el.remove();
+    onSaved();
+  });
 
+  setTimeout(() => input.focus(), 100);
+}
+
+async function _runGeminiFallback(fileOrText, fileName) {
   const prog = createProgressModal('AI กำลังวิเคราะห์ e-Statement');
   document.body.appendChild(prog.el);
-
   try {
     const { parseStatementWithGemini } = await import('./gemini.js');
-    const geminiResult = await parseStatementWithGemini(fileOrText, token);
+    const geminiResult = await parseStatementWithGemini(fileOrText);
     prog.el.remove();
 
-    // แปลงผล Gemini → รูปแบบเดียวกับ parsePDF result
     const transactions = (geminiResult.transactions || []).map(t => ({
       date:        t.date,
       amount:      Math.abs(t.amount || 0),
@@ -1883,24 +1919,32 @@ async function handleGeminiFallback(fileOrText, fileName) {
       balance:     t.balance ?? null,
       source:      'pdf',
     }));
-
-    const result = {
+    showReviewModal({
       transactions,
       bank:        geminiResult.bank_name || null,
       accountInfo: { account_number_last4: geminiResult.account_number_last4 || null },
       extractedText: typeof fileOrText === 'string' ? fileOrText : '',
-    };
-
-    showReviewModal(result, fileName || 'gemini-import');
+    }, fileName || 'gemini-import');
   } catch (err) {
     prog.el.remove();
-    if (err.message === 'GEMINI_SCOPE_MISSING') {
-      alert('ไม่มีสิทธิ์เรียก Google AI\nกรุณาออกจากระบบ แล้วลงชื่อเข้าใช้ใหม่');
+    if (err.message === 'GEMINI_BAD_KEY') {
+      State.setSetting('gemini_api_key', '');   // ล้าง key ผิด
+      showToast('Gemini API Key ไม่ถูกต้อง — กรุณาตรวจสอบใหม่');
       return;
     }
     console.error('[gemini fallback]', err);
     showToast('AI วิเคราะห์ไม่สำเร็จ: ' + (err.message || 'unknown'));
   }
+}
+
+async function handleGeminiFallback(fileOrText, fileName) {
+  const { getGeminiApiKey } = await import('./gemini.js');
+  if (!getGeminiApiKey()) {
+    // ยังไม่มี key → แสดง dialog ให้กรอก แล้ว run อีกครั้ง
+    showGeminiKeyDialog(() => _runGeminiFallback(fileOrText, fileName));
+    return;
+  }
+  await _runGeminiFallback(fileOrText, fileName);
 }
 
 
