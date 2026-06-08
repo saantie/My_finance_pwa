@@ -1,10 +1,10 @@
 /* ===================================================================
    gemini.js — AI fallback สำหรับ parse PDF/slip ที่ parsers.js อ่านไม่ได้
    ===================================================================
-   ใช้ OAuth access token ของ user เอง (generative-language scope)
-   — ไม่มี API key ใน repo
-   — user ต้อง accept terms ที่ aistudio.google.com ก่อนครั้งแรก
+   ใช้ Gemini API key จาก config.js (ขอฟรีที่ aistudio.google.com/app/apikey)
    =================================================================== */
+
+import { GEMINI_API_KEY } from './config.js';
 
 const GEMINI_MODEL    = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -36,17 +36,13 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
  * @param {File|string} fileOrText
  *   File   = PDF ไม่มีรหัสผ่าน → ส่งเป็น base64
  *   string = extractedText จาก PDF ที่ decrypt แล้ว → ส่งเป็น text
- * @param {string} accessToken
  * @returns {{ account_number_last4, bank_name, transactions[] }}
- * @throws 'AI_STUDIO_TERMS_NOT_ACCEPTED' | Error
  */
-export async function parseStatementWithGemini(fileOrText, accessToken) {
+export async function parseStatementWithGemini(fileOrText) {
   let parts;
   if (typeof fileOrText === 'string') {
-    // PDF มีรหัสผ่าน: pdf.js decrypt แล้ว ส่ง text ตรงๆ
     parts = [{ text: STATEMENT_PROMPT + '\n\nข้อความจาก statement:\n' + fileOrText }];
   } else {
-    // PDF ปกติ: ส่งไฟล์เป็น base64
     const base64 = await _fileToBase64(fileOrText);
     parts = [
       { inline_data: { mime_type: 'application/pdf', data: base64 } },
@@ -54,7 +50,7 @@ export async function parseStatementWithGemini(fileOrText, accessToken) {
     ];
   }
 
-  return _call(parts, accessToken);
+  return _call(parts);
 }
 
 
@@ -62,56 +58,35 @@ export async function parseStatementWithGemini(fileOrText, accessToken) {
 
 /**
  * @param {File} imageFile  — image/jpeg หรือ image/png
- * @param {string} accessToken
  * @returns {{ amount, date, ref, bank }}
  */
-export async function scanSlipWithGemini(imageFile, accessToken) {
+export async function scanSlipWithGemini(imageFile) {
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
 
   return _call([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: SLIP_PROMPT },
-  ], accessToken);
+  ]);
 }
 
 
 /* === internal helpers ============================================ */
 
-function showAiStudioPrompt() {
-  const ok = confirm(
-    'ต้องเปิดใช้ Google AI ก่อนครั้งแรก\n\n' +
-    '1. กด OK → เปิด Google AI Studio ในแท็บใหม่\n' +
-    '2. กด "Accept Terms"\n' +
-    '3. กลับมาที่แอปแล้วลองใหม่'
-  );
-  if (ok) window.open('https://aistudio.google.com', '_blank');
-}
+async function _call(parts) {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_NO_API_KEY');
+  }
 
-async function _call(parts, accessToken) {
-  const res = await fetch(GEMINI_ENDPOINT, {
+  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
     method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts }] }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err?.error?.message || '';
-
-    // terms ยังไม่ยอมรับ
-    if (msg.includes('terms') || msg.includes('SERVICE_DISABLED')) {
-      showAiStudioPrompt();
-      throw new Error('AI_STUDIO_TERMS_NOT_ACCEPTED');
-    }
-    // token ไม่มี generative-language scope → user ต้อง sign-out แล้ว sign-in ใหม่
-    if (msg.includes('insufficient authentication scopes') || res.status === 401) {
-      throw new Error('GEMINI_SCOPE_MISSING');
-    }
-
     throw new Error(msg || `Gemini HTTP ${res.status}`);
   }
 

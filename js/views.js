@@ -1849,33 +1849,12 @@ async function handlePdfImport(file) {
    throw 'AI_STUDIO_TERMS_NOT_ACCEPTED' → dialog แนะนำแสดงไปแล้วใน gemini.js
 ================================================================ */
 async function handleGeminiFallback(fileOrText, fileName) {
-  const { getAccessToken, getCurrentUser } = await import('./firebase.js');
-  let token = getAccessToken();
-
-  // token หมดหลัง reload แต่ยัง sign-in อยู่ → ขอ token ใหม่ผ่าน popup
-  if (!token && getCurrentUser()) {
-    try {
-      showToast('กำลังขอ access token ใหม่…');
-      const { signInWithGoogle } = await import('./firebase.js');
-      const res = await signInWithGoogle();
-      token = res.accessToken || getAccessToken();
-    } catch {
-      showToast('ไม่สามารถขอ token ได้ — กรุณาออกจากระบบแล้วลงชื่อเข้าใหม่');
-      return;
-    }
-  }
-
-  if (!token) {
-    showToast('ต้องลงชื่อเข้าใช้ก่อนใช้ AI วิเคราะห์');
-    return;
-  }
-
   const prog = createProgressModal('AI กำลังวิเคราะห์ e-Statement');
   document.body.appendChild(prog.el);
 
   try {
     const { parseStatementWithGemini } = await import('./gemini.js');
-    const geminiResult = await parseStatementWithGemini(fileOrText, token);
+    const geminiResult = await parseStatementWithGemini(fileOrText);
     prog.el.remove();
 
     // แปลงผล Gemini → รูปแบบเดียวกับ parsePDF result
@@ -1898,13 +1877,8 @@ async function handleGeminiFallback(fileOrText, fileName) {
     showReviewModal(result, fileName || 'gemini-import');
   } catch (err) {
     prog.el.remove();
-    if (err.message === 'AI_STUDIO_TERMS_NOT_ACCEPTED') return; // dialog แสดงแล้ว
-    if (err.message === 'GEMINI_SCOPE_MISSING') {
-      alert(
-        'ไม่มีสิทธิ์เรียก Google AI\n\n' +
-        'กรุณาออกจากระบบ แล้วลงชื่อเข้าใช้ใหม่\n' +
-        'เพื่อให้แอปขอสิทธิ์ Google AI อีกครั้ง'
-      );
+    if (err.message === 'GEMINI_NO_API_KEY') {
+      alert('ยังไม่ได้ตั้งค่า Gemini API Key\nกรุณาใส่ key ใน js/config.js แล้ว deploy ใหม่');
       return;
     }
     console.error('[gemini fallback]', err);
