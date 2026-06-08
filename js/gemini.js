@@ -1,11 +1,11 @@
 /* ===================================================================
    gemini.js — AI fallback สำหรับ parse PDF/slip ที่ parsers.js อ่านไม่ได้
    ===================================================================
-   Auth: Gemini API key ของ user เอง (ขอฟรีที่ aistudio.google.com/app/apikey)
-   เก็บใน localStorage ผ่าน state.settings.gemini_api_key
+   Auth: Gemini API key จาก config.js (restrict domain ใน AI Studio)
+   user ไม่ต้องทำอะไร
    =================================================================== */
 
-import { getSettings } from './state.js';
+import { GEMINI_API_KEY } from './config.js';
 
 const GEMINI_MODEL    = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -30,10 +30,10 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
 `.trim();
 
 
-/* === ดึง API key จาก settings ==================================== */
+/* === ตรวจว่ามี key ไหม =========================================== */
 
 export function getGeminiApiKey() {
-  return getSettings().gemini_api_key || '';
+  return GEMINI_API_KEY || '';
 }
 
 
@@ -47,8 +47,7 @@ export function getGeminiApiKey() {
  * @throws Error('GEMINI_NO_KEY') ถ้ายังไม่ตั้งค่า key
  */
 export async function parseStatementWithGemini(fileOrText) {
-  const key = getGeminiApiKey();
-  if (!key) throw new Error('GEMINI_NO_KEY');
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
 
   let parts;
   if (typeof fileOrText === 'string') {
@@ -60,7 +59,7 @@ export async function parseStatementWithGemini(fileOrText) {
       { text: STATEMENT_PROMPT },
     ];
   }
-  return _call(parts, key);
+  return _call(parts);
 }
 
 
@@ -71,22 +70,20 @@ export async function parseStatementWithGemini(fileOrText) {
  * @returns {{ amount, date, ref, bank }}
  */
 export async function scanSlipWithGemini(imageFile) {
-  const key = getGeminiApiKey();
-  if (!key) throw new Error('GEMINI_NO_KEY');
-
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
   return _call([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: SLIP_PROMPT },
-  ], key);
+  ]);
 }
 
 
 /* === internal helpers ============================================ */
 
-async function _call(parts, apiKey) {
-  const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+async function _call(parts) {
+  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ contents: [{ parts }] }),
