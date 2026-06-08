@@ -5,7 +5,15 @@
    user ไม่ต้องทำอะไร
    =================================================================== */
 
-import { GEMINI_API_KEY } from './config.js';
+// Dynamic import เพื่อกัน crash เมื่อ config.js ยังไม่มี (ระหว่าง deploy)
+async function _getKey() {
+  try {
+    const { GEMINI_API_KEY } = await import('./config.js');
+    return GEMINI_API_KEY || '';
+  } catch {
+    return '';
+  }
+}
 
 const GEMINI_MODEL    = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -33,6 +41,7 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
 /* === parse e-Statement =========================================== */
 
 export async function parseStatementWithGemini(fileOrText) {
+  const GEMINI_API_KEY = await _getKey();
   if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
 
   let parts;
@@ -45,27 +54,28 @@ export async function parseStatementWithGemini(fileOrText) {
       { text: STATEMENT_PROMPT },
     ];
   }
-  return _call(parts);
+  return _call(parts, GEMINI_API_KEY);
 }
 
 
 /* === scan slip/receipt =========================================== */
 
 export async function scanSlipWithGemini(imageFile) {
+  const GEMINI_API_KEY = await _getKey();
   if (!GEMINI_API_KEY) throw new Error('GEMINI_NO_KEY');
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
   return _call([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: SLIP_PROMPT },
-  ]);
+  ], GEMINI_API_KEY);
 }
 
 
 /* === internal helpers ============================================ */
 
-async function _call(parts) {
-  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+async function _call(parts, apiKey) {
+  const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ contents: [{ parts }] }),
