@@ -15,7 +15,8 @@
    - migrateAccountToCloud()    : batch write account + transactions
    =================================================================== */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp }       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -128,6 +129,20 @@ export function getCurrentUser() {
 
 export function getAccessToken() {
   return _accessToken;
+}
+
+
+/* === 6. callGeminiProxy — proxy ผ่าน Cloud Function ============= */
+
+let _geminiCallable = null;
+
+export async function callGeminiProxy(contents) {
+  if (!_geminiCallable) {
+    const fns = getFunctions(_app, 'asia-southeast1');
+    _geminiCallable = httpsCallable(fns, 'geminiProxy', { timeout: 60000 });
+  }
+  const result = await _geminiCallable({ contents });
+  return result.data; // Firebase callable ห่อ response ใน { data: ... }
 }
 
 

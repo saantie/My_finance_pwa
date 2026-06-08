@@ -34,10 +34,17 @@ export const getDoc          = async () => ({ exists: () => false, data: () => (
 export default {};
 `;
 
+const FIREBASE_FUNCTIONS_STUB = `
+export const getFunctions   = () => ({});
+export const httpsCallable  = () => async () => ({ data: {} });
+export default {};
+`;
+
 function stubFor(url) {
   if (url.includes('firebase-app'))       return FIREBASE_APP_STUB;
   if (url.includes('firebase-auth'))      return FIREBASE_AUTH_STUB;
   if (url.includes('firebase-firestore')) return FIREBASE_FIRESTORE_STUB;
+  if (url.includes('firebase-functions')) return FIREBASE_FUNCTIONS_STUB;
   return 'export default {};';
 }
 
