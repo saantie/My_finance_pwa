@@ -67,7 +67,13 @@ export function initFirebase() {
       _currentUser = user
         ? { email: user.email, displayName: user.displayName, uid: user.uid }
         : null;
-      if (!user) _accessToken = null;
+      if (!user) {
+        _accessToken = null;
+        sessionStorage.removeItem('_gat');
+      } else if (!_accessToken) {
+        // page reload → token ถูก restore จาก sessionStorage (valid ≤ 1 hr)
+        _accessToken = sessionStorage.getItem('_gat') || null;
+      }
     });
   } catch (e) {
     console.error('[firebase] initFirebase failed', e);
@@ -86,6 +92,7 @@ export async function signInWithGoogle() {
     const { email, displayName, uid } = result.user;
     const credential = GoogleAuthProvider.credentialFromResult(result);
     _accessToken = credential?.accessToken ?? null;
+    if (_accessToken) sessionStorage.setItem('_gat', _accessToken);
     _currentUser = { email, displayName, uid };
 
     return { email, displayName, uid, accessToken: _accessToken };
