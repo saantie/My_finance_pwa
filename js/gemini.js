@@ -1,10 +1,9 @@
 /* ===================================================================
    gemini.js — AI fallback สำหรับ parse PDF/slip ที่ parsers.js อ่านไม่ได้
    ===================================================================
-   ใช้ Gemini API key จาก config.js (ขอฟรีที่ aistudio.google.com/app/apikey)
+   Auth: OAuth access token (generative-language.peruserquota scope)
+   — ใช้ quota ของ Google account ของ user เอง ฟรี 15 req/min
    =================================================================== */
-
-import { GEMINI_API_KEY } from './config.js';
 
 const GEMINI_MODEL    = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -29,16 +28,16 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
 `.trim();
 
 
-
 /* === parse e-Statement =========================================== */
 
 /**
  * @param {File|string} fileOrText
  *   File   = PDF ไม่มีรหัสผ่าน → ส่งเป็น base64
  *   string = extractedText จาก PDF ที่ decrypt แล้ว → ส่งเป็น text
+ * @param {string} accessToken  — OAuth token (generative-language.peruserquota)
  * @returns {{ account_number_last4, bank_name, transactions[] }}
  */
-export async function parseStatementWithGemini(fileOrText) {
+export async function parseStatementWithGemini(fileOrText, accessToken) {
   let parts;
   if (typeof fileOrText === 'string') {
     parts = [{ text: STATEMENT_PROMPT + '\n\nข้อความจาก statement:\n' + fileOrText }];
@@ -49,8 +48,7 @@ export async function parseStatementWithGemini(fileOrText) {
       { text: STATEMENT_PROMPT },
     ];
   }
-
-  return _call(parts);
+  return _call(parts, accessToken);
 }
 
 
@@ -58,35 +56,37 @@ export async function parseStatementWithGemini(fileOrText) {
 
 /**
  * @param {File} imageFile  — image/jpeg หรือ image/png
+ * @param {string} accessToken
  * @returns {{ amount, date, ref, bank }}
  */
-export async function scanSlipWithGemini(imageFile) {
+export async function scanSlipWithGemini(imageFile, accessToken) {
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
-
   return _call([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: SLIP_PROMPT },
-  ]);
+  ], accessToken);
 }
 
 
 /* === internal helpers ============================================ */
 
-async function _call(parts) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_NO_API_KEY');
-  }
-
-  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+async function _call(parts, accessToken) {
+  const res = await fetch(GEMINI_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
     body: JSON.stringify({ contents: [{ parts }] }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err?.error?.message || '';
+    if (msg.includes('insufficient authentication scopes') || res.status === 401) {
+      throw new Error('GEMINI_SCOPE_MISSING');
+    }
     throw new Error(msg || `Gemini HTTP ${res.status}`);
   }
 

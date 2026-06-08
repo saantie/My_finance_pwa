@@ -88,6 +88,7 @@ export async function signInWithGoogle() {
   try {
     const provider = new GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/generative-language.peruserquota');
     const result = await signInWithPopup(_auth, provider);
     const { email, displayName, uid } = result.user;
     const credential = GoogleAuthProvider.credentialFromResult(result);
