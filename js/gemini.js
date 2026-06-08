@@ -29,39 +29,6 @@ amount เป็น satang ถ้าไม่มีข้อมูลให้�
 `.trim();
 
 
-/* === Terms check ================================================= */
-
-async function checkAiStudioTerms(accessToken) {
-  try {
-    const res = await fetch(GEMINI_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }] }),
-    });
-    if (res.status === 403 || res.status === 400) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err?.error?.message || '';
-      if (msg.includes('terms') || msg.includes('SERVICE_DISABLED')) return false;
-    }
-    return true;
-  } catch {
-    return true; // network error → ลองต่อไป แจ้งเมื่อ request จริงล้มเหลว
-  }
-}
-
-function showAiStudioPrompt() {
-  const ok = confirm(
-    'ต้องเปิดใช้ Google AI ก่อนครั้งแรก\n\n' +
-    '1. กด OK → เปิด Google AI Studio ในแท็บใหม่\n' +
-    '2. กด "Accept Terms"\n' +
-    '3. กลับมาที่แอปแล้วลองใหม่'
-  );
-  if (ok) window.open('https://aistudio.google.com', '_blank');
-}
-
 
 /* === parse e-Statement =========================================== */
 
@@ -74,12 +41,6 @@ function showAiStudioPrompt() {
  * @throws 'AI_STUDIO_TERMS_NOT_ACCEPTED' | Error
  */
 export async function parseStatementWithGemini(fileOrText, accessToken) {
-  const ready = await checkAiStudioTerms(accessToken);
-  if (!ready) {
-    showAiStudioPrompt();
-    throw new Error('AI_STUDIO_TERMS_NOT_ACCEPTED');
-  }
-
   let parts;
   if (typeof fileOrText === 'string') {
     // PDF มีรหัสผ่าน: pdf.js decrypt แล้ว ส่ง text ตรงๆ
@@ -93,8 +54,7 @@ export async function parseStatementWithGemini(fileOrText, accessToken) {
     ];
   }
 
-  const json = await _call(parts, accessToken);
-  return json;
+  return _call(parts, accessToken);
 }
 
 
@@ -106,25 +66,27 @@ export async function parseStatementWithGemini(fileOrText, accessToken) {
  * @returns {{ amount, date, ref, bank }}
  */
 export async function scanSlipWithGemini(imageFile, accessToken) {
-  const ready = await checkAiStudioTerms(accessToken);
-  if (!ready) {
-    showAiStudioPrompt();
-    throw new Error('AI_STUDIO_TERMS_NOT_ACCEPTED');
-  }
-
   const base64   = await _fileToBase64(imageFile);
   const mimeType = imageFile.type || 'image/jpeg';
 
-  const json = await _call([
+  return _call([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: SLIP_PROMPT },
   ], accessToken);
-
-  return json;
 }
 
 
 /* === internal helpers ============================================ */
+
+function showAiStudioPrompt() {
+  const ok = confirm(
+    'ต้องเปิดใช้ Google AI ก่อนครั้งแรก\n\n' +
+    '1. กด OK → เปิด Google AI Studio ในแท็บใหม่\n' +
+    '2. กด "Accept Terms"\n' +
+    '3. กลับมาที่แอปแล้วลองใหม่'
+  );
+  if (ok) window.open('https://aistudio.google.com', '_blank');
+}
 
 async function _call(parts, accessToken) {
   const res = await fetch(GEMINI_ENDPOINT, {
@@ -138,7 +100,19 @@ async function _call(parts, accessToken) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Gemini HTTP ${res.status}`);
+    const msg = err?.error?.message || '';
+
+    // terms ยังไม่ยอมรับ
+    if (msg.includes('terms') || msg.includes('SERVICE_DISABLED')) {
+      showAiStudioPrompt();
+      throw new Error('AI_STUDIO_TERMS_NOT_ACCEPTED');
+    }
+    // token ไม่มี generative-language scope → user ต้อง sign-out แล้ว sign-in ใหม่
+    if (msg.includes('insufficient authentication scopes') || res.status === 401) {
+      throw new Error('GEMINI_SCOPE_MISSING');
+    }
+
+    throw new Error(msg || `Gemini HTTP ${res.status}`);
   }
 
   const data = await res.json();

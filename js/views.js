@@ -1899,6 +1899,14 @@ async function handleGeminiFallback(fileOrText, fileName) {
   } catch (err) {
     prog.el.remove();
     if (err.message === 'AI_STUDIO_TERMS_NOT_ACCEPTED') return; // dialog แสดงแล้ว
+    if (err.message === 'GEMINI_SCOPE_MISSING') {
+      alert(
+        'ไม่มีสิทธิ์เรียก Google AI\n\n' +
+        'กรุณาออกจากระบบ แล้วลงชื่อเข้าใช้ใหม่\n' +
+        'เพื่อให้แอปขอสิทธิ์ Google AI อีกครั้ง'
+      );
+      return;
+    }
     console.error('[gemini fallback]', err);
     showToast('AI วิเคราะห์ไม่สำเร็จ: ' + (err.message || 'unknown'));
   }
