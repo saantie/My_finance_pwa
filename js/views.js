@@ -1868,11 +1868,18 @@ async function _runGeminiFallback(fileOrText, fileName) {
       balance:     t.balance ?? null,
       source:      'pdf',
     }));
+    const last4 = geminiResult.account_number_last4 || null;
     showReviewModal({
       transactions,
       bank:        geminiResult.bank_name || null,
-      accountInfo: { account_number_last4: geminiResult.account_number_last4 || null },
+      // last4 = field ที่ confirmImport ใช้สร้าง/ผูกบัญชี (ให้ตรงกับ parser path)
+      accountInfo: {
+        last4,
+        account_number_last4:  last4,
+        account_number_masked: last4 ? `xxx-x-x${last4}-x` : null,
+      },
       extractedText: typeof fileOrText === 'string' ? fileOrText : '',
+      source:      'gemini',
     }, fileName || 'gemini-import');
   } catch (err) {
     prog.el.remove();
@@ -1960,6 +1967,10 @@ function showReviewModal(result, fileName) {
   const transfer = result.transactions.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
   const dupCount = dupMap.size;
 
+  // AI อ่านแต่ไม่พบเลขบัญชี → ให้ user เลือกบัญชีปลายทางเอง
+  const needAccountPick = result.source === 'gemini' && !result.accountInfo?.last4;
+  let targetAccountId = null;
+
   modal.innerHTML = `
     <div class="review-header">
       <div class="review-title">ตรวจดูก่อนนำเข้า</div>
@@ -1979,6 +1990,20 @@ function showReviewModal(result, fileName) {
           ${transfer > 0 ? `<div><div class="setting-sub">โอน/ATM</div><div class="setting-label" style="color: var(--dust-blue)">${formatBaht(transfer)} ฿</div></div>` : ''}
         </div>
       </div>
+
+      ${needAccountPick ? `
+      <!-- Account picker — AI ไม่พบเลขบัญชี -->
+      <div class="card card-padded" style="padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
+        <div style="flex: 1; min-width: 0;">
+          <div class="setting-label">นำเข้าไปยังบัญชี</div>
+          <div class="setting-sub">ไม่พบเลขบัญชีในไฟล์ — เลือกบัญชีปลายทางเอง</div>
+        </div>
+        <button id="review-acct-btn" style="
+          padding: 8px 14px; border-radius: 10px; border: 1px solid var(--rule);
+          background: var(--accent-soft, #fef3e7); color: var(--ink);
+          font-family: inherit; font-size: 0.85rem; white-space: nowrap;
+        ">ไม่ระบุ</button>
+      </div>` : ''}
 
       <!-- Select all toggle -->
       <div class="review-select-all">
@@ -2049,11 +2074,23 @@ function showReviewModal(result, fileName) {
     syncUI();
   });
 
+  // Account picker (กรณี AI + ไม่มีเลขบัญชี) — reuse bottom-sheet จาก add.js
+  const acctBtn = modal.querySelector('#review-acct-btn');
+  if (acctBtn) {
+    acctBtn.addEventListener('click', async () => {
+      const { openAccountPickerModal } = await import('./add.js');
+      openAccountPickerModal(targetAccountId, id => {
+        targetAccountId = id;
+        acctBtn.textContent = State.getAccount(id)?.display_name || 'ไม่ระบุ';
+      });
+    });
+  }
+
   modal.querySelector('[data-action="cancel"]').addEventListener('click', () => modal.remove());
 
   modal.querySelector('[data-action="confirm"]').addEventListener('click', () => {
     const selectedTxs = result.transactions.filter((_, i) => sel.has(i));
-    confirmImport({ ...result, transactions: selectedTxs });
+    confirmImport({ ...result, transactions: selectedTxs, target_account_id: targetAccountId });
     modal.remove();
   });
 }
@@ -2109,6 +2146,26 @@ function renderReviewRow(tx, idx, matchingTx, isSelected) {
   `;
 }
 
+/* ใส่ account_id ใน transactions + route cash flows ให้ถูกทิศ */
+function assignTxAccounts(transactions, accountId) {
+  for (const tx of transactions) {
+    tx.account_from = tx.type !== 'income' ? accountId : null;
+    tx.account_to   = tx.type === 'income' ? accountId : null;
+
+    const desc = tx.description || '';
+    if (tx.type === 'transfer') {
+      if (/(?:atm|ถอน|withdraw)/i.test(desc)) {
+        // ถอน ATM → เงินออกจากบัญชีธนาคาร เข้ากระเป๋าสด
+        tx.account_to = 'cash:default';
+      } else if (/(?:cdm|ฝากเงินสด|cash\s*deposit)/i.test(desc)) {
+        // ฝากเงินสด/CDM → เงินออกจากกระเป๋าสด เข้าบัญชีธนาคาร
+        tx.account_from = 'cash:default';
+        tx.account_to   = accountId;
+      }
+    }
+  }
+}
+
 function confirmImport(result) {
   // Add/update account if detected
   let _importedAccountId = null;  // เก็บไว้สำหรับ aha-moments trigger
@@ -2126,23 +2183,11 @@ function confirmImport(result) {
         current_balance: result.transactions[0]?.balance || 0
       });
     }
-    // ใส่ account_id ใน transactions + route cash flows ให้ถูกทิศ
-    for (const tx of result.transactions) {
-      tx.account_from = tx.type !== 'income' ? accountId : null;
-      tx.account_to   = tx.type === 'income' ? accountId : null;
-
-      const desc = tx.description || '';
-      if (tx.type === 'transfer') {
-        if (/(?:atm|ถอน|withdraw)/i.test(desc)) {
-          // ถอน ATM → เงินออกจากบัญชีธนาคาร เข้ากระเป๋าสด
-          tx.account_to = 'cash:default';
-        } else if (/(?:cdm|ฝากเงินสด|cash\s*deposit)/i.test(desc)) {
-          // ฝากเงินสด/CDM → เงินออกจากกระเป๋าสด เข้าบัญชีธนาคาร
-          tx.account_from = 'cash:default';
-          tx.account_to   = accountId;
-        }
-      }
-    }
+    assignTxAccounts(result.transactions, accountId);
+  } else if (result.target_account_id) {
+    // AI อ่านแต่ไม่พบเลขบัญชี — user เลือกบัญชีปลายทางเองใน review modal
+    _importedAccountId = result.target_account_id;
+    assignTxAccounts(result.transactions, result.target_account_id);
   }
 
   // ลบ raw_text ก่อน save (ไม่ต้องเก็บใน storage)
