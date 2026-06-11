@@ -1967,8 +1967,9 @@ function showReviewModal(result, fileName) {
   const transfer = result.transactions.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
   const dupCount = dupMap.size;
 
-  // AI อ่านแต่ไม่พบเลขบัญชี → ให้ user เลือกบัญชีปลายทางเอง
-  const needAccountPick = result.source === 'gemini' && !result.accountInfo?.last4;
+  // ผูกบัญชีอัตโนมัติไม่ได้ (ไม่มีเลขบัญชี หรือไม่รู้จักธนาคาร — เงื่อนไขเดียวกับ
+  // confirmImport) → ให้ user เลือกบัญชีปลายทางเอง — ทั้ง path parser ปกติและ AI
+  const needAccountPick = !(result.accountInfo?.last4 && result.bank && result.bank !== 'unknown');
   let targetAccountId = null;
 
   modal.innerHTML = `
