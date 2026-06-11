@@ -349,6 +349,7 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 | List view defaults to current month | full history scroll was unusable |
 | Recipient can't delete shared account — only "ปฏิเสธ" (self-remove) | deletion is owner's right |
 | Don't block pinch-zoom; in-app text size via :root rem | accessibility is a real Thai user pain |
+| **No auto-seeded sample data on first run (June 2026)** — demo data is opt-in only via "ลองข้อมูลตัวอย่าง" in empty state; legacy `_sample` patch kept in app.js | fresh installs must start clean |
 
 ---
 

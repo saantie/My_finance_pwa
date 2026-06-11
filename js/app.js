@@ -220,75 +220,16 @@ function registerSW() {
 }
 
 
-/* === Seed sample data (first run only) ========================== */
+/* === Legacy sample-data migration ================================ */
+// แอปเคย seed ข้อมูลตัวอย่างอัตโนมัติตอน first run (เลิกแล้ว — ข้อมูลตัวอย่าง
+// มีเฉพาะแบบ opt-in ผ่านปุ่ม "ลองข้อมูลตัวอย่าง" ใน empty state)
+// เหลือไว้เฉพาะ patch สำหรับเครื่องที่เคยถูก seed แล้ว account ขาด _sample
+// เพื่อให้ clearSampleData() ยังลบออกได้
 
-function seedSampleDataIfEmpty() {
-  // Migration: ถ้า demo account มีอยู่แล้วแต่ขาด _sample (bug เก่า) → patch ทันที
+function patchLegacySampleAccount() {
   const demoAcct = State.getAccount('bank:kbank:3344');
   if (demoAcct && !demoAcct._sample) {
     State.updateAccount('bank:kbank:3344', { _sample: true });
-  }
-
-  // Skip ถ้ามีข้อมูลแล้ว
-  if (State.getTransactions().length > 0) return;
-
-  // เพิ่ม sample account (KBank) — ให้ user เห็นภาพว่ามี multi-bank
-  State.addAccount({
-    id: 'bank:kbank:3344',
-    bank: 'kbank',
-    account_number_masked: 'xxx-x-x3344-x',
-    display_name: 'กสิกร ...3344',
-    type: 'bank',
-    current_balance: 1545000,  // 15,450 ฿
-    _sample: true              // marker สำหรับ clearSampleData()
-  });
-
-  // เพิ่ม sample transactions ของวันนี้
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-
-  const samples = [
-    { type: 'expense', amount: 16500, group: 'food',          description: 'ก๋วยเตี๋ยว + กาแฟ', date: today },
-    { type: 'expense', amount: 8500,  group: 'transport',     description: 'BTS ไป-กลับ', date: today },
-    { type: 'expense', amount: 12000, group: 'shopping',      description: 'ของขวัญ', date: yesterday },
-    { type: 'income',  amount: 2500000, group: 'salary',      description: 'เงินเดือน พ.ค.', date: yesterday },
-    { type: 'expense', amount: 45000, group: 'utility',       description: 'ค่าไฟ MEA', date: yesterday }
-  ];
-
-  for (const s of samples) {
-    State.addTransaction({ ...s, source: 'sample' });
-  }
-
-  // เพิ่ม sample recurring templates (skip ถ้ามีอยู่แล้ว)
-  if (Recurring.getTemplates().length === 0) {
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 5);
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    nextMonth.setDate(15);
-
-    // ค่าเน็ตรายเดือน
-    Recurring.addTemplate({
-      type: 'expense',
-      amount: 59000,                     // 590 ฿
-      group: 'utility',
-      description: 'ค่าอินเทอร์เน็ต True',
-      account_id: 'bank:kbank:3344',
-      frequency: 'monthly',
-      first_due: nextMonth.toISOString().slice(0, 10)
-    });
-
-    // ผ่อน iPhone 12 งวด
-    Recurring.addTemplate({
-      type: 'expense',
-      amount: 250000,                    // 2,500 ฿/งวด
-      group: 'shopping',
-      description: 'ผ่อน iPhone',
-      account_id: 'bank:kbank:3344',
-      frequency: 'installment',
-      installment_total: 12,
-      first_due: nextWeek.toISOString().slice(0, 10)
-    });
   }
 }
 
@@ -371,19 +312,15 @@ function init() {
   applyTextSize(settings.text_size || 'normal');
   applyDark(settings.dark || false);
 
-  // 2. Onboarding (first-run) หรือ seed demo data
+  // 2. Onboarding (first-run) — ไม่ seed ข้อมูลตัวอย่างอัตโนมัติ
+  // (user เลือกเองได้จากปุ่ม "ลองข้อมูลตัวอย่าง" ใน empty state)
+  patchLegacySampleAccount();
   if (shouldShowOnboarding()) {
-    // แสดง onboarding overlay ก่อน — ไม่ seed demo data
     showOnboarding(() => {
-      // หลัง onboarding เสร็จ: ถ้ายังไม่มีข้อมูล (user ข้าม PDF) → seed ให้เห็นตัวอย่าง
-      seedSampleDataIfEmpty();
       renderCurrentView();
       // Coach mark: หน่วง 600ms ให้ DOM render ก่อน spotlight จะวัด getBoundingClientRect ได้ถูก
       if (shouldShowCoachMark()) setTimeout(showCoachMark, 600);
     });
-  } else {
-    // ติดตั้งซ้ำ / มีข้อมูลแล้ว → seed ถ้าจำเป็น (fresh state ที่ผ่าน onboarding ไปแล้ว)
-    seedSampleDataIfEmpty();
   }
 
   // 3. Run scheduler — สร้าง transaction จาก template ที่ครบกำหนดแล้ว
