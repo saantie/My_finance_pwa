@@ -75,9 +75,14 @@ export async function scanSlipWithGemini(imageFile) {
 /* === internal helpers ============================================ */
 
 async function _call(parts, apiKey) {
-  const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+  // ส่ง key ผ่าน header x-goog-api-key (วิธีทางการปัจจุบัน) แทน ?key= ใน URL
+  // — key ไม่โผล่ใน URL/log + รองรับทั้ง AIza และ AQ. key format
+  const res = await fetch(GEMINI_ENDPOINT, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type':   'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body:    JSON.stringify({ contents: [{ parts }] }),
   });
 
