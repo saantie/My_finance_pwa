@@ -285,12 +285,13 @@ js/
   views.js            all views; review modal + account confirmation; confirmImport;
                       assignTxAccounts(); _runGeminiFallback
   app.js              entry, routing, auth lifecycle
-tests/run.mjs         280 tests — 277 pass; 3 known failures in shared-account
-                      localStorage tests (pre-existing, unrelated to features)
+tests/run.mjs         280 tests — all passing; runner exits 1 on failure
 tests/loader.mjs      ESM loader mocking Firebase CDN imports for Node
+.github/workflows/test.yml  CI: runs tests on every push/PR to main
 ```
 
 Test command: `node --import ./tests/loader.mjs tests/run.mjs`
+**Keep the suite green** — a perpetually red suite hides real regressions. CI enforces this on push.
 
 ---
 
@@ -307,6 +308,18 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 **Post-launch:** recurring auto-detect, forecast calendar, reminders → more banks, slip OCR, bug report → affiliate → year 2: full cloud sync, net worth, bank APIs (if BoT opens), iOS.
 
 **Top risks:** banks change PDF formats (fixtures + in-app report + CSV fallback) · Wallet Story copies PDF import (launch fast) · solo-dev burnout (narrow scope) · crash bugs tank rating (Sentry, fix < 24h) · PDPA (legal review pre-launch). **Gemini API churn is now a proven risk** — model shutdowns and key-policy changes broke the app twice in one month; pin docs, prefer stable GA models, keep parser primary.
+
+### Tech Debt (the single place debts are recorded — add here when incurred)
+
+| Debt | Pay when |
+|---|---|
+| `views.js` ~3,000 lines — all views + import flow + review modal in one file | split after launch (too risky before) |
+| `prompt()`/`confirm()` still used for PDF password + AI-consent dialogs | replace with styled modals during microinteractions polish |
+| Parser upserts detected account at *parse* time, before review confirm — overridden accounts linger empty | move account creation into confirmImport |
+| Review-modal account-picker card uses inline styles | move to styles.css with next CSS touch |
+| Unused legacy `FIREBASE_CONFIG` block in js/config.js | delete on next config.js change |
+| Firebase CDN pinned 10.12.0; tests/loader.mjs mocks may drift from real SDK | review at v2.0 cloud-sync work |
+| No Sentry/PostHog yet | pre-launch ops (already in roadmap) |
 
 ---
 

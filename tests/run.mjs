@@ -307,7 +307,7 @@ test('saveToStorage excludes _received accounts', () => {
   addAccount({ id: 'cloud-rcv', display_name: 'บัญชีรับแชร์', storage: 'cloud' });
   // mergeSharedAccounts sets _received: true — simulate that here
   updateAccount('cloud-rcv', { _received: true });
-  const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
+  const saved = JSON.parse(localStorage.getItem('diary_finance_v2'));
   assert(!saved.accounts.some(a => a.id === 'cloud-rcv'), '_received account must not be in localStorage');
   assert(saved.accounts.some(a => a.id === 'cloud-own'),  'own cloud account must be saved');
   assert(saved.accounts.some(a => a.id === 'local-1'),    'local account must be saved');
@@ -319,8 +319,9 @@ test('saveToStorage excludes _received account transactions', () => {
   updateAccount('cloud-rcv', { _received: true });
   addTransaction({ amount: 100000, account_from: 'cloud-rcv',   account_to: null });
   addTransaction({ amount: 50000,  account_from: 'cash:default', account_to: null });
-  const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
-  const savedAmounts = saved.transactions.map(t => t.amount);
+  // v2 เก็บ transactions แบบ compact — amount ย่อเป็น amt
+  const saved = JSON.parse(localStorage.getItem('diary_finance_v2'));
+  const savedAmounts = saved.transactions.map(t => t.amt);
   assert(!savedAmounts.includes(100000), '_received cloud tx must not be in localStorage');
   assert(savedAmounts.includes(50000),   'local tx must be saved');
 });
@@ -339,7 +340,7 @@ test('importJSON preserves own cloud accounts in localStorage', () => {
     ],
     settings: {}
   }));
-  const saved = JSON.parse(localStorage.getItem('diary_finance_v1'));
+  const saved = JSON.parse(localStorage.getItem('diary_finance_v2'));
   // cloud accounts from import have no _received flag → treated as own → saved
   assert(saved.accounts.some(a => a.id === 'cloud-own'),
     'own cloud account from import must be saved to localStorage');
