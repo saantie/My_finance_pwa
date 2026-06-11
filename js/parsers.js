@@ -200,6 +200,9 @@ export function detectBank(text) {
   if (/uob/i.test(text)) return 'uob';
   if (/ทิสโก้|tisco/i.test(text)) return 'tisco';
   if (/เกียรตินาคิน|kkp/i.test(text)) return 'kkp';
+  if (/แลนด์แอนด์เฮ้าส์|land.*house|lhbank|lh\s*bank/i.test(text)) return 'lhbank';
+  if (/icbc|ไอซีบีซี/i.test(text)) return 'icbc';
+  if (/standard.?chartered|สแตนดาร์ดชาร์เตอร์ด/i.test(text)) return 'sc';
   return 'unknown';
 }
 

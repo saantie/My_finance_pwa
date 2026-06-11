@@ -26,11 +26,12 @@ File → pdf.js → decrypt if password
   → return { bank, accountInfo, transactions, pageCount, extractedText, verification, errors:[] }
 ```
 
-## detectBank() — 13 banks (ไม่ใช่ 16)
+## detectBank() — 16 banks
 ```js
-'kbank'|'ktb'|'scb'|'bbl'|'bay'|'ttb'|'gsb'|'baac'|'ghb'|'cimb'|'uob'|'tisco'|'kkp'
+'kbank'|'ktb'|'scb'|'bbl'|'bay'|'ttb'|'gsb'|'baac'|'ghb'|'cimb'|'uob'|'tisco'|'kkp'|'lhbank'|'icbc'|'sc'
+// lhbank = Land and Houses Bank, icbc = ICBC Thailand, sc = Standard Chartered Thailand
 // คืน 'unknown' ถ้าหาไม่เจอ
-// Launch target: 5 banks (kbank, ktb, scb, bbl, bay)
+// Launch focus: kbank, ktb, scb, bbl, bay (80%+ coverage)
 ```
 
 ## detectColumns() — X-coordinate Based

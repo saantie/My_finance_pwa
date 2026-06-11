@@ -370,8 +370,24 @@ test('detectBank กรุงเทพ',             () => eq(detectBank('ธน
 test('detectBank กรุงศรี',             () => eq(detectBank('ธนาคารกรุงศรีอยุธยา'), 'bay'));
 test('detectBank krungsri',            () => eq(detectBank('KRUNGSRI'), 'bay'));
 test('detectBank ออมสิน',              () => eq(detectBank('ธนาคารออมสิน'), 'gsb'));
+test('detectBank gsb',                 () => eq(detectBank('GSB'), 'gsb'));
+test('detectBank ทหารไทยธนชาต',        () => eq(detectBank('ธนาคารทหารไทยธนชาต'), 'ttb'));
+test('detectBank ttb',                 () => eq(detectBank('TTB BANK'), 'ttb'));
+test('detectBank ธ.ก.ส',              () => eq(detectBank('ธ.ก.ส.'), 'baac'));
+test('detectBank baac',                () => eq(detectBank('BAAC'), 'baac'));
+test('detectBank อาคารสงเคราะห์',     () => eq(detectBank('ธนาคารอาคารสงเคราะห์'), 'ghb'));
+test('detectBank ghb',                 () => eq(detectBank('GHB BANK'), 'ghb'));
+test('detectBank uob',                 () => eq(detectBank('UOB THAILAND'), 'uob'));
 test('detectBank cimb',                () => eq(detectBank('CIMB THAI'), 'cimb'));
 test('detectBank tisco',               () => eq(detectBank('TISCO BANK'), 'tisco'));
+test('detectBank เกียรตินาคิน',       () => eq(detectBank('ธนาคารเกียรตินาคินภัทร'), 'kkp'));
+test('detectBank kkp',                 () => eq(detectBank('KKP BANK'), 'kkp'));
+test('detectBank แลนด์แอนด์เฮ้าส์',  () => eq(detectBank('ธนาคารแลนด์แอนด์เฮ้าส์'), 'lhbank'));
+test('detectBank lhbank',              () => eq(detectBank('LH BANK'), 'lhbank'));
+test('detectBank icbc',                () => eq(detectBank('ICBC THAI'), 'icbc'));
+test('detectBank ไอซีบีซี',           () => eq(detectBank('ธนาคารไอซีบีซี ไทย'), 'icbc'));
+test('detectBank standard chartered',  () => eq(detectBank('STANDARD CHARTERED'), 'sc'));
+test('detectBank สแตนดาร์ดชาร์เตอร์ด', () => eq(detectBank('ธนาคารสแตนดาร์ดชาร์เตอร์ด'), 'sc'));
 test('detectBank unknown',             () => eq(detectBank('ไม่รู้จัก'), 'unknown'));
 
 // detectAccountInfo
