@@ -1787,6 +1787,7 @@ async function handleSlipScan(file) {
 async function handlePdfImport(file) {
   const { parsePDF, scoreParseResult } = await import('./parsers.js');
   let result;
+  let isEncrypted = false; // PDF มีรหัส → Gemini ถอดไฟล์ไม่ได้ ต้องส่ง extractedText แทน
 
   // ── first attempt ──────────────────────────────────────────────
   const prog1 = createProgressModal('กำลังประมวลผล e-Statement');
@@ -1803,6 +1804,7 @@ async function handlePdfImport(file) {
     }
 
     // ── password prompt ──────────────────────────────────────────
+    isEncrypted = true;
     const password = prompt('e-Statement นี้มีรหัสผ่าน กรุณาใส่รหัส:');
     if (!password) return;
 
@@ -1833,8 +1835,10 @@ async function handlePdfImport(file) {
       `(ข้อความจาก e-Statement จะถูกส่งไปยัง Google AI)`
     );
     if (useAI) {
-      // PDF มีรหัส → ส่ง extractedText (string); PDF ปกติ → ส่งไฟล์ (File)
-      const fileOrText = result.extractedText ? result.extractedText : file;
+      // PDF มีรหัส → ส่ง extractedText (string) เพราะ Gemini ถอดรหัสไฟล์ไม่ได้
+      // PDF ปกติ → ส่งไฟล์จริง (base64) เสมอ — Gemini อ่านด้วย vision แม่นกว่า
+      // text ที่ parser สกัดได้ (ซึ่งอาจเพี้ยนจนเป็นเหตุให้ confidence ต่ำตั้งแต่แรก)
+      const fileOrText = isEncrypted && result.extractedText ? result.extractedText : file;
       await handleGeminiFallback(fileOrText, file.name);
       return;
     }

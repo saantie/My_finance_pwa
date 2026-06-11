@@ -97,7 +97,11 @@ async function _call(parts, apiKey) {
   }
 
   const data  = await res.json();
-  const text  = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  // model รุ่นใหม่อาจคืนหลาย parts — รวม text ทุก part (ข้าม thought parts)
+  const text  = (data.candidates?.[0]?.content?.parts || [])
+    .filter(p => p.text && !p.thought)
+    .map(p => p.text)
+    .join('') || '';
   const clean = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
   try {
     return JSON.parse(clean);
