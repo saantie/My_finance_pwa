@@ -1967,10 +1967,13 @@ function showReviewModal(result, fileName) {
   const transfer = result.transactions.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
   const dupCount = dupMap.size;
 
-  // ผูกบัญชีอัตโนมัติไม่ได้ (ไม่มีเลขบัญชี หรือไม่รู้จักธนาคาร — เงื่อนไขเดียวกับ
-  // confirmImport) → ให้ user เลือกบัญชีปลายทางเอง — ทั้ง path parser ปกติและ AI
-  const needAccountPick = !(result.accountInfo?.last4 && result.bank && result.bank !== 'unknown');
-  let targetAccountId = null;
+  // ถามบัญชีปลายทางทุกกรณีเพื่อยืนยันก่อนนำเข้า — ถ้าตรวจพบจากไฟล์ใช้เป็นค่าเริ่มต้น
+  const detectedId = (result.accountInfo?.last4 && result.bank && result.bank !== 'unknown')
+    ? `bank:${result.bank}:${result.accountInfo.last4}` : null;
+  let targetAccountId = detectedId;
+  const initialAcctLabel = detectedId
+    ? (State.getAccount(detectedId)?.display_name || `${bankDisplayName(result.bank)} ...${result.accountInfo.last4}`)
+    : 'เลือกบัญชี';
 
   modal.innerHTML = `
     <div class="review-header">
@@ -1992,19 +1995,20 @@ function showReviewModal(result, fileName) {
         </div>
       </div>
 
-      ${needAccountPick ? `
-      <!-- Account picker — AI ไม่พบเลขบัญชี -->
+      <!-- Account picker — ยืนยันบัญชีปลายทางทุกกรณี -->
       <div class="card card-padded" style="padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
         <div style="flex: 1; min-width: 0;">
           <div class="setting-label">นำเข้าไปยังบัญชี</div>
-          <div class="setting-sub">ไม่พบเลขบัญชีในไฟล์ — เลือกบัญชีปลายทางเอง</div>
+          <div class="setting-sub">${detectedId
+            ? 'ตรวจพบจากไฟล์ — แตะปุ่มเพื่อเปลี่ยน'
+            : 'ไม่พบเลขบัญชีในไฟล์ — เลือกบัญชีปลายทางเอง'}</div>
         </div>
         <button id="review-acct-btn" style="
           padding: 8px 14px; border-radius: 10px; border: 1px solid var(--rule);
           background: var(--accent-soft, #fef3e7); color: var(--ink);
           font-family: inherit; font-size: 0.85rem; white-space: nowrap;
-        ">ไม่ระบุ</button>
-      </div>` : ''}
+        ">${escapeHtml(initialAcctLabel)}</button>
+      </div>
 
       <!-- Select all toggle -->
       <div class="review-select-all">
@@ -2170,8 +2174,15 @@ function assignTxAccounts(transactions, accountId) {
 function confirmImport(result) {
   // Add/update account if detected
   let _importedAccountId = null;  // เก็บไว้สำหรับ aha-moments trigger
-  if (result.accountInfo?.last4 && result.bank !== 'unknown') {
-    const accountId = `bank:${result.bank}:${result.accountInfo.last4}`;
+  const detectedId = (result.accountInfo?.last4 && result.bank && result.bank !== 'unknown')
+    ? `bank:${result.bank}:${result.accountInfo.last4}` : null;
+  // user ยืนยัน/เปลี่ยนบัญชีปลายทางใน review modal — ถ้าเปลี่ยนเป็นบัญชีอื่น
+  // ให้ใช้บัญชีที่เลือกแทน และไม่สร้างบัญชีที่ตรวจพบจากไฟล์
+  const useDetected = detectedId &&
+    (!result.target_account_id || result.target_account_id === detectedId);
+
+  if (useDetected) {
+    const accountId = detectedId;
     _importedAccountId = accountId;
     const existing = State.getAccount(accountId);
     if (!existing) {
@@ -2186,7 +2197,7 @@ function confirmImport(result) {
     }
     assignTxAccounts(result.transactions, accountId);
   } else if (result.target_account_id) {
-    // AI อ่านแต่ไม่พบเลขบัญชี — user เลือกบัญชีปลายทางเองใน review modal
+    // ไม่ใช้บัญชีที่ตรวจพบ (ไม่พบ หรือ user เปลี่ยน) — ใช้บัญชีที่ user เลือก
     _importedAccountId = result.target_account_id;
     assignTxAccounts(result.transactions, result.target_account_id);
   }
