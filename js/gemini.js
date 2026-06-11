@@ -15,7 +15,8 @@ async function _getKey() {
   }
 }
 
-const GEMINI_MODEL    = 'gemini-2.0-flash';
+// gemini-2.0-flash ถูกปิดถาวร 1 มิ.ย. 2026 — ใช้ 3.5-flash (free tier, ไม่มีกำหนดปิด)
+const GEMINI_MODEL    = 'gemini-3.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const STATEMENT_PROMPT = `
