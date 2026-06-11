@@ -493,7 +493,7 @@ export function renderDashboard(container) {
         </div>
       </div>
       <button class="btn-primary export-card-btn" data-action="open-export">
-        ${svgIcon('download', { size: 15, stroke: 2 })}&ensp;ดาวน์โหลด .xlsx
+        ${svgIcon('download', { size: 15, stroke: 2 })}ดาวน์โหลด .xlsx
       </button>
     </div>
 
