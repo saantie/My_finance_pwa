@@ -204,9 +204,10 @@ function renderHeroCard() {
         <canvas id="heroAreaChart"></canvas>
       </div>
 
-      <!-- 4. Date labels -->
+      <!-- 4. Date labels — มีคำว่า "วันที่" + "สิ้นเดือน" กำกับหัวท้าย
+           ให้อ่านรู้ทันทีว่าเป็นวันของเดือน ไม่ใช่เลขลอยๆ -->
       <div class="hero-date-labels">
-        <span>1</span><span>7</span><span>14</span><span>21</span><span>28</span>
+        <span>วันที่ 1</span><span>7</span><span>14</span><span>21</span><span>สิ้นเดือน</span>
       </div>
 
       <!-- 5. Divider -->
@@ -335,7 +336,10 @@ async function initHeroChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '—'}%` },
+          callbacks: {
+            title: items => `วันที่ ${items[0]?.label ?? ''}`,
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '—'}%`,
+          },
         },
       },
       scales: {
