@@ -527,10 +527,11 @@ export function renderDashboard(container) {
 
   // "จัดการ" ในส่วนรายการล่วงหน้า → navigate ไปหน้า Settings ส่วนรายการประจำ
   container.querySelector('[data-action="view-recurring"]')?.addEventListener('click', () => {
+    setSettingsOpenSection('recurring');   // เปิด accordion ก่อน render
     document.querySelector('.nav-item[data-view="settings"]')?.click();
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.getElementById('recurring-section')
+        document.querySelector('.settings-acc[data-acc="recurring"]')
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
@@ -2346,6 +2347,33 @@ function renderBankCell(name, color) {
 /* ===================================================================
    SETTINGS VIEW
    =================================================================== */
+/* ── Settings accordion ──────────────────────────────────────────
+   เมนูตั้งค่าพับเก็บได้ — เปิดได้ทีละส่วน (เปิดส่วนใหม่ = พับส่วนเดิม)
+   _settingsOpenSection คงไว้ข้าม re-render (เปลี่ยนธีม/toggle ไม่ทำให้พับ)
+   setSettingsOpenSection() ใช้โดย deep-link (auth badge → accounts ฯลฯ) */
+let _settingsOpenSection = null;
+export function setSettingsOpenSection(id) { _settingsOpenSection = id; }
+
+function _recurMeta() {
+  const n = Recurring.getActiveTemplates().length;
+  const s = _recurSuggestions.length;
+  if (s > 0) return n > 0 ? `${n} รายการ · ใหม่ ${s}` : `ตรวจพบ ${s} ใหม่`;
+  return n > 0 ? `${n} รายการ` : '';
+}
+
+function settingsAccordion(id, title, meta, bodyHtml) {
+  const open = _settingsOpenSection === id;
+  return `
+    <div class="settings-acc ${open ? 'open' : ''}" data-acc="${id}">
+      <button class="settings-acc-head" data-acc-toggle="${id}" aria-expanded="${open}">
+        <span class="settings-acc-title">${title}</span>
+        ${meta ? `<span class="settings-acc-meta">${meta}</span>` : ''}
+        <span class="settings-acc-chevron">${svgIcon('chevron', { size: 18, stroke: 2 })}</span>
+      </button>
+      <div class="settings-acc-body"><div class="settings-acc-inner">${bodyHtml}</div></div>
+    </div>`;
+}
+
 export function renderSettings(container) {
   const settings = State.getSettings();
   const txCount = State.getTransactions().length;
@@ -2408,11 +2436,8 @@ export function renderSettings(container) {
       </div>
     </div>
 
-    <!-- Appearance -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">รูปแบบการแสดงผล</h2>
-      </div>
+    <!-- เมนูตั้งค่า (accordion — เปิดทีละส่วน) -->
+    ${settingsAccordion('appearance', 'รูปแบบการแสดงผล', curThemeName, `
       <div class="card">
         <!-- Dark mode toggle -->
         <div class="dark-toggle-row">
@@ -2451,13 +2476,9 @@ export function renderSettings(container) {
         </div>
 
       </div>
-    </div>
+    `)}
 
-    <!-- Threshold + Notification toggles -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">การแจ้งเตือน</h2>
-      </div>
+    ${settingsAccordion('notify', 'การแจ้งเตือน', '', `
       <div class="card">
         <div class="setting-row" data-action="edit-threshold">
           <div>
@@ -2501,13 +2522,9 @@ export function renderSettings(container) {
           </label>
         </div>
       </div>
-    </div>
+    `)}
 
-    <!-- Analytics opt-out -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">Privacy</h2>
-      </div>
+    ${settingsAccordion('privacy', 'Privacy', '', `
       <div class="card">
         <div class="setting-row">
           <div>
@@ -2521,16 +2538,11 @@ export function renderSettings(container) {
           </label>
         </div>
       </div>
-    </div>
+    `)}
 
-    <!-- Recurring templates -->
-    ${renderRecurringSection()}
+    ${settingsAccordion('recurring', 'รายการประจำ / ผ่อน', _recurMeta(), renderRecurringSection())}
 
-    <!-- Custom categories -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">หมวดหมู่</h2>
-      </div>
+    ${settingsAccordion('category', 'หมวดหมู่', '', `
       <div class="card">
         <div class="setting-row" data-action="open-category-manager" style="cursor:pointer">
           <div>
@@ -2540,13 +2552,9 @@ export function renderSettings(container) {
           ${svgIcon('chevron', { size: 18, stroke: 2 })}
         </div>
       </div>
-    </div>
+    `)}
 
-    <!-- Data -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">ข้อมูล</h2>
-      </div>
+    ${settingsAccordion('data', 'ข้อมูล', `${txCount} รายการ`, `
       <div class="card">
         <div class="setting-row">
           <div>
@@ -2610,10 +2618,9 @@ export function renderSettings(container) {
           ${svgIcon('delete', { size: 18, stroke: 2 })}
         </div>
       </div>
-    </div>
+    `)}
 
-    <!-- บัญชีของฉัน -->
-    <div id="settings-accounts">${renderAccountsSection()}</div>
+    ${settingsAccordion('accounts', 'บัญชีของฉัน', `${acctCount} บัญชี`, renderAccountsSection())}
 
     <!-- Privacy info -->
     <div class="privacy-footer" style="margin-top: 22px;">
@@ -2632,6 +2639,19 @@ export function renderSettings(container) {
   `;
 
   // === Bind events ===
+
+  // Accordion: เปิดได้ทีละส่วน — กดส่วนที่เปิดอยู่ = พับเก็บ
+  container.querySelectorAll('[data-acc-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.accToggle;
+      _settingsOpenSection = (_settingsOpenSection === id) ? null : id;
+      container.querySelectorAll('.settings-acc').forEach(acc => {
+        const isOpen = acc.dataset.acc === _settingsOpenSection;
+        acc.classList.toggle('open', isOpen);
+        acc.querySelector('.settings-acc-head')?.setAttribute('aria-expanded', isOpen);
+      });
+    });
+  });
 
   // ── Drive backup helpers (shared between upload/restore buttons) ──
   async function _getDriveModule() {
@@ -3236,16 +3256,13 @@ function renderAccountsSection() {
     </div>`;
 
   return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">บัญชีของฉัน</h2>
-        <button class="section-action" data-action="add-account">+ เพิ่มบัญชี</button>
-      </div>
-      ${googleCard}
-      ${displayNameCard}
-      ${acctCards || '<div class="card"><div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div></div>'}
-      ${receivedSection}
-    </div>`;
+    <div class="settings-sub-row">
+      <button class="section-action" data-action="add-account">+ เพิ่มบัญชี</button>
+    </div>
+    ${googleCard}
+    ${displayNameCard}
+    ${acctCards || '<div class="card"><div class="setting-sub" style="text-align:center;padding:12px">ยังไม่มีบัญชี</div></div>'}
+    ${receivedSection}`;
 }
 
 /** แสดง dialog เลือกวิธีลบบัญชี */
@@ -3426,12 +3443,8 @@ function renderRecurringSuggestions() {
   const freqLabel = { monthly: 'ทุกเดือน', weekly: 'ทุกสัปดาห์' };
 
   return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">ตรวจพบรายการประจำ</h2>
-        <span class="section-action" style="color:var(--primary)">${_recurSuggestions.length} รายการ</span>
-      </div>
-      <div class="card card-padded">
+    <div class="settings-sub-label">ตรวจพบรายการประจำ · ${_recurSuggestions.length} รายการ</div>
+    <div class="card card-padded">
         ${_recurSuggestions.map((s, i) => {
           const def = getCategory(s.group);
           const samples = s.sampleDates.map(d => formatShortDate(d)).join(', ');
@@ -3470,49 +3483,38 @@ function renderRecurringSection() {
   if (templates.length === 0) {
     return `
       ${suggestionsHtml}
-      <div class="section" id="recurring-section">
-        <div class="section-head">
-          <h2 class="section-title">รายการประจำ / ผ่อน</h2>
-        </div>
-        <div class="card card-padded">
-          ${renderEmptyState({
-            icon:     'repeat',
-            title:    'ยังไม่มีรายการประจำ',
-            subtitle: 'กดปุ่ม + แล้วเลือก "ทุกเดือน" หรือ "ผ่อน" เพื่อตั้งค่ารายจ่ายที่เกิดซ้ำ',
-            actions:  [{ label: '+ เพิ่มรายการประจำ', style: 'btn-primary', action: 'open-add' }],
-          })}
-        </div>
+      <div class="card card-padded">
+        ${renderEmptyState({
+          icon:     'repeat',
+          title:    'ยังไม่มีรายการประจำ',
+          subtitle: 'กดปุ่ม + แล้วเลือก "ทุกเดือน" หรือ "ผ่อน" เพื่อตั้งค่ารายจ่ายที่เกิดซ้ำ',
+          actions:  [{ label: '+ เพิ่มรายการประจำ', style: 'btn-primary', action: 'open-add' }],
+        })}
       </div>
     `;
   }
 
   return `
     ${suggestionsHtml}
-    <div class="section" id="recurring-section">
-      <div class="section-head">
-        <h2 class="section-title">รายการประจำ / ผ่อน</h2>
-        <span class="section-action">${templates.length} รายการ</span>
-      </div>
-      <div class="card card-padded">
-        ${templates.map(t => renderTemplateRow(t)).join('')}
-      </div>
-      ${(monthlyTotal.expense > 0 || monthlyTotal.income > 0) ? `
-        <div class="card card-padded" style="margin-top: 8px; padding: 12px 18px;">
-          <div class="recur-summary">
-            <div>
-              <div class="setting-sub">รายจ่ายประจำต่อเดือน</div>
-              <div class="setting-label" style="color: var(--clay)">−${formatBaht(monthlyTotal.expense)} ฿</div>
-            </div>
-            ${monthlyTotal.income > 0 ? `
-              <div>
-                <div class="setting-sub">รายรับประจำต่อเดือน</div>
-                <div class="setting-label" style="color: var(--sage)">+${formatBaht(monthlyTotal.income)} ฿</div>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      ` : ''}
+    <div class="card card-padded">
+      ${templates.map(t => renderTemplateRow(t)).join('')}
     </div>
+    ${(monthlyTotal.expense > 0 || monthlyTotal.income > 0) ? `
+      <div class="card card-padded" style="margin-top: 8px; padding: 12px 18px;">
+        <div class="recur-summary">
+          <div>
+            <div class="setting-sub">รายจ่ายประจำต่อเดือน</div>
+            <div class="setting-label" style="color: var(--clay)">−${formatBaht(monthlyTotal.expense)} ฿</div>
+          </div>
+          ${monthlyTotal.income > 0 ? `
+            <div>
+              <div class="setting-sub">รายรับประจำต่อเดือน</div>
+              <div class="setting-label" style="color: var(--sage)">+${formatBaht(monthlyTotal.income)} ฿</div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    ` : ''}
   `;
 }
 

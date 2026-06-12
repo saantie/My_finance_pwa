@@ -12,7 +12,7 @@
 
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
-import { renderDashboard, renderList, renderImport, renderSettings, renderDashboardSkeleton, showToast, applyTheme, applyTextSize, applyDark } from './views.js';
+import { renderDashboard, renderList, renderImport, renderSettings, renderDashboardSkeleton, showToast, applyTheme, applyTextSize, applyDark, setSettingsOpenSection } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
@@ -55,6 +55,7 @@ function setupAuthBadge() {
   const badge = document.getElementById('auth-badge');
   if (!badge) return;
   badge.addEventListener('click', () => {
+    setSettingsOpenSection('accounts');   // เปิด accordion บัญชีของฉันก่อน render
     switchView('settings');
     // รอ renderSettings วาด DOM เสร็จ แล้ว scroll ไปส่วนลงชื่อเข้าใช้
     requestAnimationFrame(() => {

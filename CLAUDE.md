@@ -130,7 +130,7 @@ Daily coins: bronze +10 XP (≥1 entry), silver +25 (≥1 entry + balance ok), g
 - **F1.6 Dashboard:** hero insight card → today's entries → active accounts → top categories → 14-day SVG expense chart (today=terracotta, weekend=mocha, dashed avg line; data from `activeTxs()`) → recent txs → 30-day cashflow forecast (computed from real balances).
 - **F1.9 Backup:** manual JSON export/import + **Google Drive backup** (`drive.file` scope — non-sensitive, no Google verification needed). Single file `diary-finance-backup.json` (create or PATCH). Auto-backup every 7 days in sessions with a token. Token expires on reload → `requestDriveAccess()` popups on demand. Email backup was removed entirely.
 - **F1.10 Themes:** 7 color themes (Diary default warm-orange, Ocean, Forest, Rose, Citrus, Violet, Carbon navy) + separate dark-mode toggle (`data-dark="1"` on `<html>`) + text size 3 levels via `:root` font-size (16/18/20px rem cascade). Pinch-zoom never blocked.
-- **F1.11 UX shell:** bottom nav 4 tabs + center FAB, full-screen add modal, in-app keypad.
+- **F1.11 UX shell:** bottom nav 4 tabs + center FAB, full-screen add modal, in-app keypad. Settings = accordion menu (June 2026): ทุก section พับเก็บ เปิดได้ทีละส่วน ยกเว้น profile/Level card แสดงตลอด; `_settingsOpenSection` คงไว้ข้าม re-render; deep-links (`setSettingsOpenSection()`) เปิด section ก่อน scroll.
 - **F1.12 Selective account sharing** (realtime Firestore — see §7).
 - **F1.14 List view:** month selector (default current), working filter chips (all/expense/income/transfer), search within month.
 

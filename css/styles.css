@@ -2323,6 +2323,78 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   margin-left: auto;
 }
 
+/* === Settings accordion (เมนูพับเก็บ — เปิดทีละส่วน) ============= */
+.settings-acc { margin-top: 10px; }
+.settings-acc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 16px;
+  background: var(--card);
+  border: none;
+  border-radius: var(--r-card);
+  box-shadow: 0 1px 0 rgba(80, 60, 30, 0.04);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.settings-acc-head:active { transform: scale(0.985); }
+.settings-acc-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-accent);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.settings-acc-meta {
+  font-size: var(--ts-xs);
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+.settings-acc-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+.settings-acc.open .settings-acc-chevron { transform: rotate(90deg); }
+.settings-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
+}
+.settings-acc.open .settings-acc-body { grid-template-rows: 1fr; }
+.settings-acc-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.settings-acc-inner > :first-child { margin-top: 8px; }
+.settings-acc-inner > .card { margin-bottom: 6px; }
+.settings-sub-label {
+  padding: 10px 2px 6px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.settings-sub-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px 6px;
+}
+.settings-sub-row .section-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .privacy-footer {
   margin-top: 22px;
   padding: 14px 16px;
