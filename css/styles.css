@@ -2457,6 +2457,7 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 14px 18px;
   border-bottom: 1px dotted var(--rule);
 }
@@ -4238,6 +4239,8 @@ html[data-theme="carbon"][data-dark="1"] .auth-badge.signed-in {
   background: var(--rule-soft);
   border: 1.5px solid var(--rule);
   transition: all 0.15s;
+  flex-shrink: 0;          /* ปุ่มไม่ถูกบีบจนข้อความล้นทับคอลัมน์ซ้าย */
+  white-space: nowrap;
 }
 .setting-seg-btn.active {
   background: var(--ink);
