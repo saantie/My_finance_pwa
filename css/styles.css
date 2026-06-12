@@ -2357,11 +2357,20 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   font-size: 18px;
   font-weight: 400;
   color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .settings-acc-meta {
   font-size: var(--ts-xs);
   color: var(--ink-faint);
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 45%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 .settings-acc-chevron {
   display: flex;
@@ -2409,18 +2418,33 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-/* sub-settings ใต้ toggle แม่ (เช่น เตือนล่วงหน้า ใต้ รายการประจำครบกำหนด) */
+/* sub-settings ใต้ toggle แม่ (เช่น เตือนล่วงหน้า ใต้ รายการประจำครบกำหนด)
+   เยื้องจากแถวแม่เล็กน้อย — ข้อความเมนูย่อยเริ่มลึกกว่าแม่ ~8px พอให้เห็นลำดับชั้น */
 .setting-subgroup {
-  margin-left: 10px;
-  padding-left: 12px;
+  margin: 0 18px 6px 18px;
+  padding-left: 10px;
   border-left: 2px solid var(--rule);
 }
+.setting-subgroup .setting-row { padding: 12px 0 12px 8px; }
+.setting-subgroup .setting-row:last-child { border-bottom: none; }
 
 /* chips เลือกช่วงเวลาของ donut "ใช้ไปกับอะไร" */
 .donut-chips {
   display: flex;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+/* แถวตั้งค่าแบบ label บน + control เต็มแถวล่าง (เช่น เตือนล่วงหน้า) */
+.setting-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.setting-stack .days-ahead-picker { justify-content: stretch; }
+.setting-stack .days-ahead-picker .setting-seg-btn {
+  flex: 1;
+  text-align: center;
 }
 
 .privacy-footer {

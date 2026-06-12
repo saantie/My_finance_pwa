@@ -884,9 +884,9 @@ function renderForecastCard() {
 
         <div class="forecast-legend">
           <span class="fl-item"><span class="fl-line primary"></span>ยอดคาดการณ์</span>
-          <span class="fl-item"><span class="fl-dash danger"></span>เกณฑ์ ${formatBaht(threshold)} ฿</span>
+          <span class="fl-item"><span class="fl-dash danger"></span>เกณฑ์ที่ตั้งไว้ ${formatBaht(threshold)} ฿</span>
           <span class="fl-item"><span class="fl-dot primary"></span>วันนี้</span>
-          ${dangerDays.length > 0 ? `<span class="fl-item"><span class="fl-dot danger"></span>เกณฑ์เตือน</span>` : ''}
+          ${dangerDays.length > 0 ? `<span class="fl-item"><span class="fl-dot danger"></span>วันที่ต่ำกว่าเกณฑ์</span>` : ''}
         </div>
 
         <div class="forecast-chart-wrap">
@@ -897,7 +897,7 @@ function renderForecastCard() {
 
         ${dangerDays.length > 0 ? `
         <div class="forecast-warning">
-          ⚠️ คาดว่ายอดจะต่ำกว่าเกณฑ์ ${dangerDays.length} วัน
+          ⚠️ คาดว่ายอดจะต่ำกว่าเกณฑ์ที่ตั้งไว้ ${dangerDays.length} วัน
           (เริ่มวันที่ ${dangerDays[0].date.slice(8, 10)}/${dangerDays[0].date.slice(5, 7)})
         </div>` : ''}
 
@@ -1014,7 +1014,7 @@ async function initForecastChart() {
             label: ctx => {
               if (ctx.dataset.label === 'รายการประจำ' && ctx.parsed.y == null) return null;
               if (ctx.dataset.label === 'เกณฑ์ต่ำสุด')
-                return `เกณฑ์: ${ctx.parsed.y.toLocaleString()} ฿`;
+                return `เกณฑ์ที่ตั้งไว้: ${ctx.parsed.y.toLocaleString()} ฿`;
               if (ctx.dataset.label === 'ยอดคาดการณ์')
                 return `คาดการณ์: ${ctx.parsed.y.toLocaleString()} ฿`;
               return ctx.parsed.y != null
@@ -1720,7 +1720,7 @@ export function renderImport(container) {
   container.innerHTML = `
     <div class="import-header">
       <div class="import-title">นำเข้า<span class="accent"> รายการ</span></div>
-      <div class="import-sub">เลือกวิธีที่สะดวก — รวบยอดเดือน หรือสแกนทีละรายการ</div>
+      <div class="import-sub">อัปโหลด e-Statement ครั้งเดียว — ได้รายการทั้งเดือน ไม่ต้องจดเอง</div>
     </div>
 
     <!-- e-Statement tile -->
@@ -1730,7 +1730,7 @@ export function renderImport(container) {
         <span class="badge">eS</span>
       </div>
       <div class="tile-title">e-Statement</div>
-      <div class="tile-desc">ลาก e-Statement จากแอปธนาคาร — รวบทั้งเดือน</div>
+      <div class="tile-desc">ดาวน์โหลด PDF จากแอปธนาคาร แล้วเลือกไฟล์ที่นี่ — ไฟล์มีรหัสผ่านก็ใช้ได้</div>
       <button class="tile-btn">เลือกไฟล์</button>
     </div>
 
@@ -1763,24 +1763,12 @@ export function renderImport(container) {
       </div>
     </div>
 
-    <!-- Recent imports -->
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">นำเข้าล่าสุด</h2>
-      </div>
-      <div class="card card-padded">
-        <div class="empty" style="padding: 16px;">
-          <div class="desc">— ยังไม่มีประวัตินำเข้า —</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Privacy note -->
+    <!-- Privacy note — ตรงกับพฤติกรรมจริง: local-first + AI fallback แบบขอความยินยอม -->
     <div class="privacy-footer">
       ${svgIcon('shield', { size: 18, stroke: 2 })}
       <div class="text">
-        <strong>ข้อมูลของคุณอยู่ในเครื่องเท่านั้น</strong><br>
-        e-Statement และรายการทั้งหมดประมวลผลในเครื่อง — ไม่ส่งออกไปไหน
+        <strong>ไฟล์ของคุณอ่านในเครื่องนี้ ไม่ส่งขึ้นเซิร์ฟเวอร์</strong><br>
+        ยกเว้นกรณีไฟล์อ่านยาก ระบบจะถามก่อนว่าให้ AI ช่วยอ่านไหม — คุณเลือกได้ทุกครั้ง
       </div>
     </div>
 
@@ -2571,7 +2559,7 @@ export function renderSettings(container) {
         </div>
         ${settings.notify_recurring !== false ? `
         <div class="setting-subgroup">
-          <div class="setting-row">
+          <div class="setting-row setting-stack">
             <div>
               <div class="setting-label">เตือนล่วงหน้า</div>
               <div class="setting-sub">เริ่มเตือนก่อนวันครบกำหนด</div>
