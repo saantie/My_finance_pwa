@@ -2401,6 +2401,12 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+/* sub-settings ใต้ toggle แม่ (เช่น เตือนล่วงหน้า ใต้ รายการประจำครบกำหนด) */
+.setting-subgroup {
+  margin-left: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--rule);
+}
 
 .privacy-footer {
   margin-top: 22px;

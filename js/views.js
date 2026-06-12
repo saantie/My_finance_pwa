@@ -2503,34 +2503,38 @@ export function renderSettings(container) {
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div class="setting-row">
-          <div>
-            <div class="setting-label">เตือนล่วงหน้า</div>
-            <div class="setting-sub">เริ่มเตือนก่อนวันครบกำหนด</div>
+        ${settings.notify_recurring !== false ? `
+        <div class="setting-subgroup">
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">เตือนล่วงหน้า</div>
+              <div class="setting-sub">เริ่มเตือนก่อนวันครบกำหนด</div>
+            </div>
+            <div class="days-ahead-picker">
+              ${[[0, 'วันครบ'], [1, '1 วัน'], [2, '2 วัน'], [3, '3 วัน']].map(([d, label]) => `
+                <button class="setting-seg-btn ${(settings.notify_days_ahead ?? 1) === d ? 'active' : ''}"
+                  data-days-ahead="${d}">${label}</button>
+              `).join('')}
+            </div>
           </div>
-          <div class="days-ahead-picker">
-            ${[[0, 'วันครบ'], [1, '1 วัน'], [2, '2 วัน'], [3, '3 วัน']].map(([d, label]) => `
-              <button class="setting-seg-btn ${(settings.notify_days_ahead ?? 1) === d ? 'active' : ''}"
-                data-days-ahead="${d}">${label}</button>
-            `).join('')}
+          <div class="setting-row">
+            <div style="flex:1;min-width:0">
+              <div class="setting-label">เด้งแจ้งเตือนพร้อมเสียง</div>
+              <div class="setting-sub">${{
+                unsupported: 'เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน',
+                granted:     'เปิดแล้ว ✓ บน Android ที่ติดตั้งแอป เด้งได้แม้ปิดแอป',
+                denied:      'ถูกปิดในเบราว์เซอร์ — เปิดได้ที่ตั้งค่าเว็บไซต์ของเบราว์เซอร์',
+                default:     'เด้งบนหน้าจอพร้อมเสียงเหมือนแอปแชท'
+              }[getPermissionState()]}</div>
+            </div>
+            ${getPermissionState() === 'default'
+              ? '<button class="setting-seg-btn active" data-action="enable-push-notify">เปิดใช้</button>'
+              : getPermissionState() === 'granted'
+                ? '<button class="setting-seg-btn" data-action="test-notify">ทดสอบ</button>'
+                : ''}
           </div>
         </div>
-        <div class="setting-row">
-          <div style="flex:1;min-width:0">
-            <div class="setting-label">เด้งแจ้งเตือนพร้อมเสียง</div>
-            <div class="setting-sub">${{
-              unsupported: 'เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน',
-              granted:     'เปิดแล้ว ✓ บน Android ที่ติดตั้งแอป เด้งได้แม้ปิดแอป',
-              denied:      'ถูกปิดในเบราว์เซอร์ — เปิดได้ที่ตั้งค่าเว็บไซต์ของเบราว์เซอร์',
-              default:     'เด้งบนหน้าจอพร้อมเสียงเหมือนแอปแชท'
-            }[getPermissionState()]}</div>
-          </div>
-          ${getPermissionState() === 'default'
-            ? '<button class="setting-seg-btn active" data-action="enable-push-notify">เปิดใช้</button>'
-            : getPermissionState() === 'granted'
-              ? '<button class="setting-seg-btn" data-action="test-notify">ทดสอบ</button>'
-              : ''}
-        </div>
+        ` : ''}
         <div class="setting-row">
           <div>
             <div class="setting-label">ยอดใกล้เกณฑ์ต่ำสุด</div>
