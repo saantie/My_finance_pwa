@@ -2,7 +2,8 @@
    demo-data.js — ข้อมูลตัวอย่างสำหรับ first-run empty state
    ===================================================================
    - getDemoTransactions() คืน array ของรายการสมมุติที่สมจริง
-   - ทุกรายการมี source: 'sample' → clearSampleData() ลบออกได้
+   - getDemoRecurringTemplates() คืน recurring templates ตัวอย่าง 3 รายการ
+   - ทุกรายการมี source: 'sample' / _sample: true → ลบออกได้ตอนเริ่มใช้จริง
    - amount เป็น satang (1 ฿ = 100 satang)
    =================================================================== */
 
@@ -97,5 +98,36 @@ export function getDemoTransactions() {
       amount:  9900, account_from: B, source: 'sample' },
     { date: d(20), type: 'expense', group: 'entertainment', description: 'Netflix',
       amount: 18900, account_from: B, source: 'sample' },
+  ];
+}
+
+/**
+ * Recurring templates ตัวอย่าง 3 รายการ — ให้เห็น feature รายการประจำ/ผ่อน
+ * + forecast 30 วัน + เตือนล่วงหน้า ตั้งแต่ยังไม่มีข้อมูลจริง
+ *
+ * วันที่ทุกตัวเป็นอนาคตเสมอ — scheduler จะได้ไม่สร้าง transaction จริงทันที
+ * _sample: true → ถูกลบพร้อมข้อมูลตัวอย่างตอน "เริ่มใช้งานจริง" / import จริง
+ */
+export function getDemoRecurringTemplates() {
+  const today = todayISO();
+  const [y, m, day] = today.split('-').map(Number);
+  const pad = (n) => String(n).padStart(2, '0');
+
+  // วันที่ 1 ของเดือนถัดไป (ค่าเช่า)
+  const firstOfNextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${pad(m + 1)}-01`;
+
+  // วันที่ 20 ของเดือนนี้ ถ้ายังไม่ถึง — ไม่งั้นเดือนถัดไป (ค่าเน็ต)
+  const day20 = day < 20
+    ? `${y}-${pad(m)}-20`
+    : (m === 12 ? `${y + 1}-01-20` : `${y}-${pad(m + 1)}-20`);
+
+  return [
+    { type: 'expense', amount: 750000, group: 'rent', description: 'ค่าเช่าห้อง',
+      frequency: 'monthly', first_due: firstOfNextMonth, _sample: true },
+    { type: 'expense', amount: 59000, group: 'utility', description: 'ค่าอินเทอร์เน็ต True',
+      frequency: 'monthly', first_due: day20, _sample: true },
+    { type: 'expense', amount: 250000, group: 'shopping', description: 'ผ่อนมือถือ',
+      frequency: 'installment', installment_total: 10,
+      first_due: offsetDateISO(today, 5), _sample: true },
   ];
 }

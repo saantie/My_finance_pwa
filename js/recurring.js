@@ -84,7 +84,10 @@ export function addTemplate(t) {
     // Status
     active: true,
     last_executed: null,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+
+    // Demo data marker — clearSampleData flow ลบ template ที่ _sample ออกด้วย
+    _sample: t._sample === true
   };
   _templates.push(template);
   save();
@@ -147,6 +150,7 @@ export function getForecast(days = 30) {
         description: t.description,
         account_id: t.account_id,
         frequency: t.frequency,
+        _sample: t._sample === true,
         installment_info: t.frequency === 'installment'
           ? { current: t.installment_paid + 1 + (results.filter(r => r.templateId === t.id).length), total: t.installment_total }
           : null

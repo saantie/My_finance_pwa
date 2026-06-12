@@ -1398,6 +1398,38 @@ test('getUpcomingDue: เรียงใกล้สุดก่อน', () => {
 });
 
 
+// ─── Demo recurring templates ────────────────────────────────────────
+const { getDemoRecurringTemplates } = await import('../js/demo-data.js');
+const Recur = await import('../js/recurring.js');
+
+test('demo recurring: มี 3 รายการ ทุกตัว _sample', () => {
+  const tmpls = getDemoRecurringTemplates();
+  eq(tmpls.length, 3);
+  assert(tmpls.every(t => t._sample === true), 'all must have _sample');
+});
+
+test('demo recurring: first_due เป็นอนาคตเสมอ (scheduler ต้องไม่ยิงทันที)', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  assert(getDemoRecurringTemplates().every(t => t.first_due > today),
+    'all first_due must be in the future');
+});
+
+test('demo recurring: ผ่อนมือถือเป็น installment 10 งวด', () => {
+  const inst = getDemoRecurringTemplates().find(t => t.frequency === 'installment');
+  assert(inst, 'must have an installment template');
+  eq(inst.installment_total, 10);
+});
+
+test('addTemplate เก็บ _sample marker (ใช้ลบตอนเริ่มใช้จริง)', () => {
+  const t1 = Recur.addTemplate({ amount: 100, description: 'demo', _sample: true });
+  const t2 = Recur.addTemplate({ amount: 100, description: 'real' });
+  eq(t1._sample, true);
+  eq(t2._sample, false);
+  Recur.deleteTemplate(t1.id);
+  Recur.deleteTemplate(t2.id);
+});
+
+
 // ═══════════════════════════════════════════════════════════════════════
 // UI REGRESSION — source checks (กัน fix ที่เคยแก้แล้วถูกลบออก)
 // Bug #30: scroll เด้งขึ้นบนตอน reactive re-render

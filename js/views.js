@@ -26,7 +26,7 @@ import {
   updateSharedWith, migrateAccountToCloud
 } from './firebase.js';
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
-import { getDemoTransactions } from './demo-data.js';
+import { getDemoTransactions, getDemoRecurringTemplates } from './demo-data.js';
 import {
   ensurePermission, getPermissionState, testNotification,
   registerPeriodicSync, syncNotifyData
@@ -417,6 +417,7 @@ export function renderDashboard(container) {
     container.querySelector('[data-action="load-demo"]')?.addEventListener('click', () => {
       State.markAsDemoMode();
       State.addTransactionsBatch(getDemoTransactions());
+      getDemoRecurringTemplates().forEach(t => Recurring.addTemplate(t));
       showToast('ใส่ข้อมูลตัวอย่างแล้ว — ลองสำรวจแอปได้เลย');
     });
     return;
@@ -524,6 +525,7 @@ export function renderDashboard(container) {
   container.querySelector('[data-action="clear-demo"]')?.addEventListener('click', () => {
     if (confirm('ลบข้อมูลตัวอย่างทั้งหมดและเริ่มใช้งานจริง?')) {
       State.clearSampleData();
+      Recurring.getTemplates().filter(t => t._sample).forEach(t => Recurring.deleteTemplate(t.id));
       State.markDemoComplete();
       showToast('พร้อมแล้ว — เริ่มบันทึกข้อมูลจริงได้เลย');
     }
@@ -1169,11 +1171,11 @@ function renderUpcomingRow(u) {
     ? `<span class="install-tag">งวด ${u.installment_info.current}/${u.installment_info.total}</span>`
     : '';
 
-  // ตรวจว่า template นี้ผูกกับ sample account หรือไม่
-  const isDemoAcct = u.account_id
+  // ตรวจว่าเป็น template ตัวอย่าง หรือผูกกับ sample account
+  const isDemo = u._sample === true || (u.account_id
     ? State.getAccount(u.account_id)?._sample === true
-    : false;
-  const demoTag = isDemoAcct ? ' <span class="demo-tag">Demo</span>' : '';
+    : false);
+  const demoTag = isDemo ? ' <span class="demo-tag">Demo</span>' : '';
 
   return `
     <div class="entry upcoming">
@@ -2268,8 +2270,9 @@ function confirmImport(result) {
   const hadSampleData = State.clearSampleData();
   if (hadSampleData) {
     State.markDemoComplete();
-    // ลบ recurring templates ทั้งหมดที่สร้างจาก demo context
-    Recurring.getTemplates().forEach(t => Recurring.deleteTemplate(t.id));
+    // ลบเฉพาะ recurring templates ตัวอย่าง (_sample) — template ที่ user
+    // สร้างเองระหว่างลองแอปต้องไม่หาย
+    Recurring.getTemplates().filter(t => t._sample).forEach(t => Recurring.deleteTemplate(t.id));
   }
 
   State.addTransactionsBatch(cleanTxs);
@@ -3671,7 +3674,7 @@ function renderTemplateRow(t) {
         ${svgIcon(def.icon, { size: 16, stroke: 2 })}
       </div>
       <div class="template-body">
-        <div class="entry-name">${escapeHtml(t.description || def.label)}</div>
+        <div class="entry-name">${escapeHtml(t.description || def.label)}${t._sample ? ' <span class="demo-tag">Demo</span>' : ''}</div>
         <div class="entry-cat">${freqLabel} · ${nextLabel}</div>
       </div>
       <div>
