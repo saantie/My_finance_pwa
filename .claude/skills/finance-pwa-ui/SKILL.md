@@ -58,6 +58,37 @@ Navigation: History API (switchView → history.pushState)
 Back button: popstate → ปิด modal ก่อน → navigate
 ```
 
+## Layout Robustness Rules (Bug #31 — มิ.ย. 2026)
+```css
+/* flex row ที่มีปุ่ม/ control ด้านขวา — ใช้ครบ 3 ข้อเสมอ: */
+.row  { display: flex; gap: 12px; }            /* 1. gap กันชนกัน */
+.text { flex: 1; min-width: 0; }               /* 2. ข้อความเป็นฝ่ายหด/ตัดบรรทัด */
+.btn  { flex-shrink: 0; white-space: nowrap; } /* 3. ปุ่มห้ามถูกบีบ/ห้ามล้น */
+
+/* ทดสอบ UI ใหม่ทุกครั้งที่: text_size = xlarge + viewport 360px
+   ข้อความไทยยาวกว่าอังกฤษ — ห้ามทดสอบด้วย string สั้น */
+```
+
+## Reactive Re-render (Bug #30 — มิ.ย. 2026)
+```js
+// ทุก state change (setSetting/addTransaction/template) → re-render ทั้งหน้า (innerHTML)
+// กฎ:
+// 1. ห้ามใส่ side effect ใน render functions (scroll/focus/timer) — ยิงซ้ำทุก state change
+//    renderCurrentView() ใน app.js จำ window.scrollY แล้ว restore — อย่าลบออก
+// 2. UI state ที่ต้องรอด re-render → module-level var (ไม่ใช่ DOM class/attribute)
+//    ตัวอย่างที่ใช้แล้ว: _settingsOpenSection, _recurSuggestions ใน views.js
+```
+
+## Settings Accordion (มิ.ย. 2026)
+```js
+// settingsAccordion(id, title, meta, bodyHtml) ใน views.js — เปิดทีละส่วน
+// state: _settingsOpenSection (module-level, รอด re-render)
+// deep-link: setSettingsOpenSection(id) ก่อน switchView('settings') แล้วค่อย scroll
+//   ใช้แล้ว: auth badge → 'accounts', dashboard "จัดการ" → 'recurring'
+// profile/Level card อยู่นอก accordion — แสดงตลอด
+// sub-settings ใต้ toggle แม่ → .setting-subgroup (เยื้อง + เส้นซ้าย, ซ่อนเมื่อ toggle ปิด)
+```
+
 ## Add Modal
 ```
 Title: "บันทึกรายการ" | "แก้ไขรายการ" | "โอนระหว่างบัญชี"

@@ -1398,6 +1398,48 @@ test('getUpcomingDue: เรียงใกล้สุดก่อน', () => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════
+// UI REGRESSION — source checks (กัน fix ที่เคยแก้แล้วถูกลบออก)
+// Bug #30: scroll เด้งขึ้นบนตอน reactive re-render
+// Bug #31: ปุ่มใน flex row ถูกบีบจนซ้อนทับข้อความ
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nui regression (source checks)');
+
+const appJsSrc  = readFileSync('./js/app.js', 'utf8');
+const cssSrc    = readFileSync('./css/styles.css', 'utf8');
+const swSrc     = readFileSync('./sw.js', 'utf8');
+
+test('app.js: renderCurrentView คง scroll position (Bug #30)', () => {
+  const fn = appJsSrc.match(/function renderCurrentView\(\)\s*\{[\s\S]*?\n\}/);
+  assert(fn, 'must have renderCurrentView()');
+  assert(fn[0].includes('window.scrollY'), 'must capture window.scrollY before re-render');
+  assert(/window\.scrollTo\(0,\s*y\)/.test(fn[0]), 'must restore scroll after re-render');
+});
+
+test('styles.css: .setting-row มี gap (Bug #31)', () => {
+  const block = cssSrc.match(/\.setting-row\s*\{[^}]*\}/);
+  assert(block, 'must have .setting-row block');
+  assert(/gap:/.test(block[0]), '.setting-row must declare gap');
+});
+
+test('styles.css: .setting-seg-btn มี flex-shrink:0 + nowrap (Bug #31)', () => {
+  const block = cssSrc.match(/\.setting-seg-btn\s*\{[^}]*\}/);
+  assert(block, 'must have .setting-seg-btn block');
+  assert(/flex-shrink:\s*0/.test(block[0]), '.setting-seg-btn must not shrink');
+  assert(/white-space:\s*nowrap/.test(block[0]), '.setting-seg-btn text must not wrap');
+});
+
+test('sw.js: SHELL_FILES มี notify.js (module ใหม่ต้องเข้า offline cache)', () => {
+  const shell = swSrc.match(/const SHELL_FILES\s*=\s*\[[\s\S]*?\];/);
+  assert(shell, 'must have SHELL_FILES');
+  assert(shell[0].includes('./js/notify.js'), 'notify.js must be in SHELL_FILES');
+});
+
+test('sw.js: VERSION format ถูกต้อง (diary-vX.Y.Z)', () => {
+  assert(/const VERSION = 'diary-v\d+\.\d+\.\d+'/.test(swSrc), 'VERSION must match diary-vX.Y.Z');
+});
+
+
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n\n${total} tests: ${passed} passed${failed ? `, ${failed} failed` : ''}\n`);

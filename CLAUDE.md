@@ -180,6 +180,10 @@ food #ff8a5c · transport #5e9bd6 · shopping #e879a3 · utility #f0b942 · heal
 
 **Dark-mode gotcha:** `.chip`, `.seg-item`, sign-in button need explicit contrast overrides under `html[data-dark="1"]` — white-on-white text bug pattern.
 
+**Re-render gotcha:** every state change re-renders the whole view (innerHTML). Never add side effects (scroll/focus) in render functions — `renderCurrentView()` preserves scrollY (Bug #30); UI state that must survive re-render goes in module-level vars (`_settingsOpenSection` pattern).
+
+**Flex-row gotcha:** rows with a right-side button need `gap` + button `flex-shrink:0; white-space:nowrap` + text column `flex:1; min-width:0` (Bug #31 — sign-in button overlapped Thai text). Test new UI at text_size=xlarge + 360px viewport.
+
 **Microinteractions:** button scale 0.97 + haptic; save = checkmark draw + green flash; delete = slide-out + undo toast; errors shake; loading = skeletons.
 
 ---

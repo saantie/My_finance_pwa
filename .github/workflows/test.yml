@@ -16,3 +16,39 @@ jobs:
           node-version: 22
       - name: Run test suite
         run: node --import ./tests/loader.mjs tests/run.mjs
+
+  # กฎ CLAUDE.md §7: แก้ไฟล์ที่ browser cache (js/css/index.html) ต้อง bump
+  # VERSION ใน sw.js เสมอ ไม่งั้นผู้ใช้ติดไฟล์เก่า — เคยพลาดมาแล้ว 2 ครั้ง
+  sw-version-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require sw.js VERSION bump when app files change
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          # branch ใหม่ / force push / ไม่มี base เทียบได้ → ข้าม (ไม่ fail)
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "no comparable base commit — skipping guard"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BASE" "${{ github.sha }}")
+          echo "changed files:"
+          echo "$CHANGED"
+          APP_CHANGED=$(echo "$CHANGED" | grep -E '^(js/|css/|index\.html$|manifest\.webmanifest$)' || true)
+          if [ -z "$APP_CHANGED" ]; then
+            echo "no app shell files changed — guard not required"
+            exit 0
+          fi
+          if git diff "$BASE" "${{ github.sha }}" -- sw.js | grep -qE '^\+const VERSION'; then
+            echo "sw.js VERSION bumped ✓"
+            exit 0
+          fi
+          echo "::error file=sw.js::ไฟล์ js/css/index.html ถูกแก้ แต่ VERSION ใน sw.js ไม่ถูก bump — browser จะใช้ไฟล์เก่าจาก cache (CLAUDE.md §7)"
+          exit 1

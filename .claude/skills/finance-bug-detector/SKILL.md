@@ -10,9 +10,9 @@ description: >
   Grounded in CLAUDE.md + actual code (June 2026).
 ---
 
-# Finance PWA — Bug Detector (v4 — June 2026)
+# Finance PWA — Bug Detector (v5 — June 2026)
 
-## Test Command (ต้องผ่านเสมอ — 280 tests, CI บังคับทุก push)
+## Test Command (ต้องผ่านเสมอ — 311+ tests, CI บังคับทุก push)
 ```bash
 node --import ./tests/loader.mjs tests/run.mjs
 ```
@@ -40,6 +40,7 @@ node --import ./tests/loader.mjs tests/run.mjs
 | Drive backup ไม่ทำงาน | → [L] Drive Backup |
 | duplicate ตรวจไม่เจอ | → [M] Duplicate Detector |
 | Gemini AI fallback พัง (429/403/0 รายการ) | → [N] Gemini Fallback |
+| กดอะไรแล้วหน้าเด้ง/รีเซ็ต, accordion พับเอง, focus หาย | → [O] Reactive Re-render |
 
 ---
 
@@ -211,6 +212,20 @@ stroke-linecap="round" stroke-linejoin="round"
 // ทุก user input ใน innerHTML ต้องผ่าน escapeHtml()
 ```
 
+### ⚠️ Bug #31 (แก้แล้ว): ปุ่มซ้อนทับข้อความใน flex row
+```css
+/* ❌ Bug เดิม: .setting-row ไม่มี gap + ปุ่มถูกบีบจนข้อความล้นทับคอลัมน์ซ้าย
+   เห็นชัดเมื่อ: ข้อความไทยยาว / text_size=xlarge / จอแคบ 360px */
+
+/* ✅ กฎ flex row ที่มีปุ่ม (ใช้แล้วใน .setting-row + .setting-seg-btn): */
+.row  { display:flex; gap:12px; }            /* ระยะห่างเสมอ */
+.text { flex:1; min-width:0; }               /* ข้อความเป็นฝ่ายหด/ตัดบรรทัด */
+.btn  { flex-shrink:0; white-space:nowrap; } /* ปุ่มห้ามถูกบีบ */
+
+/* กฎทดสอบ UI ใหม่: เช็คที่ text size ใหญ่สุด (xlarge) + viewport 360px
+   ข้อความไทยยาวกว่าอังกฤษเสมอ — อย่าทดสอบด้วยข้อความสั้น */
+```
+
 ---
 
 ## [G] Voice Input
@@ -327,10 +342,44 @@ findPotentialDuplicates(newTx, existingTxs, threshold=0.7)
 
 ---
 
+## [O] Reactive Re-render Side Effects
+
+```js
+// สถาปัตยกรรม: ทุก State.setSetting / addTransaction / template change →
+// notify() → State.subscribe(() => renderCurrentView()) → re-render ทั้งหน้า (innerHTML)
+// ⇒ การกด toggle/ปุ่มเล็กๆ อะไรก็ตาม = ทั้งหน้าถูกวาดใหม่
+```
+
+### ⚠️ Bug #30 (แก้แล้ว): กด toggle แล้วหน้าเด้งขึ้นบนสุด
+```js
+// ❌ Bug เดิม: renderView() มี window.scrollTo(0,0) (ถูกต้องตอนเปลี่ยนแท็บ)
+//    แต่ renderCurrentView() (reactive re-render) วิ่งผ่านเส้นทางเดียวกัน
+//    → กด toggle ในหน้าตั้งค่า = scroll หายไปบนสุดทุกครั้ง
+
+// ✅ Fix (app.js): renderCurrentView จำ scroll แล้ว restore
+function renderCurrentView() {
+  const y = window.scrollY;
+  renderView(currentView);
+  window.scrollTo(0, y);
+}
+```
+
+### กฎ 2 ข้อของ render path
+```js
+// 1. ห้ามใส่ side effect ใหม่ใน render functions (scroll/focus/selection/timer)
+//    เพราะมันจะยิงซ้ำทุกครั้งที่ state เปลี่ยน — ไม่ใช่แค่ตอนเข้าหน้า
+// 2. UI state ที่ต้องรอด re-render → เก็บใน module-level var เสมอ
+//    pattern ที่ใช้แล้ว: _settingsOpenSection (accordion ใน views.js),
+//    _recurSuggestions — innerHTML ใหม่อ่านค่าจาก var ตอน render
+//    ❌ เก็บใน DOM (class/attribute) อย่างเดียว = หายตอน re-render
+```
+
+---
+
 ## Pre-Commit Checklist
 
 ```
-□ node --import ./tests/loader.mjs tests/run.mjs  → 280 tests passing (suite ต้องเขียวเสมอ)
+□ node --import ./tests/loader.mjs tests/run.mjs  → 311+ tests passing (suite ต้องเขียวเสมอ)
 □ amount ทุกตัว → bahtToSatang() ก่อน store
 □ ใช้ account_from / account_to ไม่ใช่ account_id (ใน Transaction)
 □ ใช้ group ไม่ใช่ category สำหรับ filter/classify
@@ -345,6 +394,11 @@ findPotentialDuplicates(newTx, existingTxs, threshold=0.7)
 □ retryPendingSync() เรียกหลัง sign in
 □ delete handler ใช้ getState().transactions.find() ไม่ใช่ getTransactions().find()
 □ Firebase token: credentialFromResult(result).accessToken
-□ แก้ JS ที่ browser โหลด → bump VERSION ใน sw.js
+□ แก้ JS ที่ browser โหลด → bump VERSION ใน sw.js (CI มี guard บังคับแล้ว)
 □ Voice onresult: e.results[e.results.length - 1] ไม่ใช่ +=
+□ render functions ไม่มี side effect ใหม่ (scroll/focus) — re-render ยิงซ้ำทุก state change
+□ UI state ที่ต้องรอด re-render เก็บใน module-level var (ดู [O])
+□ flex row มีปุ่ม: gap + ปุ่ม flex-shrink:0 + ข้อความ min-width:0 (ดู Bug #31)
+□ UI ใหม่เช็คที่ text_size=xlarge + จอ 360px
+□ JS module ใหม่ → เพิ่มเข้า SHELL_FILES ใน sw.js (กัน offline cache ไม่ครบ)
 ```
