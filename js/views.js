@@ -900,12 +900,10 @@ function renderForecastCard() {
 
         <div class="forecast-note">
           <div class="forecast-note-text">
-            <b>รายการประจำ</b> (exact) +
-            ใช้จ่ายผันแปร <b>${formatBaht(avgDailyExpense)} ฿/วัน</b>
-            ${varDailyIncome > 0 ? `− รายรับผันแปร <b>${formatBaht(varDailyIncome)} ฿/วัน</b>` : ''}
-            · อิงจาก${dataSource === 'year'
-              ? `ข้อมูล <b>${daysElapsed} วัน</b>ในปีนี้ (หักรายการประจำออกแล้ว)`
-              : '30 วันย้อนหลัง (ข้อมูลปีนี้ยังน้อย)'}
+            คาดจากการใช้เงินจริงของคุณช่วง <b>${dataSource === 'year' ? daysElapsed : 30} วัน</b>ที่ผ่านมา —
+            ปกติใช้จ่ายทั่วไปราววันละ <b>${formatBaht(avgDailyExpense)} ฿</b>${varDailyIncome > 0
+              ? ` มีเงินเข้าราววันละ <b>${formatBaht(varDailyIncome)} ฿</b>` : ''}
+            บวกรายการประจำของคุณ (เช่น ค่าเช่า ผ่อน) ตามวันครบกำหนด
           </div>
         </div>
 
