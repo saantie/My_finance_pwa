@@ -92,7 +92,11 @@ function renderView(viewName, params = {}) {
 }
 
 function renderCurrentView() {
+  // Reactive re-render (state เปลี่ยน เช่น กด toggle/เปลี่ยนธีม) —
+  // คงตำแหน่ง scroll เดิม ไม่เด้งขึ้นบนเหมือนตอนเปลี่ยนหน้า
+  const y = window.scrollY;
   renderView(currentView);
+  window.scrollTo(0, y);
 }
 
 
