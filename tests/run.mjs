@@ -1417,13 +1417,15 @@ test('app.js: renderCurrentView คง scroll position (Bug #30)', () => {
 });
 
 test('styles.css: .setting-row มี gap (Bug #31)', () => {
-  const block = cssSrc.match(/\.setting-row\s*\{[^}]*\}/);
+  // anchor ต้นบรรทัด — จับเฉพาะ block หลัก ไม่ใช่ selector ลูก เช่น .setting-subgroup .setting-row
+  const block = cssSrc.match(/(?:^|\n)\.setting-row\s*\{[^}]*\}/);
   assert(block, 'must have .setting-row block');
   assert(/gap:/.test(block[0]), '.setting-row must declare gap');
 });
 
 test('styles.css: .setting-seg-btn มี flex-shrink:0 + nowrap (Bug #31)', () => {
-  const block = cssSrc.match(/\.setting-seg-btn\s*\{[^}]*\}/);
+  // anchor ต้นบรรทัด — จับเฉพาะ block หลัก ไม่ใช่ selector ลูก เช่น .setting-stack ... .setting-seg-btn
+  const block = cssSrc.match(/(?:^|\n)\.setting-seg-btn\s*\{[^}]*\}/);
   assert(block, 'must have .setting-seg-btn block');
   assert(/flex-shrink:\s*0/.test(block[0]), '.setting-seg-btn must not shrink');
   assert(/white-space:\s*nowrap/.test(block[0]), '.setting-seg-btn text must not wrap');
