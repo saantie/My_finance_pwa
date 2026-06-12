@@ -7,7 +7,7 @@
    เปลี่ยน VERSION เพื่อ force update ทุก deploy
    =================================================================== */
 
-const VERSION = 'diary-v6.25.43';
+const VERSION = 'diary-v6.25.44';
 const SHELL_CACHE = `shell-${VERSION}`;
 
 /** ไฟล์ที่ cache ตอน install */
@@ -206,8 +206,9 @@ async function checkRecurringDue() {
       const key = `${t.id}|${t.next_due}|${phase}`;
       if (notified[key]) continue;
 
-      await self.registration.showNotification(`📅 ${t.description || 'รายการประจำ'}`, {
-        body: `${swDueLabel(diff)} — ${swBaht(t.amount)} ฿`,
+      // ไม่ใช้ emoji นำหน้า title — กัน Chrome flag ว่าอาจเป็นสแปม (เหมือน notify.js)
+      await self.registration.showNotification(t.description || 'รายการประจำ', {
+        body: `${swDueLabel(diff)} ${swBaht(t.amount)} ฿ — จากรายการประจำที่คุณตั้งไว้`,
         tag: `diary-recur-${t.id}`,
         icon: './icons/icon.svg',
         badge: './icons/icon.svg',

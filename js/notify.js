@@ -165,9 +165,11 @@ export async function notifyRecurringDue(items) {
     const key = `${item.id}|${item.next_due}|${phase}`;
     if (await wasNotified(key)) continue;
 
+    // ไม่ใช้ emoji นำหน้า title — Chrome ML ตรวจเนื้อหา notification
+    // แล้ว flag ข้อความ generic + emoji ว่า "อาจเป็นสแปม"
     const ok = await showSystemNotification(
-      `📅 ${item.description || 'รายการประจำ'}`,
-      `${dueLabel(item.diffDays)} — ${formatBaht(item.amount)} ฿`,
+      item.description || 'รายการประจำ',
+      `${dueLabel(item.diffDays)} ${formatBaht(item.amount)} ฿ — จากรายการประจำที่คุณตั้งไว้`,
       `diary-recur-${item.id}`
     );
     if (ok) {
@@ -178,11 +180,12 @@ export async function notifyRecurringDue(items) {
   return shown;
 }
 
-/** ทดสอบจากปุ่มใน Settings */
+/** ทดสอบจากปุ่มใน Settings — ข้อความเลียนแบบการเตือนจริง
+    (เนื้อหา generic เช่น "ทดสอบการแจ้งเตือน" โดน Chrome flag ว่าอาจเป็นสแปม) */
 export async function testNotification() {
   return showSystemNotification(
-    '📅 ทดสอบการแจ้งเตือน',
-    'ถ้าเห็นข้อความนี้พร้อมเสียง แปลว่าใช้งานได้ ✓',
+    'บันทึกการเงิน',
+    'การแจ้งเตือนพร้อมใช้งานแล้ว — จะเตือนล่วงหน้าเมื่อรายการประจำของคุณใกล้ครบกำหนด',
     'diary-test'
   );
 }

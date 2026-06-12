@@ -2871,23 +2871,35 @@ export function renderSettings(container) {
   });
 
   // เปิด system notification — ต้องเรียกจาก user gesture เท่านั้น
+  // ⚠️ ไม่เด้ง notification อัตโนมัติทันทีหลัง grant — เป็น signal ที่
+  //    Chrome ใช้ flag ว่าเว็บส่งสแปม ให้ user กดปุ่ม "ทดสอบ" เองแทน
   container.querySelector('[data-action="enable-push-notify"]')?.addEventListener('click', async () => {
     const ok = await ensurePermission();
     if (ok) {
       await syncNotifyData();
       registerPeriodicSync();
-      showToast('เปิดการแจ้งเตือนแล้ว ✓');
-      testNotification();   // เด้งให้เห็น+ได้ยินทันที จะได้รู้ว่าเสียงทำงาน
+      showToast('เปิดการแจ้งเตือนแล้ว ✓ — กดปุ่ม "ทดสอบ" เพื่อลองเด้งดู');
     } else if (getPermissionState() === 'denied') {
       showToast('ถูกปิดในเบราว์เซอร์ — เปิดได้ที่ตั้งค่าเว็บไซต์ของเบราว์เซอร์');
     }
     renderSettings(container);
   });
 
-  // ทดสอบการแจ้งเตือน
-  container.querySelector('[data-action="test-notify"]')?.addEventListener('click', async () => {
+  // ทดสอบการแจ้งเตือน — มี feedback บนปุ่ม: กำลังส่ง… → เด้งแล้ว ✓
+  const testBtn = container.querySelector('[data-action="test-notify"]');
+  testBtn?.addEventListener('click', async () => {
+    if (testBtn.disabled) return;
+    haptic();
+    testBtn.disabled = true;
+    const orig = testBtn.textContent;
+    testBtn.textContent = 'กำลังส่ง…';
     const ok = await testNotification();
+    testBtn.textContent = ok ? 'เด้งแล้ว ✓' : orig;
     if (!ok) showToast('เด้งไม่สำเร็จ — ตรวจการอนุญาตแจ้งเตือนในเบราว์เซอร์');
+    setTimeout(() => {
+      testBtn.textContent = orig;
+      testBtn.disabled = false;
+    }, 2200);
   });
 
   // Theme toggle — State.setSetting → notify() → subscriber → renderCurrentView() อัตโนมัติ

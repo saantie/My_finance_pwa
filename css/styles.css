@@ -4247,6 +4247,8 @@ html[data-theme="carbon"][data-dark="1"] .auth-badge.signed-in {
   color: white;
   border-color: var(--ink);
 }
+.setting-seg-btn:active { transform: scale(0.94); }
+.setting-seg-btn:disabled { opacity: 0.65; }
 .badge-shared {
   display: inline-block;
   font-size: 11px;
