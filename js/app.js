@@ -17,6 +17,7 @@ import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
 import { shouldShowOnboarding, showOnboarding } from './onboarding.js';
 import { checkReminders } from './reminders.js';
+import { syncNotifyData, registerPeriodicSync } from './notify.js';
 import { checkCatchupOpportunity } from './catchup.js';
 import { shouldShowCoachMark, showCoachMark } from './coach-mark.js';
 import { setCustomCategoryRegistry } from './icons.js';
@@ -382,6 +383,19 @@ function init() {
     const hasCatchup = !!checkCatchupOpportunity();
     checkReminders(showToast, hasCatchup);
   }, 1500);
+
+  // 9. Notification mirror — sw.js อ่าน localStorage ไม่ได้
+  //    → mirror recurring templates + config ลง IndexedDB (debounced)
+  //    และลงทะเบียน periodic background sync (Android installed PWA)
+  syncNotifyData();
+  let _notifySyncTimer = null;
+  const debouncedNotifySync = () => {
+    clearTimeout(_notifySyncTimer);
+    _notifySyncTimer = setTimeout(syncNotifyData, 2000);
+  };
+  Recurring.subscribe(debouncedNotifySync);
+  State.subscribe(debouncedNotifySync);   // settings (daysAhead/toggle) เปลี่ยน
+  registerPeriodicSync();
 
   console.log('[diary] app ready', {
     transactions: State.getTransactions().length,

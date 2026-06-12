@@ -148,7 +148,7 @@ Review modal always shows a **"นำเข้าไปยังบัญชี"
 - Microinteractions polish (haptics, scale animations), swipe actions on list, empty states with 2-path CTA
 - F2.1 auto-detect recurring from PDF history (engine done, detection pending)
 - F2.2 forecast calendar view (chart done)
-- F2.3 gentle reminders (weekly digest, recurring due)
+- F2.3 gentle reminders — weekly digest done (toast); recurring due upgraded June 2026: เตือนล่วงหน้า 0–3 วัน (`notify_days_ahead`, default 1) + system notification เด้ง/มีเสียง (notify.js → SW `showNotification`; toast = fallback เมื่อยังไม่ grant permission) + Periodic Background Sync บน Android installed PWA (sw.js อ่าน mirror จาก IndexedDB `diary-notify` เพราะ SW อ่าน localStorage ไม่ได้; dedupe key `id|next_due|phase` เตือน 1 ครั้งตอนใกล้ครบ + 1 ครั้งวันครบ). ข้อจำกัด: iOS ได้เฉพาะตอนเปิดแอป (push ตรงเวลาแบบ Messenger ต้องมี server — ตัดสินใจไม่ทำ เพราะขัด local-first)
 
 ### Later (v1.2+)
 Affiliate suggestions (client-side engine, Involve Asia/AccessTrade, "[โฆษณา]" disclosure per สคบ.); in-app PDF bug report; slip OCR (jsQR primary on-device → Gemini Vision fallback); 16-bank expansion; v2.0 full cloud sync (opt-in), investment tracking, net-worth dashboard.
@@ -278,6 +278,8 @@ js/
   pdf.js              pdf.js wrapper + password support
   chart.js            dailyExpenseBars(), cashflowForecast() inline SVG
   recurring.js        template engine + scheduler + getForecast()
+  notify.js           system notifications + IndexedDB mirror + periodic sync
+  reminders.js        smart reminders ตอนเปิดแอป (toast/notification, once-per-day)
   firebase.js         Auth + Firestore client (hardcoded web config)
   drive.js            Drive backup: uploadBackup/downloadBackup/requestDriveAccess
   gemini.js           AI fallback (see §8)

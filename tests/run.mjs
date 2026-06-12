@@ -1348,6 +1348,56 @@ test('normalizeMerchant: empty string returns empty', () => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════
+// REMINDERS / NOTIFY — เตือนล่วงหน้ารายการประจำ
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nreminders.js');
+
+const { getUpcomingDue } = await import('../js/reminders.js');
+const { dueLabel, daysUntil } = await import('../js/notify.js');
+
+const _T = '2026-06-12';   // fixed "today" สำหรับ test
+const mkTmpl = (id, due, extra = {}) =>
+  ({ id, description: id, amount: 50000, next_due: due, active: true, ...extra });
+
+test('daysUntil: วันเดียวกัน = 0',     () => eq(daysUntil('2026-06-12', _T), 0));
+test('daysUntil: พรุ่งนี้ = 1',         () => eq(daysUntil('2026-06-13', _T), 1));
+test('daysUntil: ข้ามเดือน',           () => eq(daysUntil('2026-07-01', _T), 19));
+test('daysUntil: เมื่อวาน = -1',        () => eq(daysUntil('2026-06-11', _T), -1));
+
+test('dueLabel: 0 = วันนี้',            () => eq(dueLabel(0), 'ครบกำหนดวันนี้'));
+test('dueLabel: 1 = พรุ่งนี้',          () => eq(dueLabel(1), 'ครบกำหนดพรุ่งนี้'));
+test('dueLabel: 3 = อีก 3 วัน',         () => eq(dueLabel(3), 'ครบกำหนดในอีก 3 วัน'));
+
+test('getUpcomingDue: ครบกำหนดวันนี้รวมเสมอ', () => {
+  const r = getUpcomingDue([mkTmpl('a', '2026-06-12')], _T, 0);
+  eq(r.length, 1); eq(r[0].diffDays, 0);
+});
+test('getUpcomingDue: พรุ่งนี้รวมเมื่อ daysAhead=1', () => {
+  eq(getUpcomingDue([mkTmpl('a', '2026-06-13')], _T, 1).length, 1);
+});
+test('getUpcomingDue: พรุ่งนี้ไม่รวมเมื่อ daysAhead=0', () => {
+  eq(getUpcomingDue([mkTmpl('a', '2026-06-13')], _T, 0).length, 0);
+});
+test('getUpcomingDue: เกิน daysAhead ไม่รวม', () => {
+  eq(getUpcomingDue([mkTmpl('a', '2026-06-16')], _T, 3).length, 0);
+});
+test('getUpcomingDue: เลยกำหนดแล้วไม่รวม (scheduler จัดการเอง)', () => {
+  eq(getUpcomingDue([mkTmpl('a', '2026-06-10')], _T, 3).length, 0);
+});
+test('getUpcomingDue: ข้าม template ที่ inactive', () => {
+  eq(getUpcomingDue([mkTmpl('a', '2026-06-12', { active: false })], _T, 1).length, 0);
+});
+test('getUpcomingDue: ข้าม template ที่ไม่มี next_due', () => {
+  eq(getUpcomingDue([mkTmpl('a', null)], _T, 1).length, 0);
+});
+test('getUpcomingDue: เรียงใกล้สุดก่อน', () => {
+  const r = getUpcomingDue(
+    [mkTmpl('far', '2026-06-14'), mkTmpl('near', '2026-06-12')], _T, 3);
+  eq(r[0].id, 'near'); eq(r[1].id, 'far');
+});
+
+
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n\n${total} tests: ${passed} passed${failed ? `, ${failed} failed` : ''}\n`);

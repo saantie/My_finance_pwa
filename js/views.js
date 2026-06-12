@@ -27,6 +27,10 @@ import {
 } from './firebase.js';
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
 import { getDemoTransactions } from './demo-data.js';
+import {
+  ensurePermission, getPermissionState, testNotification,
+  registerPeriodicSync, syncNotifyData
+} from './notify.js';
 
 
 /* === Skeleton loading =========================================== */
@@ -2491,13 +2495,41 @@ export function renderSettings(container) {
         <div class="setting-row">
           <div>
             <div class="setting-label">รายการประจำครบกำหนด</div>
-            <div class="setting-sub">เตือนเมื่อเปิดแอปวันที่ครบกำหนด</div>
+            <div class="setting-sub">เตือนเมื่อใกล้ครบกำหนด/ครบกำหนด</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" data-setting="notify_recurring"
               ${settings.notify_recurring !== false ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">เตือนล่วงหน้า</div>
+            <div class="setting-sub">เริ่มเตือนก่อนวันครบกำหนด</div>
+          </div>
+          <div class="days-ahead-picker">
+            ${[[0, 'วันครบ'], [1, '1 วัน'], [2, '2 วัน'], [3, '3 วัน']].map(([d, label]) => `
+              <button class="setting-seg-btn ${(settings.notify_days_ahead ?? 1) === d ? 'active' : ''}"
+                data-days-ahead="${d}">${label}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="setting-row">
+          <div style="flex:1;min-width:0">
+            <div class="setting-label">เด้งแจ้งเตือนพร้อมเสียง</div>
+            <div class="setting-sub">${{
+              unsupported: 'เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน',
+              granted:     'เปิดแล้ว ✓ บน Android ที่ติดตั้งแอป เด้งได้แม้ปิดแอป',
+              denied:      'ถูกปิดในเบราว์เซอร์ — เปิดได้ที่ตั้งค่าเว็บไซต์ของเบราว์เซอร์',
+              default:     'เด้งบนหน้าจอพร้อมเสียงเหมือนแอปแชท'
+            }[getPermissionState()]}</div>
+          </div>
+          ${getPermissionState() === 'default'
+            ? '<button class="setting-seg-btn active" data-action="enable-push-notify">เปิดใช้</button>'
+            : getPermissionState() === 'granted'
+              ? '<button class="setting-seg-btn" data-action="test-notify">ทดสอบ</button>'
+              : ''}
         </div>
         <div class="setting-row">
           <div>
@@ -2825,6 +2857,33 @@ export function renderSettings(container) {
     input.addEventListener('change', (e) => {
       State.setSetting(e.target.dataset.setting, e.target.checked);
     });
+  });
+
+  // เตือนล่วงหน้า N วัน — setSetting → re-render → active class อัปเดตเอง
+  container.querySelectorAll('[data-days-ahead]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      State.setSetting('notify_days_ahead', Number(btn.dataset.daysAhead));
+    });
+  });
+
+  // เปิด system notification — ต้องเรียกจาก user gesture เท่านั้น
+  container.querySelector('[data-action="enable-push-notify"]')?.addEventListener('click', async () => {
+    const ok = await ensurePermission();
+    if (ok) {
+      await syncNotifyData();
+      registerPeriodicSync();
+      showToast('เปิดการแจ้งเตือนแล้ว ✓');
+      testNotification();   // เด้งให้เห็น+ได้ยินทันที จะได้รู้ว่าเสียงทำงาน
+    } else if (getPermissionState() === 'denied') {
+      showToast('ถูกปิดในเบราว์เซอร์ — เปิดได้ที่ตั้งค่าเว็บไซต์ของเบราว์เซอร์');
+    }
+    renderSettings(container);
+  });
+
+  // ทดสอบการแจ้งเตือน
+  container.querySelector('[data-action="test-notify"]')?.addEventListener('click', async () => {
+    const ok = await testNotification();
+    if (!ok) showToast('เด้งไม่สำเร็จ — ตรวจการอนุญาตแจ้งเตือนในเบราว์เซอร์');
   });
 
   // Theme toggle — State.setSetting → notify() → subscriber → renderCurrentView() อัตโนมัติ

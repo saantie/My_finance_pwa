@@ -15,7 +15,21 @@
 import { todayISO, formatBaht } from './utils.js';
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
+import { notifyRecurringDue, daysUntil, dueLabel, getPermissionState } from './notify.js';
 
+
+/**
+ * เลือก templates ที่ถึง/ใกล้ครบกำหนดใน [today, today+daysAhead]
+ * (pure function — แยกออกมาเพื่อ test ได้)
+ * @returns [{ ...template, diffDays }] เรียงใกล้สุดก่อน
+ */
+export function getUpcomingDue(templates, today, daysAhead) {
+  return templates
+    .filter(t => t.active !== false && t.next_due)
+    .map(t => ({ ...t, diffDays: daysUntil(t.next_due, today) }))
+    .filter(t => t.diffDays >= 0 && t.diffDays <= daysAhead)
+    .sort((a, b) => a.diffDays - b.diffDays);
+}
 
 /**
  * ตรวจ + แสดง reminders ที่เหมาะสมสำหรับวันนี้
@@ -34,18 +48,24 @@ export function checkReminders(showToast, hasCatchup = false) {
   const settings = State.getSettings();
   const toasts = [];
 
-  // --- 1. Recurring due today (cap = 1 toast รวม) ------------------
+  // --- 1. Recurring due/ใกล้ครบกำหนด (เตือนล่วงหน้า N วัน) ---------
   if (settings.notify_recurring !== false) {
-    const dueToday = Recurring.getActiveTemplates()
-      .filter(t => t.next_due === today);
+    const daysAhead = settings.notify_days_ahead ?? 1;
+    const upcoming = getUpcomingDue(Recurring.getActiveTemplates(), today, daysAhead);
 
-    if (dueToday.length === 1) {
-      const t = dueToday[0];
-      toasts.push(`📅 ${t.description} ครบกำหนดวันนี้ — ${formatBaht(t.amount)} ฿`);
-    } else if (dueToday.length > 1) {
-      // รวมเป็น toast เดียว ไม่ spam หลายอัน
-      const total = dueToday.reduce((s, t) => s + t.amount, 0);
-      toasts.push(`📅 มี ${dueToday.length} รายการประจำครบกำหนดวันนี้ — รวม ${formatBaht(total)} ฿`);
+    if (upcoming.length > 0) {
+      // ถ้าผู้ใช้เปิด system notification แล้ว → เด้งแบบมีเสียง (dedupe ใน notify.js)
+      // toast แสดงเป็น fallback เฉพาะเมื่อยังไม่ได้อนุญาต notification
+      if (getPermissionState() === 'granted') {
+        notifyRecurringDue(upcoming).catch(console.warn);
+      } else if (upcoming.length === 1) {
+        const t = upcoming[0];
+        toasts.push(`📅 ${t.description} ${dueLabel(t.diffDays)} — ${formatBaht(t.amount)} ฿`);
+      } else {
+        // รวมเป็น toast เดียว ไม่ spam หลายอัน
+        const total = upcoming.reduce((s, t) => s + t.amount, 0);
+        toasts.push(`📅 มี ${upcoming.length} รายการประจำใกล้ครบกำหนด — รวม ${formatBaht(total)} ฿`);
+      }
     }
   }
 
