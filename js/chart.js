@@ -76,12 +76,22 @@ export function dailyExpenseBars(transactions, days = 14, incomeAvgPerDay = 0) {
   }).join('');
 
   // 5a. Expense average line (dashed, clay)
+  //     ป้ายกำกับ: ตัวเลข + "จ่าย/วัน" — รูปแบบเดียวกับเส้นรายรับ
+  //     อ่านคู่กันรู้ทันที: เส้นเขียว = รับเฉลี่ย/วัน, เส้นประส้ม = จ่ายเฉลี่ย/วัน
   const avgY = PAD_TOP + chartH - (avg / max) * chartH;
   const avgLine = avg > 0
-    ? `<line x1="${PAD_X}" y1="${avgY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${avgY.toFixed(1)}"
-        stroke="var(--clay)" stroke-dasharray="3 3" stroke-width="1" opacity="0.5"/>
-       <text x="${W - PAD_X - 26}" y="${(avgY + 3).toFixed(1)}"
-        font-size="8" fill="var(--clay)" opacity="0.7">รจ่าย</text>`
+    ? (() => {
+        // เส้นอยู่ชิดขอบบน → ย้ายป้ายลงใต้เส้น กันโดนตัด
+        const nearTop = avgY < PAD_TOP + 10;
+        const amtY = (nearTop ? avgY + 8  : avgY - 2).toFixed(1);
+        const tagY = (nearTop ? avgY + 15 : avgY + 6).toFixed(1);
+        return `<line x1="${PAD_X}" y1="${avgY.toFixed(1)}" x2="${W - PAD_X - 28}" y2="${avgY.toFixed(1)}"
+          stroke="var(--clay)" stroke-dasharray="3 3" stroke-width="1" opacity="0.5"/>
+         <text x="${W - PAD_X - 26}" y="${amtY}"
+          font-size="7" fill="var(--clay)" opacity="0.95" font-weight="600">${formatBaht(Math.round(avg))}</text>
+         <text x="${W - PAD_X - 26}" y="${tagY}"
+          font-size="7" fill="var(--clay)" opacity="0.75">จ่าย/วัน</text>`;
+      })()
     : '';
 
   // 5b. Income average line (30 วัน, solid, income green)
