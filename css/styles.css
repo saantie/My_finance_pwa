@@ -1547,6 +1547,14 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   color: var(--ink);
   font-weight: 500;
 }
+/* ปุ่ม "เพิ่มหมวด" ท้าย strip — ลิงก์ไปหน้าจัดการหมวดหมู่ */
+.cat-chip-add .cat-chip-icon {
+  background: var(--accent-soft);
+  color: var(--primary);
+  border: 1.5px dashed var(--primary);
+  box-sizing: border-box;
+}
+.cat-chip-add .cat-chip-name { color: var(--ink-faint); }
 
 .acct-pill {
   display: flex;
@@ -2406,6 +2414,13 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   margin-left: 10px;
   padding-left: 12px;
   border-left: 2px solid var(--rule);
+}
+
+/* chips เลือกช่วงเวลาของ donut "ใช้ไปกับอะไร" */
+.donut-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .privacy-footer {

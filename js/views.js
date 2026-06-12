@@ -421,7 +421,8 @@ export function renderDashboard(container) {
   const today = todayISO();
   const todayDate = parseLocalDate(today);
   const monthSummary = State.getMonthSummary();
-  const topCats = State.getTopCategories();
+  // ใช้ all-time ตัดสินว่ามี section donut ไหม — ช่วงเวลาที่แสดงจริงเลือกผ่าน chips
+  const topCats = State.getTopCategories('');
   const todayTxs = State.getTodayTransactions();
 
   // --- Catchup banner (welcome back after long absence) ---
@@ -476,15 +477,10 @@ export function renderDashboard(container) {
     <!-- Upcoming recurring/scheduled -->
     ${renderUpcomingSection()}
 
-    <!-- Top categories -->
+    <!-- Top categories (donut + เลือกช่วงเวลา) -->
     ${topCats.length > 0 ? `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">ใช้ไปกับอะไร</h2>
-      </div>
-      <div class="card donut-card">
-        ${renderDonutChart(topCats)}
-      </div>
+    <div class="section" id="donut-section">
+      ${renderDonutSection()}
     </div>
     ` : ''}
 
@@ -540,6 +536,9 @@ export function renderDashboard(container) {
       });
     });
   });
+
+  // Donut "ใช้ไปกับอะไร" — chips เลือกช่วงเวลา
+  bindDonutChips(container);
 
   // init charts หลัง DOM พร้อม
   requestAnimationFrame(() => {
@@ -1218,6 +1217,57 @@ function renderAccountRow(acct) {
 
 
 /* === Helper: category donut chart ================================ */
+
+/* ── ช่วงเวลาของ donut "ใช้ไปกับอะไร" (module-level — รอด re-render) ── */
+let _donutPeriod = 'month';
+const DONUT_PERIODS = [
+  ['today', 'วันนี้'], ['month', 'เดือนนี้'], ['year', 'ปีนี้'], ['all', 'ทั้งหมด']
+];
+
+/** prefix สำหรับ getTopCategories — filter ใช้ date.startsWith(prefix) */
+function donutPrefix(period) {
+  const t = todayISO();
+  if (period === 'today') return t;             // YYYY-MM-DD
+  if (period === 'month') return t.slice(0, 7); // YYYY-MM
+  if (period === 'year')  return t.slice(0, 4); // YYYY
+  return '';                                    // all — ทุกรายการ
+}
+
+function renderDonutSection() {
+  const cats = State.getTopCategories(donutPrefix(_donutPeriod));
+  const periodLabel = DONUT_PERIODS.find(p => p[0] === _donutPeriod)?.[1] ?? '';
+  return `
+    <div class="section-head">
+      <h2 class="section-title">ใช้ไปกับอะไร</h2>
+    </div>
+    <div class="donut-chips">
+      ${DONUT_PERIODS.map(([val, label]) => `
+        <button class="chip ${_donutPeriod === val ? 'active' : ''}" data-donut-period="${val}">
+          <span class="chip-label">${label}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="card donut-card">
+      ${cats.length > 0
+        ? renderDonutChart(cats)
+        : `<div class="empty" style="padding:18px;text-align:center">
+             <div class="desc">— ยังไม่มีรายจ่าย${_donutPeriod === 'all' ? '' : periodLabel} —</div>
+           </div>`}
+    </div>`;
+}
+
+function bindDonutChips(container) {
+  container.querySelectorAll('[data-donut-period]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      _donutPeriod = chip.dataset.donutPeriod;
+      const mount = container.querySelector('#donut-section');
+      if (!mount) return;
+      mount.innerHTML = renderDonutSection();   // อัปเดตเฉพาะ section นี้ ไม่ re-render ทั้งหน้า
+      bindDonutChips(container);
+    });
+  });
+}
+
 function renderDonutChart(cats) {
   const r = 38, cx = 50, cy = 50;
   const totalCirc = 2 * Math.PI * r;
@@ -1680,18 +1730,32 @@ export function renderImport(container) {
       <button class="tile-btn">เลือกไฟล์</button>
     </div>
 
-    <!-- Bank grid -->
+    <!-- Bank grid — ครบ 16 ธนาคารที่ parser รองรับ -->
     <div class="section">
       <div class="section-head">
         <h2 class="section-title">ธนาคารที่รองรับ</h2>
+        <span class="section-action">16 ธนาคาร</span>
       </div>
       <div class="bank-grid">
-        ${renderBankCell('KTB',   '#0e9bdc')}
-        ${renderBankCell('KBank', '#138f3f')}
-        ${renderBankCell('SCB',   '#4d2882')}
-        ${renderBankCell('BBL',   '#1e4486')}
-        ${renderBankCell('BAY',   '#fec43b')}
-        ${renderBankCell('อื่นๆ', '#7a6a5c')}
+        ${renderBankCell('KTB',     '#0e9bdc')}
+        ${renderBankCell('KBank',   '#138f3f')}
+        ${renderBankCell('SCB',     '#4d2882')}
+        ${renderBankCell('BBL',     '#1e4486')}
+        ${renderBankCell('กรุงศรี', '#fec43b', 'BAY')}
+        ${renderBankCell('ttb',     '#f5822a')}
+        ${renderBankCell('ออมสิน',  '#eb1c8e', 'GSB')}
+        ${renderBankCell('ธ.ก.ส.',  '#2e8b57', 'ธกส')}
+        ${renderBankCell('ธอส.',    '#f5a623', 'ธอส')}
+        ${renderBankCell('CIMB',    '#cc0001')}
+        ${renderBankCell('UOB',     '#003087')}
+        ${renderBankCell('TISCO',   '#12395d', 'TIS')}
+        ${renderBankCell('KKP',     '#1a3e6b')}
+        ${renderBankCell('LH Bank', '#1d5a9e', 'LH')}
+        ${renderBankCell('ICBC',    '#cc1a1a', 'ICB')}
+        ${renderBankCell('SC',      '#0b8a8f')}
+      </div>
+      <div class="setting-sub" style="padding:8px 4px 0;text-align:center">
+        ธนาคารอื่นนอกจากนี้ ลองนำเข้าได้เลย — มี AI ช่วยอ่านไฟล์ให้
       </div>
     </div>
 
@@ -2336,10 +2400,10 @@ function showCashOverrideDialog(cashAcct, onClose = null) {
 }
 
 
-function renderBankCell(name, color) {
+function renderBankCell(name, color, logo = null) {
   return `
     <div class="bank-cell">
-      <div class="bank-logo" style="background: ${color}">${name.slice(0, 3)}</div>
+      <div class="bank-logo" style="background: ${color}">${logo ?? name.slice(0, 3)}</div>
       <div class="bank-name">${name}</div>
     </div>
   `;
@@ -3697,7 +3761,7 @@ export function showCoinToast(reward) {
 const MAX_CUSTOM_CATEGORIES = 37; // 50 total - 13 built-in
 
 /** เปิด overlay จัดการหมวดหมู่ */
-export function openCategoryManager() {
+export function openCategoryManager(onClose = null) {
   history.pushState({ view: 'modal', modal: 'cat-manager' }, '', '#cat-manager');
 
   const overlay = document.createElement('div');
@@ -3717,6 +3781,7 @@ export function openCategoryManager() {
   function closeOverlay() {
     overlay.remove();
     window.removeEventListener('popstate', onPopState);
+    onClose?.();   // ให้ผู้เรียก refresh UI (เช่น cat-strip ใน add modal)
   }
   function onPopState() { closeOverlay(); }
   window.addEventListener('popstate', onPopState);

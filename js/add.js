@@ -28,7 +28,7 @@ import {
   formatBaht, formatLongDate, formatShortDate, todayISO, calc,
   bahtToSatang, haptic
 } from './utils.js';
-import { showToast, showCoinToast } from './views.js';
+import { showToast, showCoinToast, openCategoryManager } from './views.js';
 import { claimDailyCoin } from './gamification.js';
 import { VoiceRecorder, parseIntent } from './voice.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
@@ -258,6 +258,10 @@ function render() {
               <div class="cat-chip-name">${c.label}</div>
             </button>
           `).join('')}
+          <button class="cat-chip cat-chip-add" data-action="manage-cats" type="button">
+            <div class="cat-chip-icon">${svgIcon('plus', { size: 18, stroke: 2 })}</div>
+            <div class="cat-chip-name">เพิ่มหมวด</div>
+          </button>
         </div>
       </div>
 
@@ -409,12 +413,17 @@ function bindEvents() {
     });
   });
 
-  // Category chips
-  el.querySelectorAll('.cat-chip').forEach(chip => {
+  // Category chips (เฉพาะที่มี data-cat — ไม่รวมปุ่ม "เพิ่มหมวด")
+  el.querySelectorAll('.cat-chip[data-cat]').forEach(chip => {
     chip.addEventListener('click', () => {
       draft.group = chip.dataset.cat;
       render();
     });
+  });
+
+  // "เพิ่มหมวด" → เปิดหน้าจัดการหมวดหมู่ทับ modal; ปิดแล้ว refresh strip
+  el.querySelector('[data-action="manage-cats"]')?.addEventListener('click', () => {
+    openCategoryManager(() => render());
   });
 
   // Frequency options

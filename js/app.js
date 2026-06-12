@@ -123,6 +123,10 @@ function setupBackHandler() {
   window.addEventListener('popstate', (e) => {
     const targetView = e.state?.view ?? 'dashboard';
 
+    // Category manager เปิดทับอยู่ (เช่น เปิดจากปุ่ม "เพิ่มหมวด" ใน add modal)
+    // → overlay มี popstate listener ปิดตัวเองอยู่แล้ว — อย่าปิด add modal ข้างใต้
+    if (document.querySelector('.cat-manager-overlay')) return;
+
     // Modal เปิดอยู่ → back ปิด modal ทันที (ไม่ต้อง navigate)
     const addModal = document.getElementById('add-modal');
     if (addModal && !addModal.classList.contains('hidden')) {
