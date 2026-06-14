@@ -925,6 +925,11 @@ test('add.js: openAccountPickerModal is exported', () => {
   assert(addJsSrc.includes('export function openAccountPickerModal'), 'must export openAccountPickerModal');
 });
 
+test('add.js: escapeHtml import จาก views.js ไม่นิยามซ้ำ (dedup)', () => {
+  assert(!addJsSrc.includes('function escapeHtml'), 'add.js ต้อง import escapeHtml จาก views.js ไม่นิยามเอง');
+  assert(/import\s*\{[^}]*escapeHtml[^}]*\}\s*from\s*'\.\/views\.js'/.test(addJsSrc), 'add.js ต้อง import escapeHtml จาก views.js');
+});
+
 test('add.js: no window.prompt() calls', () => {
   // allow the string "prompt(" only inside comments or strings — simplest check: raw presence
   assert(!addJsSrc.includes('= prompt(') && !addJsSrc.includes('window.prompt('), 'add.js must not call prompt()');

@@ -3528,7 +3528,7 @@ function renderTemplateRow(t) {
 }
 
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   if (s == null) return '';
   return String(s)
     .replace(/&/g, '&amp;')

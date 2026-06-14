@@ -28,7 +28,7 @@ import {
   formatBaht, formatLongDate, formatShortDate, todayISO, calc,
   bahtToSatang, haptic
 } from './utils.js';
-import { showToast, showCoinToast, openCategoryManager } from './views.js';
+import { showToast, showCoinToast, openCategoryManager, escapeHtml } from './views.js';
 import { claimDailyCoin } from './gamification.js';
 import { VoiceRecorder, parseIntent } from './voice.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
@@ -950,12 +950,3 @@ function bankGradient(bank, type) {
   return MAP[bank] || MAP[type] || 'linear-gradient(135deg, #c89368, #a07246)';
 }
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
