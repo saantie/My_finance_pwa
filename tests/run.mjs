@@ -1486,6 +1486,34 @@ test('views.js: dead code ที่ลบแล้วต้องไม่กล
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════
+// VIEWS MODULE LOAD — ตาข่ายจับ import/export พังตอนแยกไฟล์ (Phase B)
+// import จริงใน Node (loader mock Firebase) → จับ syntax/top-level ref/export หาย
+// ที่ node --check มองไม่เห็น. ต้อง export public API ครบสำหรับ app.js + add.js
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nviews module load');
+
+const VIEWS_PUBLIC_API = [
+  'renderDashboard', 'renderList', 'renderImport', 'renderSettings',
+  'renderDashboardSkeleton', 'showToast', 'showCoinToast',
+  'applyTheme', 'applyTextSize', 'applyDark',
+  'setSettingsOpenSection', 'bindEntryActions',
+  'escapeHtml', 'openCategoryManager',
+];
+
+const _viewsMod = await import('../js/views.js');
+
+test('views.js: โหลดเป็น ES module ได้ (จับ syntax/top-level error)', () => {
+  assert(_viewsMod && typeof _viewsMod === 'object', 'views.js ต้องโหลดได้');
+});
+
+for (const name of VIEWS_PUBLIC_API) {
+  test(`views.js: export ${name} (app.js/add.js ใช้)`, () => {
+    eq(typeof _viewsMod[name], 'function', `ต้อง export ${name} เป็นฟังก์ชัน`);
+  });
+}
+
+
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
 console.log(`\n\n${total} tests: ${passed} passed${failed ? `, ${failed} failed` : ''}\n`);
