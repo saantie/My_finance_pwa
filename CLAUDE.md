@@ -299,6 +299,9 @@ tests/loader.mjs      ESM loader mocking Firebase CDN imports for Node
 Test command: `node --import ./tests/loader.mjs tests/run.mjs`
 **Keep the suite green** — a perpetually red suite hides real regressions. CI enforces this on push.
 
+### Claude skills (`.claude/skills/`)
+`finance-bug-detector` (debug + Pre-Commit Checklist) · `finance-pwa-ui` (design system) · `thai-bank-parser` (PDF parsing) · `finance-code-reuse` (reuse map — utilities/patterns ที่มีอยู่แล้ว ใช้ก่อนเขียน helper ใหม่ กันโค้ดซ้ำ/ยาว; คู่กับ built-in `/simplify` + `/code-review`).
+
 ---
 
 ## 10. Business Model
