@@ -1054,82 +1054,6 @@ async function initForecastChart() {
   });
 }
 
-/* === เดิม: SVG-based forecast (ถูกแทนที่โดย renderForecastCard ด้านบน) === */
-function renderForecastChart() {
-  const accounts = State.getAccounts().filter(a => !a.exclude_from_summary);
-  const totalBalance = accounts.reduce((s, a) =>
-    s + (a.type === 'cash' ? State.getEffectiveCashBalance(a.id) : State.computeAccountBalance(a.id)), 0);
-  const threshold = State.getSettings().threshold_satang;
-
-  // ดึง recurring forecast 30 วัน
-  const forecast = Recurring.getForecast(30);
-
-  // เพิ่ม projected daily expense จาก average 14 วันล่าสุด
-  // เพื่อให้ forecast realistic — ไม่ใช่แค่ recurring
-  const recentExpenses = State.getDailyExpenses(14);
-  const totalRecent = recentExpenses.reduce((s, d) => s + d.total, 0);
-  const avgDaily = Math.round(totalRecent / 14);
-
-  // เติม "ค่าใช้จ่ายเฉลี่ยต่อวัน" เข้า forecast
-  // (ไม่ duplicate กับ recurring เพราะ recurring มี date เฉพาะ)
-  const todayDate = new Date();
-  const enriched = [...forecast];
-  for (let i = 1; i <= 30; i++) {
-    const d = new Date(todayDate);
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    if (avgDaily > 0) {
-      enriched.push({
-        date: iso,
-        type: 'expense',
-        amount: avgDaily,
-        group: 'projected',
-        description: 'ค่าใช้จ่ายเฉลี่ย'
-      });
-    }
-  }
-
-  const result = cashflowForecast(totalBalance, enriched, threshold, 30);
-
-  // Insight banner
-  let insight = '';
-  if (result.willHitThreshold && result.daysUntilThreshold != null) {
-    insight = `
-      <div class="forecast-insight warn">
-        ${svgIcon('alert', { size: 16, stroke: 2 })}
-        <div>ยอดใกล้เกณฑ์ในอีก <strong>${result.daysUntilThreshold} วัน</strong></div>
-      </div>
-    `;
-  } else if (result.finalBalance > totalBalance) {
-    insight = `
-      <div class="forecast-insight good">
-        ${svgIcon('check', { size: 16, stroke: 2.5 })}
-        <div>คาดว่าจะเหลือ <strong>${formatBaht(result.finalBalance)} ฿</strong> ใน 30 วัน — ดูดี</div>
-      </div>
-    `;
-  } else {
-    const diff = totalBalance - result.finalBalance;
-    insight = `
-      <div class="forecast-insight">
-        ${svgIcon('trending', { size: 16, stroke: 2 })}
-        <div>คาดว่าจะใช้ไป <strong>${formatBaht(diff)} ฿</strong> ใน 30 วัน —
-          เหลือ ${formatBaht(result.finalBalance)} ฿</div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">เงินใน 30 วันข้างหน้า</h2>
-      </div>
-      <div class="card chart-card">
-        ${result.svg}
-        ${insight}
-      </div>
-    </div>
-  `;
-}
 
 
 /* === Helper: upcoming recurring/scheduled =====================
@@ -1196,30 +1120,6 @@ function renderUpcomingRow(u) {
 /* === Helper: account row ======================================== */
 const ACCT_INIT = { cash: '฿', bank: 'BNK', investment: 'INV', debt: 'DEBT', credit_card: 'CC', ewallet: 'EW' };
 
-function renderAccountRow(acct) {
-  const balance = acct.type === 'cash'
-    ? State.getEffectiveCashBalance(acct.id)
-    : State.computeAccountBalance(acct.id);
-  const isNegative = balance < 0;
-  const rowClass   = isNegative ? 'account-row--danger' : '';
-  const initial    = acct.bank ? acct.bank.toUpperCase().slice(0, 3) : (ACCT_INIT[acct.type] || '?');
-
-  return `
-    <div class="acct${rowClass ? ` ${rowClass}` : ''}">
-      <div class="acct-icon ${acct.bank || acct.type}">${initial}</div>
-      <div class="acct-body">
-        <div class="acct-name">${escapeHtml(acct.display_name)}${acct._sample ? ' <span class="demo-tag">Demo</span>' : ''}${acct.exclude_from_summary ? ' <span class="excl-badge">ไม่นับสรุป</span>' : ''}</div>
-        ${acct.account_number_masked
-          ? `<div class="acct-num">${escapeHtml(acct.account_number_masked)}</div>`
-          : ''}
-      </div>
-      <div>
-        <div class="acct-balance" style="${isNegative ? 'color:var(--expense,#d96b5e)' : ''}">${formatBaht(balance)} ฿</div>
-        ${isNegative ? `<div style="font-size:11px;color:var(--expense,#d96b5e);text-align:right;margin-top:1px;">ติดลบ</div>` : ''}
-      </div>
-    </div>
-  `;
-}
 
 
 /* === Helper: category donut chart ================================ */
@@ -1330,14 +1230,6 @@ function shortName(email) {
   return email.split('@')[0];
 }
 
-function shortAcctName(name) {
-  if (!name) return '';
-  // ตัดคำซ้ำซ้อน เช่น "เงินสด" หรือ "กสิกร ...1234" → "1234"
-  // แสดงแค่ส่วนท้าย (หลัง space) ถ้าชื่อยาวกว่า 8 ตัวอักษร
-  if (name.length <= 8) return name;
-  const parts = name.trim().split(/\s+/);
-  return parts[parts.length - 1] || name;
-}
 
 function renderEntryRow(tx, decimals = 0) {
   const def = getCategory(tx.group);
@@ -1793,58 +1685,6 @@ export function renderImport(container) {
 }
 
 
-/* === Slip scan handler ==========================================
-   Lazy-import slip.js + add.js เพื่อไม่ load 128KB ของ jsQR
-   ตอนแรกเข้า dashboard
-================================================================ */
-async function handleSlipScan(file) {
-  showToast('กำลังสแกน...');
-  try {
-    const { scanSlipImage } = await import('./slip.js');
-    const result = await scanSlipImage(file);
-
-    if (!result) {
-      showToast('ไม่พบ QR code — ลองรูปอื่น หรือบันทึกเอง');
-      return;
-    }
-
-    // Lazy import เพื่อหลีกเลี่ยง circular dep (add.js → views.js)
-    const { openAddModal } = await import('./add.js');
-
-    // ถ้ามี amount → pre-fill add modal
-    if (result.amount != null && result.amount > 0) {
-      const satang = Math.round(result.amount * 100);
-      openAddModal({
-        type: 'expense',
-        group: 'transfer',
-        amount: satang,
-        note: result.ref ? `Ref: ${result.ref}` : 'จาก slip',
-        source: 'slip'
-      });
-      showToast(`อ่านได้ ${result.amount.toLocaleString()} ฿`);
-    } else {
-      // QR อ่านได้แต่ไม่เจอ amount — เปิด modal เปล่า
-      const note = result.bank
-        ? `slip ${result.bank.toUpperCase()}${result.ref ? ' · ' + result.ref : ''}`
-        : 'จาก slip — กรุณากรอกจำนวน';
-      openAddModal({
-        type: 'expense',
-        group: 'transfer',
-        note,
-        source: 'slip'
-      });
-      showToast('อ่าน QR ได้ — โปรดกรอกจำนวนเงิน');
-    }
-  } catch (err) {
-    console.error('Slip scan failed', err);
-    showToast('สแกนไม่สำเร็จ — ลองใหม่');
-  }
-}
-
-
-/* === e-Statement import handler ================================
-   Flow: parse (handle password) → confidence check → review / AI
-================================================================ */
 async function handlePdfImport(file) {
   const { parsePDF, scoreParseResult } = await import('./parsers.js');
   let result;

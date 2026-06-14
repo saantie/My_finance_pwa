@@ -1473,6 +1473,13 @@ test('sw.js: VERSION format ถูกต้อง (diary-vX.Y.Z)', () => {
   assert(/const VERSION = 'diary-v\d+\.\d+\.\d+'/.test(swSrc), 'VERSION must match diary-vX.Y.Z');
 });
 
+test('views.js: dead code ที่ลบแล้วต้องไม่กลับมา (Phase A)', () => {
+  const src = readFileSync('./js/views.js', 'utf8');
+  for (const fn of ['renderForecastChart', 'handleSlipScan', 'renderAccountRow', 'shortAcctName']) {
+    assert(!new RegExp(`function ${fn}\\b`).test(src), `${fn} ถูกลบแล้ว (dead code) — อย่าเพิ่มกลับ`);
+  }
+});
+
 
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
