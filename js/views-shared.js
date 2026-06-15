@@ -7,7 +7,7 @@
    =================================================================== */
 
 import * as State from './state.js';
-import { svgIcon, getCategory } from './icons.js';
+import { svgIcon, getCategory, CATEGORIES, ICON_PICKER_KEYS, COLOR_PALETTE } from './icons.js';
 import { haptic, formatTime, formatBaht } from './utils.js';
 import { getLevelInfo } from './gamification.js';
 
@@ -267,4 +267,277 @@ export function bindEntryActions(container) {
     }
     _swipeEl = null; _dir = null;
   }, { passive: true });
+}
+
+
+/* ===================================================================
+   Category Manager — หน้าจัดการหมวดหมู่
+   =================================================================== */
+
+const MAX_CUSTOM_CATEGORIES = 37; // 50 total - 13 built-in
+
+/** เปิด overlay จัดการหมวดหมู่ */
+export function openCategoryManager(onClose = null) {
+  history.pushState({ view: 'modal', modal: 'cat-manager' }, '', '#cat-manager');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay cat-manager-overlay';
+  overlay.innerHTML = `
+    <div class="cat-manager">
+      <div class="cat-manager-head">
+        <button class="cat-manager-back">${svgIcon('back', { size: 20, stroke: 2 })}</button>
+        <h2 class="cat-manager-title">หมวดหมู่</h2>
+        <button class="cat-manager-add" id="cat-add-btn">${svgIcon('plus', { size: 20, stroke: 2.5 })}</button>
+      </div>
+      <div class="cat-manager-body" id="cat-manager-body"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  function closeOverlay() {
+    overlay.remove();
+    window.removeEventListener('popstate', onPopState);
+    onClose?.();   // ให้ผู้เรียก refresh UI (เช่น cat-strip ใน add modal)
+  }
+  function onPopState() { closeOverlay(); }
+  window.addEventListener('popstate', onPopState);
+
+  function renderBody() {
+    const body = overlay.querySelector('#cat-manager-body');
+    const custom = State.getCustomCategories();
+    const builtinEntries = Object.entries(CATEGORIES);
+
+    let html = `
+      <div class="cat-section-label">หมวดหมู่ตั้งต้น (${builtinEntries.length} หมวด)</div>
+      <div class="cat-grid">
+        ${builtinEntries.map(([key, def]) => `
+          <div class="cat-item cat-item--builtin">
+            <div class="cat-item-icon" style="background:${_catColorToCss(def.color)}">
+              ${svgIcon(def.icon, { size: 20, stroke: 2 })}
+            </div>
+            <div class="cat-item-label">${escapeHtml(def.label)}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="cat-section-label" style="margin-top:16px">
+        หมวดหมู่ที่กำหนดเอง (${custom.length}/${MAX_CUSTOM_CATEGORIES})
+        ${custom.length < MAX_CUSTOM_CATEGORIES
+          ? `<span class="cat-add-hint">— กด + เพิ่ม</span>`
+          : `<span class="cat-add-hint" style="color:var(--clay)">— ถึงขีดสูงสุดแล้ว</span>`}
+      </div>
+      ${custom.length === 0 ? `
+        <div class="cat-empty">ยังไม่มีหมวดหมู่ที่กำหนดเอง<br>กด + ด้านบนเพื่อเพิ่ม</div>
+      ` : `
+        <div class="cat-grid">
+          ${custom.map(c => `
+            <div class="cat-item" data-cat-id="${escapeHtml(c.id)}">
+              <div class="cat-item-icon" style="background:${escapeHtml(c.color)}">
+                ${svgIcon(c.icon, { size: 20, stroke: 2 })}
+              </div>
+              <div class="cat-item-label">${escapeHtml(c.label)}</div>
+              <div class="cat-item-actions">
+                <button class="cat-item-edit" data-cat-id="${escapeHtml(c.id)}">${svgIcon('edit', { size: 14, stroke: 2 })}</button>
+                <button class="cat-item-del"  data-cat-id="${escapeHtml(c.id)}">${svgIcon('delete', { size: 14, stroke: 2 })}</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+    body.innerHTML = html;
+
+    // Edit handlers
+    body.querySelectorAll('.cat-item-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cat = State.getCustomCategories().find(c => c.id === btn.dataset.catId);
+        if (cat) openCategoryEditModal(cat, renderBody);
+      });
+    });
+
+    // Delete handlers
+    body.querySelectorAll('.cat-item-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cat = State.getCustomCategories().find(c => c.id === btn.dataset.catId);
+        if (!cat) return;
+        if (confirm(`ลบหมวด "${cat.label}"?\nรายการที่ใช้หมวดนี้จะแสดงเป็น "อื่นๆ"`)) {
+          State.deleteCustomCategory(btn.dataset.catId);
+          renderBody();
+        }
+      });
+    });
+  }
+
+  renderBody();
+
+  overlay.querySelector('.cat-manager-back').addEventListener('click', () => history.back());
+  overlay.querySelector('#cat-add-btn').addEventListener('click', () => {
+    const custom = State.getCustomCategories();
+    if (custom.length >= MAX_CUSTOM_CATEGORIES) {
+      showToast(`เพิ่มได้สูงสุด ${MAX_CUSTOM_CATEGORIES} หมวด`);
+      return;
+    }
+    openCategoryEditModal(null, renderBody);
+  });
+}
+
+/** แปลง CSS variable สี → hex สำหรับ background ใน cat manager */
+function _catColorToCss(colorVal) {
+  // ถ้าเป็น hex แล้วคืนตรงๆ
+  if (colorVal && colorVal.startsWith('#')) return colorVal;
+  // Built-in categories ใช้ CSS var → map เป็น hex
+  const varMap = {
+    'var(--clay)':      '#e88563',
+    'var(--mocha)':     '#c89368',
+    'var(--dust-blue)': '#5e9bd6',
+    'var(--plum)':      '#b378c0',
+    'var(--honey)':     '#e8b649',
+    'var(--sage)':      '#5a9d63',
+  };
+  return varMap[colorVal] || '#e88563';
+}
+
+/** Modal เพิ่ม / แก้ไข custom category */
+function openCategoryEditModal(existingCat, onSave) {
+  const isEdit = !!existingCat;
+  const draft = {
+    label:    existingCat?.label    || '',
+    icon:     existingCat?.icon     || 'circle',
+    color:    existingCat?.color    || COLOR_PALETTE[0],
+    type:     existingCat?.type     || ['expense'],
+    keywords: existingCat?.keywords || []
+  };
+
+  const modal = document.createElement('div');
+  modal.className = 'overlay cat-edit-overlay';
+  modal.innerHTML = `
+    <div class="acct-modal cat-edit-modal">
+      <div class="acct-modal-head">${isEdit ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่'}</div>
+      <div class="acct-modal-body" id="cat-edit-body">
+
+        <!-- ชื่อหมวด -->
+        <div class="acct-field-label">ชื่อหมวดหมู่ <span style="color:var(--ink-faint);font-weight:400;font-size:12px">(สูงสุด 20 ตัวอักษร)</span></div>
+        <input class="acct-field-input" id="cat-label" type="text" maxlength="20"
+               placeholder="เช่น ค่าเลี้ยงสัตว์, ท่องเที่ยว"
+               value="${escapeHtml(draft.label)}">
+
+        <!-- ประเภท -->
+        <div class="acct-field-label" style="margin-top:14px">ใช้กับ</div>
+        <div class="cat-type-seg" id="cat-type-seg">
+          <button class="cat-type-btn ${draft.type.includes('expense') && draft.type.includes('income') ? '' : draft.type.includes('expense') ? 'active' : ''}"
+                  data-type="expense">รายจ่าย</button>
+          <button class="cat-type-btn ${draft.type.includes('income') && !draft.type.includes('expense') ? 'active' : ''}"
+                  data-type="income">รายรับ</button>
+          <button class="cat-type-btn ${draft.type.includes('expense') && draft.type.includes('income') ? 'active' : ''}"
+                  data-type="both">ทั้งคู่</button>
+        </div>
+
+        <!-- ไอคอน -->
+        <div class="acct-field-label" style="margin-top:14px">ไอคอน</div>
+        <div class="cat-icon-grid" id="cat-icon-grid">
+          ${ICON_PICKER_KEYS.map(key => `
+            <button class="cat-icon-btn ${draft.icon === key ? 'active' : ''}" data-icon="${key}">
+              ${svgIcon(key, { size: 20, stroke: 1.8 })}
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- สี -->
+        <div class="acct-field-label" style="margin-top:14px">สีไอคอน</div>
+        <div class="cat-color-row" id="cat-color-row">
+          ${COLOR_PALETTE.map(hex => `
+            <button class="cat-color-btn ${draft.color === hex ? 'active' : ''}"
+                    data-color="${hex}" style="background:${hex}"></button>
+          `).join('')}
+        </div>
+
+        <!-- Preview -->
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+          <div class="cat-preview-icon" id="cat-preview-icon" style="background:${escapeHtml(draft.color)}">
+            ${svgIcon(draft.icon, { size: 24, stroke: 2 })}
+          </div>
+          <span class="cat-preview-label" id="cat-preview-label">${escapeHtml(draft.label) || 'ตัวอย่าง'}</span>
+        </div>
+
+        <!-- Keywords -->
+        <div class="acct-field-label" style="margin-top:16px">คำค้นหา (สำหรับ PDF import)</div>
+        <textarea class="acct-field-input" id="cat-keywords" rows="3"
+                  placeholder="ใส่คำทีละบรรทัด เช่น&#10;ค่าสัตว์เลี้ยง&#10;pet shop&#10;หมา"
+                  style="resize:vertical;min-height:72px">${escapeHtml(draft.keywords.join('\n'))}</textarea>
+        <div class="acct-field-hint">ถ้า description ใน PDF มีคำเหล่านี้ จะจำแนกเป็นหมวดนี้อัตโนมัติ</div>
+
+      </div>
+      <div class="acct-modal-footer">
+        <button class="cancel" id="cat-edit-cancel">ยกเลิก</button>
+        <button class="confirm" id="cat-edit-save">${isEdit ? 'บันทึก' : 'เพิ่ม'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  function updatePreview() {
+    const previewIcon = modal.querySelector('#cat-preview-icon');
+    const previewLabel = modal.querySelector('#cat-preview-label');
+    if (previewIcon) {
+      previewIcon.style.background = draft.color;
+      previewIcon.innerHTML = svgIcon(draft.icon, { size: 24, stroke: 2 });
+    }
+    if (previewLabel) {
+      const label = modal.querySelector('#cat-label').value.trim();
+      previewLabel.textContent = label || 'ตัวอย่าง';
+    }
+  }
+
+  // Type selector (expense / income / both)
+  modal.querySelectorAll('.cat-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.cat-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draft.type = btn.dataset.type === 'both' ? ['expense', 'income']
+                 : btn.dataset.type === 'income' ? ['income']
+                 : ['expense'];
+    });
+  });
+
+  // Icon picker
+  modal.querySelectorAll('.cat-icon-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.cat-icon-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draft.icon = btn.dataset.icon;
+      updatePreview();
+    });
+  });
+
+  // Color picker
+  modal.querySelectorAll('.cat-color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.cat-color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draft.color = btn.dataset.color;
+      updatePreview();
+    });
+  });
+
+  // Label live preview
+  modal.querySelector('#cat-label').addEventListener('input', updatePreview);
+
+  modal.querySelector('#cat-edit-cancel').addEventListener('click', () => modal.remove());
+
+  modal.querySelector('#cat-edit-save').addEventListener('click', () => {
+    const label = modal.querySelector('#cat-label').value.trim();
+    if (!label) { showToast('กรุณาใส่ชื่อหมวดหมู่'); return; }
+
+    const keywords = modal.querySelector('#cat-keywords').value
+      .split('\n').map(k => k.trim()).filter(Boolean);
+
+    if (isEdit) {
+      State.updateCustomCategory(existingCat.id, { label, icon: draft.icon, color: draft.color, type: draft.type, keywords });
+    } else {
+      State.addCustomCategory({ label, icon: draft.icon, color: draft.color, type: draft.type, keywords });
+    }
+    modal.remove();
+    onSave?.();
+    showToast(isEdit ? 'แก้ไขหมวดหมู่แล้ว' : 'เพิ่มหมวดหมู่แล้ว');
+  });
 }
