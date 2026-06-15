@@ -1532,6 +1532,11 @@ test('views-shared.js: export category manager + cash override', () => {
   eq(typeof _sharedMod.openCategoryManager, 'function', 'ต้อง export openCategoryManager');
   eq(typeof _sharedMod.showCashOverrideDialog, 'function', 'ต้อง export showCashOverrideDialog');
 });
+const _dashMod = await import('../js/views-dashboard.js');
+test('views-dashboard.js: โหลดได้ + export renderDashboard/renderDashboardSkeleton', () => {
+  eq(typeof _dashMod.renderDashboard, 'function', 'ต้อง export renderDashboard');
+  eq(typeof _dashMod.renderDashboardSkeleton, 'function', 'ต้อง export renderDashboardSkeleton');
+});
 
 
 // ─── Summary ─────────────────────────────────────────────────────────
