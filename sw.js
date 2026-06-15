@@ -7,7 +7,7 @@
    เปลี่ยน VERSION เพื่อ force update ทุก deploy
    =================================================================== */
 
-const VERSION = 'diary-v6.25.59';
+const VERSION = 'diary-v6.25.60';
 const SHELL_CACHE = `shell-${VERSION}`;
 
 /** ไฟล์ที่ cache ตอน install */
@@ -25,6 +25,7 @@ const SHELL_FILES = [
   './js/views-list.js',
   './js/views-settings.js',
   './js/views-dashboard.js',
+  './js/views-import.js',
   './js/add.js',
   './js/voice.js',
   './js/slip.js',

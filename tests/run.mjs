@@ -1537,6 +1537,14 @@ test('views-dashboard.js: โหลดได้ + export renderDashboard/renderD
   eq(typeof _dashMod.renderDashboard, 'function', 'ต้อง export renderDashboard');
   eq(typeof _dashMod.renderDashboardSkeleton, 'function', 'ต้อง export renderDashboardSkeleton');
 });
+const _importMod = await import('../js/views-import.js');
+test('views-import.js: โหลดได้ + export renderImport (money-path)', () => {
+  eq(typeof _importMod.renderImport, 'function', 'ต้อง export renderImport');
+});
+test('views.js: เป็น barrel ล้วน (ไม่นิยามฟังก์ชันเอง)', () => {
+  const src = readFileSync('./js/views.js', 'utf8');
+  assert(!/\bfunction \w/.test(src), 'views.js ต้องเป็น re-export ล้วน ไม่นิยาม function');
+});
 
 
 // ─── Summary ─────────────────────────────────────────────────────────
