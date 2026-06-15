@@ -32,6 +32,7 @@ import { showToast, showCoinToast, openCategoryManager, escapeHtml } from './vie
 import { claimDailyCoin } from './gamification.js';
 import { VoiceRecorder, parseIntent } from './voice.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
+import { classifyCategory } from './categorize.js';
 
 const modal = () => document.getElementById('add-modal');
 
@@ -40,6 +41,7 @@ const modal = () => document.getElementById('add-modal');
 let draft = null;
 let editingTxId       = null;   // ถ้าไม่ null = edit transaction mode
 let editingTemplateId = null;   // ถ้าไม่ null = edit recurring template mode
+let _userPickedCategory = false; // true = user แตะ chip เอง → หยุดไฮไลต์หมวดแนะนำ
 
 function freshDraft() {
   return {
@@ -69,6 +71,7 @@ function freshDraft() {
 
 export function openAddModal(prefill = null) {
   editingTxId = null;
+  _userPickedCategory = false;   // เพิ่มใหม่ → เปิดโหมดแนะนำหมวดจาก note
   draft = freshDraft();
 
   // Default category = หมวดแรกของ type
@@ -102,6 +105,7 @@ export function openAddModalWithVoice() {
 /** เปิด modal โดย pre-fill จาก transaction ที่มีอยู่ (edit mode) */
 export function openEditModal(tx) {
   editingTxId = tx.id;
+  _userPickedCategory = true;   // มีหมวดอยู่แล้ว → ไม่ต้องแนะนำทับ
   draft = {
     type:              tx.type,
     expression:        String(tx.amount / 100),
@@ -127,6 +131,7 @@ export function openEditModal(tx) {
 export function openEditTemplateModal(template) {
   editingTxId = null;
   editingTemplateId = template.id;
+  _userPickedCategory = true;   // template มีหมวดอยู่แล้ว
 
   // map 'one-time' → 'scheduled' เพราะ draft ไม่มี 'one-time'
   const freqMap = { 'one-time': 'scheduled' };
@@ -391,6 +396,15 @@ function bindEvents() {
   const el = modal();
   if (!el) return;
 
+  // ไฮไลต์ chip หมวดที่เดาได้จาก note (ไม่เปลี่ยน draft.group — แค่แนะนำ)
+  function updateCategorySuggestion() {
+    const g = classifyCategory(draft.note || '', draft.type);
+    el.querySelectorAll('.cat-chip[data-cat]').forEach(chip => {
+      const suggest = g !== 'other' && chip.dataset.cat === g && draft.group !== g;
+      chip.classList.toggle('cat-chip--suggested', suggest);
+    });
+  }
+
   el.querySelector('[data-action="close"]')?.addEventListener('click', () => {
     // ถ้า history state เป็น modal → back ให้ popstate จัดการปิด
     // ถ้าไม่ใช่ (เช่น เปิดผ่าน edit โดยไม่ push state) → ปิดตรงๆ
@@ -417,6 +431,7 @@ function bindEvents() {
   el.querySelectorAll('.cat-chip[data-cat]').forEach(chip => {
     chip.addEventListener('click', () => {
       draft.group = chip.dataset.cat;
+      _userPickedCategory = true;   // เลือกเองแล้ว → หยุดแนะนำ
       render();
     });
   });
@@ -459,10 +474,14 @@ function bindEvents() {
     });
   });
 
-  // Note
+  // Note — พิมพ์แล้วไฮไลต์หมวดแนะนำ (ไม่เลือกอัตโนมัติ; user ตัดสินใจเอง)
   el.querySelector('[data-field="note"]')?.addEventListener('input', (e) => {
     draft.note = e.target.value;
+    if (!_userPickedCategory) updateCategorySuggestion();
   });
+
+  // ไฮไลต์ครั้งแรกตอน render (เช่น มี note จาก voice/prefill อยู่แล้ว)
+  if (!_userPickedCategory) updateCategorySuggestion();
 
   // แสดง keypad เมื่อ tap ที่ amount row
   el.querySelector('[data-action="show-keypad"]')?.addEventListener('click', (e) => {

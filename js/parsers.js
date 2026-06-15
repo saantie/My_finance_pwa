@@ -22,11 +22,10 @@
 // firebase และ state โหลด lazily เฉพาะใน parsePDF() เพื่อให้ test รันใน Node.js ได้
 let _firebase = null, _state = null, _pdfjs = null;
 
-/* custom category keywords registry — set from app.js */
-let _customCategoryRegistry = [];
-export function setCustomCategoryParserRegistry(cats) {
-  _customCategoryRegistry = Array.isArray(cats) ? cats : [];
-}
+import { classifyCategory } from './categorize.js';
+
+// custom category registry ย้ายไป categorize.js — re-export ชื่อเดิมไว้เผื่อผู้เรียกเก่า
+export { setClassifierCategories as setCustomCategoryParserRegistry } from './categorize.js';
 
 async function getFirebase() {
   if (!_firebase) _firebase = await import('./firebase.js');
@@ -131,11 +130,11 @@ export async function parsePDF(file, password = null, onProgress = null) {
     a.account_number_masked,
     a.account_number_user
   ]).filter(Boolean);
-  const transactions = rawTransactions.map(tx => ({
-    ...tx,
-    type: autoClassifyType(tx, ownMasks),
-    group: autoClassifyGroup(tx)
-  }));
+  const transactions = rawTransactions.map(tx => {
+    // คำนวณ type ก่อน แล้วส่งเข้า autoClassifyGroup เพื่อให้ type-sanity ทำงาน
+    const type = autoClassifyType(tx, ownMasks);
+    return { ...tx, type, group: autoClassifyGroup({ ...tx, type }) };
+  });
 
   step('เสร็จแล้ว');
 
@@ -584,32 +583,9 @@ export function verifyParseResult(transactions) {
 }
 
 
+/** จำแนกหมวด — delegate ไป classifier กลาง (categorize.js) ใช้ keyword/หมวดเดียวกับ voice + manual
+    ส่ง tx.type เข้าไปด้วยเพื่อ type-sanity (income-only / transfer-only group) */
 export function autoClassifyGroup(tx) {
   const t = (tx.description || '') + ' ' + (tx.raw_text || '');
-
-  // ตรวจ custom categories ก่อน (user-defined keywords มีลำดับความสำคัญสูงกว่า)
-  for (const cat of _customCategoryRegistry) {
-    if (!cat.keywords || cat.keywords.length === 0) continue;
-    for (const kw of cat.keywords) {
-      if (kw && kw.trim().length > 0 && new RegExp(kw.trim(), 'i').test(t)) return cat.id;
-    }
-  }
-
-  if (/(?:เงินเดือน|salary|payroll)/i.test(t)) return 'salary';
-  if (/(?:ดอกเบี้ย|interest)/i.test(t)) return 'bonus';
-  if (/(?:atm|withdraw|ถอน|transfer|โอน|ชำระบัตร)/i.test(t)) return 'transfer';
-
-  // Expense categories
-  if (/(?:lotus|big c|tesco|tops|villa market|maxvalu|gourmet|7-eleven|7\s*eleven|seveneleven|family mart|ramen|sushi|ก๋วยเตี๋ยว|ข้าวกล่อง|อาหาร)/i.test(t)) return 'food';
-  if (/(?:starbucks|amazon coffee|cafe|กาแฟ|coffee|latte|true coffee|inthanin)/i.test(t)) return 'coffee';
-  if (/(?:grab|gojek|bolt|lineman|food\s*panda|foodpanda)/i.test(t)) return 'food';
-  if (/(?:bts|mrt|airport rail|grab car|taxi|วิน|รถเมล์)/i.test(t)) return 'transport';
-  if (/(?:ptt|esso|shell|ปตท|น้ำมัน|caltex|gulf)/i.test(t)) return 'transport';
-  if (/(?:lazada|shopee|tiktok|amazon)/i.test(t)) return 'shopping';
-  if (/(?:true|ais|dtac|nt|mea|กฟภ|กฟน|กปภ|metropolitan electricity|water authority|internet|wifi)/i.test(t)) return 'utility';
-  if (/(?:hospital|clinic|pharmacy|โรงพยาบาล|คลินิก|ร้านยา|fascino|boots|watson)/i.test(t)) return 'health';
-  if (/(?:netflix|spotify|youtube|disney|hbo|prime|viu|iqiyi|line tv)/i.test(t)) return 'entertainment';
-  if (/(?:rent|ค่าเช่า|ค่าหอ|condo)/i.test(t)) return 'rent';
-
-  return 'other';
+  return classifyCategory(t, tx.type);
 }

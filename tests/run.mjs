@@ -65,6 +65,8 @@ const {
   detectColumns, isSkipRow, verifyParseResult
 } = await import('../js/parsers.js');
 
+const { classifyCategory, KEYWORD_GROUPS, setClassifierCategories } = await import('../js/categorize.js');
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // UTILS
@@ -446,7 +448,7 @@ test('autoClassify multiple masks, one matches', () => {
 test('autoClassifyGroup salary',        () => eq(autoClassifyGroup({ description: 'เงินเดือน salary' }), 'salary'));
 test('autoClassifyGroup ATM = transfer',() => eq(autoClassifyGroup({ description: 'ATM ถอน' }), 'transfer'));
 test('autoClassifyGroup starbucks',     () => eq(autoClassifyGroup({ description: 'STARBUCKS' }), 'coffee'));
-test('autoClassifyGroup big c = food',  () => eq(autoClassifyGroup({ description: 'BIG C LOTUS' }), 'food'));
+test('autoClassifyGroup big c = grocery',() => eq(autoClassifyGroup({ description: 'BIG C LOTUS' }), 'grocery'));
 test('autoClassifyGroup grab = food',   () => eq(autoClassifyGroup({ description: 'GRAB FOOD' }), 'food'));
 test('autoClassifyGroup bts = transport',()=> eq(autoClassifyGroup({ description: 'BTS MRT' }), 'transport'));
 test('autoClassifyGroup ptt = transport',()=> eq(autoClassifyGroup({ description: 'PTT น้ำมัน' }), 'transport'));
@@ -456,6 +458,67 @@ test('autoClassifyGroup hospital',      () => eq(autoClassifyGroup({ description
 test('autoClassifyGroup netflix',       () => eq(autoClassifyGroup({ description: 'NETFLIX' }), 'entertainment'));
 test('autoClassifyGroup rent',          () => eq(autoClassifyGroup({ description: 'ค่าเช่า condo' }), 'rent'));
 test('autoClassifyGroup other',         () => eq(autoClassifyGroup({ description: 'ไม่รู้จัก' }), 'other'));
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// CATEGORIZE — classifier กลาง (ใช้ร่วม PDF/voice/manual)
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\ncategorize.js');
+
+// หมวดเดิม
+test('classify กาแฟ → coffee',          () => eq(classifyCategory('Café Amazon'), 'coffee'));
+test('classify อเมซอน → coffee',        () => eq(classifyCategory('คาเฟ่ อเมซอน'), 'coffee'));
+test('classify ก๋วยเตี๋ยว → food',      () => eq(classifyCategory('ก๋วยเตี๋ยวเรือ'), 'food'));
+test('classify grab food → food',       () => eq(classifyCategory('GRAB FOOD'), 'food'));
+test('classify grab → transport',       () => eq(classifyCategory('Grab ไปทำงาน'), 'transport'));
+
+// หมวดใหม่ — "จับรายละเอียดมากขึ้น"
+test('classify โลตัส → grocery',        () => eq(classifyCategory('Lotus ซื้อของ'), 'grocery'));
+test('classify makro → grocery',        () => eq(classifyCategory('MAKRO'), 'grocery'));
+test('classify 7-eleven → grocery',     () => eq(classifyCategory('7-ELEVEN'), 'grocery'));
+test('classify วัตสัน → beauty',        () => eq(classifyCategory('Watsons'), 'beauty'));
+test('classify ทำผม → beauty',          () => eq(classifyCategory('ร้านทำผม'), 'beauty'));
+test('classify ฟิตเนส → fitness',       () => eq(classifyCategory('Fitness First'), 'fitness'));
+test('classify ค่าเทอม → education',    () => eq(classifyCategory('จ่ายค่าเทอม'), 'education'));
+test('classify ประกัน → insurance',     () => eq(classifyCategory('เบี้ยประกัน AIA'), 'insurance'));
+test('classify โรงแรม → travel',        () => eq(classifyCategory('Agoda จองโรงแรม'), 'travel'));
+test('classify ทำบุญ → donation',       () => eq(classifyCategory('ทำบุญวัด'), 'donation'));
+test('classify ค่าธรรมเนียม → fee',     () => eq(classifyCategory('ค่าธรรมเนียมโอน'), 'fee'));
+test('classify ปันผล → dividend (income)', () => eq(classifyCategory('เงินปันผล', 'income'), 'dividend'));
+test('classify ฟรีแลนซ์ → freelance (income)', () => eq(classifyCategory('รับงานฟรีแลนซ์', 'income'), 'freelance'));
+
+// type sanity
+test('classify เงินเดือน + expense → other', () => eq(classifyCategory('เงินเดือน', 'expense'), 'other'));
+test('classify เงินเดือน + income → salary', () => eq(classifyCategory('เงินเดือน', 'income'), 'salary'));
+test('classify โอน + transfer → transfer',   () => eq(classifyCategory('โอนเงิน', 'transfer'), 'transfer'));
+test('classify โอน + expense → other',       () => eq(classifyCategory('โอนเงิน', 'expense'), 'other'));
+
+// custom category มาก่อน built-in
+test('classify custom keyword ชนะ built-in', () => {
+  setClassifierCategories([{ id: 'mycat', keywords: ['สตาร์บัค'] }]);
+  eq(classifyCategory('สตาร์บัค'), 'mycat');
+  setClassifierCategories([]);   // reset
+});
+test('classify custom regex ผิดไม่ throw', () => {
+  setClassifierCategories([{ id: 'bad', keywords: ['('] }]);  // invalid regex
+  eq(classifyCategory('ข้อความปกติ'), 'other');
+  setClassifierCategories([]);
+});
+
+// empty / unknown
+test('classify ว่าง → other',           () => eq(classifyCategory(''), 'other'));
+test('classify ไม่รู้จัก → other',      () => eq(classifyCategory('xyzabc123'), 'other'));
+
+// source-check: parsers/voice ไม่มี keyword map ซ้ำ (delegate แล้ว)
+const { readFileSync: _rf } = await import('node:fs');
+test('parsers.js: delegate ไป classifyCategory', () => {
+  assert(/classifyCategory/.test(_rf('./js/parsers.js', 'utf8')), 'parsers ต้อง delegate');
+});
+test('voice.js: ไม่มี CATEGORY_PATTERNS ซ้ำ (delegate categorize)', () => {
+  const src = _rf('./js/voice.js', 'utf8');
+  assert(!/CATEGORY_PATTERNS/.test(src), 'voice ต้องไม่มี keyword map ของตัวเอง');
+  assert(/classifyCategory/.test(src), 'voice ต้อง delegate ไป classifyCategory');
+});
 
 // groupRowsByY
 test('groupRowsByY groups same Y',      () => {
@@ -579,7 +642,7 @@ test('voice shopee = shopping',         () => eq(parseIntent('ซื้อขอ
 test('voice ค่าไฟ = utility',           () => eq(parseIntent('จ่ายค่าไฟ 450').group, 'utility'));
 test('voice โรงพยาบาล = health',        () => eq(parseIntent('ไปโรงพยาบาล 500').group, 'health'));
 test('voice netflix = entertainment',   () => eq(parseIntent('จ่าย netflix 299').group, 'entertainment'));
-test('voice ค่าเช่า → utility (nt match)', () => eq(parseIntent('ค่าเช่า 5000').group, 'utility'));
+test('voice ค่าเช่า → rent (แม่นขึ้นหลังรวม classifier)', () => eq(parseIntent('ค่าเช่า 5000').group, 'rent'));
 test('voice เงินเดือน income = salary', () => eq(parseIntent('ได้เงินเดือน 25000').group, 'salary'));
 test('voice โบนัส income = bonus',      () => eq(parseIntent('ได้รับโบนัส 50000').group, 'bonus'));
 test('voice unknown = other',           () => eq(parseIntent('ทำบางอย่าง 100').group, 'other'));

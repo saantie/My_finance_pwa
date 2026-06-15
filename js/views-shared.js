@@ -274,7 +274,7 @@ export function bindEntryActions(container) {
    Category Manager — หน้าจัดการหมวดหมู่
    =================================================================== */
 
-const MAX_CUSTOM_CATEGORIES = 37; // 50 total - 13 built-in
+const MAX_CUSTOM_CATEGORIES = 27; // 50 total - 23 built-in
 
 /** เปิด overlay จัดการหมวดหมู่ */
 export function openCategoryManager(onClose = null) {

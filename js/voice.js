@@ -14,6 +14,9 @@
    =================================================================== */
 
 
+import { classifyCategory } from './categorize.js';
+
+
 /* === VoiceRecorder ============================================== */
 
 export class VoiceRecorder {
@@ -217,41 +220,10 @@ function parseThaiNumber(text) {
 }
 
 
-/* === Detect category =========================================== */
-
-const CATEGORY_PATTERNS = {
-  // Order matters — เฉพาะเจาะจงก่อน
-  coffee:        /กาแฟ|coffee|latte|espresso|americano|คาปูชิโน่|มอคค่า|สตาร์บัค|amazon|cafe|คาเฟ่/i,
-  food:          /กิน|ข้าว|อาหาร|ก๋วยเตี๋ยว|ส้มตำ|ผัด|ก๋วย|ส้ม|มื้อ|ข้าวเที่ยง|ข้าวเช้า|ข้าวเย็น|ราเมง|ซูชิ|พิซซ่า|เบอร์เกอร์|ของหวาน|ขนม/,
-  transport:     /รถ|แท็กซี่|วิน|มอเตอร์ไซค์|bts|mrt|grab|bolt|lineman|เดินทาง|น้ำมัน|รถเมล์|เรือ|รถไฟ|tuk|tuktuk|เติมน้ำมัน|ค่าทาง/i,
-  shopping:      /ช้อป|ซื้อของ|เสื้อ|กางเกง|รองเท้า|กระเป๋า|เครื่องสำอาง|lazada|shopee|amazon|tiktok shop|ของใช้|ขวดน้ำหอม/i,
-  utility:       /ค่าไฟ|ค่าน้ำ|ค่าเน็ต|wifi|อินเทอร์เน็ต|ค่าโทร|ค่ามือถือ|true|ais|dtac|nt|mea|กฟภ|กฟน|กปภ|ค่าเช่า|ค่าบ้าน|ค่าหอ/i,
-  rent:          /ค่าเช่า|ค่าหอ|ค่าบ้าน|rent/i,
-  health:        /หมอ|โรงพยาบาล|ยา|คลินิก|วิตามิน|ตรวจสุขภาพ|รพ|ฟัน|พบแพทย์/,
-  entertainment: /หนัง|movie|netflix|youtube|spotify|เกม|game|ดิสนีย์|disney|prime|wechat|line tv|viu|iqiyi/i,
-  salary:        /เงินเดือน|salary|payroll/i,
-  bonus:         /โบนัส|bonus|incentive/i,
-  refund:        /คืนเงิน|refund|reimburse/i,
-  transfer:      /โอน|transfer/i
-};
-
+/* === Detect category — delegate ไป classifier กลาง (categorize.js) ===
+   keyword/หมวด/type-sanity เดียวกับ PDF import + manual entry */
 function detectCategory(text, type) {
-  // Filter patterns ที่เกี่ยวกับ type ปัจจุบัน
-  for (const [group, pattern] of Object.entries(CATEGORY_PATTERNS)) {
-    if (pattern.test(text)) {
-      // ถ้า type=income แต่ detect ว่า food/coffee → ผู้ใช้อาจหมายถึง expense
-      // sanity check: salary/bonus/refund = income only; transfer = transfer only
-      if (group === 'salary' || group === 'bonus' || group === 'refund') {
-        return type === 'income' ? group : 'other';
-      }
-      if (group === 'transfer') {
-        return type === 'transfer' ? group : 'other';
-      }
-      // เป็น expense category — return ตรงๆ
-      return group;
-    }
-  }
-  return 'other';
+  return classifyCategory(text, type);
 }
 
 

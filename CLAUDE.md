@@ -176,6 +176,8 @@ ktb #5fb0e0→#3787c5 · kbank #6cc16c→#45984a · scb #b378c0→#8a59a0 · bbl
 **Category colors (white Lucide stroke on solid bg — Apple Wallet pattern, never tinted bg):**
 food #ff8a5c · transport #5e9bd6 · shopping #e879a3 · utility #f0b942 · health #5a9d63 · entertain #8b6db5 · rent #b8825e · salary #5a9d63 · creditcard #d96b5e · promptpay #5e9bd6
 
+**Category classification (June 2026):** classifier เดียว `classifyCategory(text, type)` ใน `js/categorize.js` — ใช้ร่วมทั้ง PDF import (`parsers.autoClassifyGroup` delegate), voice (`voice.detectCategory` delegate), และ manual entry (add.js ไฮไลต์ chip แนะนำตอนพิมพ์ note, ไม่เลือกอัตโนมัติ). keyword map รวมที่เดียว เรียง specific→general + type-sanity (income-only/transfer-only). custom-category keywords มาก่อน built-in. **23 หมวด built-in** (เพิ่ม grocery/beauty/fitness/education/insurance/travel/donation/fee/freelance/dividend) → `MAX_CUSTOM_CATEGORIES` = 27.
+
 **Themes:** each overrides `--primary`, `.fab`, `.hero::before`, `.add-save` via `data-theme` on `<html>`; `applyTheme()`/`applyDark()` in views.js. Carbon = navy #1e3a72, cool bg #f1f4f9, Noto Sans Thai, tabular-nums, tighter radius, own dark-safe palette (#0d1829). Pro mode = navy/serif/sharp 2px radius.
 
 **Dark-mode gotcha:** `.chip`, `.seg-item`, sign-in button need explicit contrast overrides under `html[data-dark="1"]` — white-on-white text bug pattern.

@@ -129,17 +129,27 @@ export function svgIcon(name, opts = {}) {
 export const CATEGORIES = {
   // รายจ่าย
   food:          { label: 'อาหาร',     color: 'var(--clay)',      icon: 'utensils', type: ['expense'] },
+  grocery:       { label: 'ของชำ',      color: '#6cc16c',          icon: 'shopping-cart', type: ['expense'] },
   coffee:        { label: 'กาแฟ',      color: 'var(--mocha)',     icon: 'coffee',   type: ['expense'] },
   transport:     { label: 'เดินทาง',    color: 'var(--dust-blue)', icon: 'bus',      type: ['expense'] },
   shopping:      { label: 'ช้อปปิ้ง',  color: 'var(--plum)',      icon: 'bag',      type: ['expense'] },
+  beauty:        { label: 'ความงาม',    color: '#e06880',          icon: 'scissors', type: ['expense'] },
   utility:       { label: 'ค่าบ้าน',    color: 'var(--honey)',     icon: 'zap',      type: ['expense'] },
+  rent:          { label: 'ค่าเช่า',    color: 'var(--mocha)',     icon: 'home',     type: ['expense'] },
   health:        { label: 'สุขภาพ',     color: 'var(--sage)',      icon: 'heart',    type: ['expense'] },
+  fitness:       { label: 'ออกกำลังกาย', color: '#d96b5e',         icon: 'dumbbell', type: ['expense'] },
+  education:     { label: 'การศึกษา',   color: '#4f7eb8',          icon: 'book',     type: ['expense'] },
+  insurance:     { label: 'ประกัน',     color: '#1e3a72',          icon: 'umbrella', type: ['expense'] },
   entertainment: { label: 'บันเทิง',    color: 'var(--plum)',      icon: 'gamepad',  type: ['expense'] },
-  rent:          { label: 'ค่าเช่า',    color: 'var(--mocha)',     icon: 'zap',      type: ['expense'] },
+  travel:        { label: 'ท่องเที่ยว', color: '#8b6db5',          icon: 'plane',    type: ['expense'] },
+  donation:      { label: 'บริจาค',     color: '#e8b649',          icon: 'gift',     type: ['expense'] },
+  fee:           { label: 'ค่าธรรมเนียม', color: '#c89368',        icon: 'credit-card', type: ['expense'] },
 
   // รายรับ
   salary:        { label: 'เงินเดือน',  color: 'var(--sage)',      icon: 'cash',     type: ['income'] },
+  freelance:     { label: 'งานเสริม',   color: '#6cc16c',          icon: 'briefcase', type: ['income'] },
   bonus:         { label: 'โบนัส',      color: 'var(--sage)',      icon: 'cash',     type: ['income'] },
+  dividend:      { label: 'ดอกเบี้ย/ปันผล', color: '#6cc16c',     icon: 'dollar-sign', type: ['income'] },
   refund:        { label: 'คืนเงิน',    color: 'var(--sage)',      icon: 'cash',     type: ['income'] },
 
   // โอน

@@ -1532,6 +1532,24 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   border-color: var(--clay);
   background: var(--clay-soft);
 }
+/* หมวดแนะนำจาก note ที่พิมพ์ — เส้นประไฮไลต์ + ป้าย "แนะนำ" (ยังไม่ถูกเลือก) */
+.cat-chip--suggested:not(.active) {
+  border-color: var(--primary);
+  border-style: dashed;
+}
+.cat-chip--suggested:not(.active)::after {
+  content: 'แนะนำ';
+  position: absolute;
+  top: -7px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  padding: 1px 6px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.cat-chip { position: relative; }
 .cat-chip-icon {
   width: 36px;
   height: 36px;
