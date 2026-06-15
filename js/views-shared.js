@@ -87,6 +87,14 @@ export function showCoinToast(reward) {
 }
 
 
+/* === Recurring suggestions — shared state ระหว่าง import flow (เขียน)
+   กับ settings (อ่าน/ลบ). เก็บเป็น array เดียว เข้าถึงผ่าน accessor
+   (splice บน getRecurSuggestions() ได้เพราะคืน reference เดิม) ================= */
+let _recurSuggestions = [];
+export function getRecurSuggestions() { return _recurSuggestions; }
+export function setRecurSuggestions(v) { _recurSuggestions = Array.isArray(v) ? v : []; }
+
+
 /* === Transaction entry row (ใช้ร่วม dashboard + list) ============= */
 function shortName(email) {
   if (!email) return null;

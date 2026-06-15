@@ -31,7 +31,8 @@ import { getDemoTransactions, getDemoRecurringTemplates } from './demo-data.js';
 import {
   renderEmptyState, escapeHtml, showToast, showCoinToast,
   applyTheme, applyTextSize, applyDark,
-  renderEntryRow, bindEntryActions
+  renderEntryRow, bindEntryActions,
+  getRecurSuggestions, setRecurSuggestions
 } from './views-shared.js';
 export {
   renderEmptyState, escapeHtml, showToast, showCoinToast,
@@ -97,9 +98,6 @@ const SQUIGGLE = `<svg class="squiggle" viewBox="0 0 200 12" preserveAspectRatio
 let _heroChartInstance = null;
 let _ChartClass        = null;
 let _heroChartPayload  = null;  // ข้อมูลสำหรับ initHeroChart ที่เรียกหลัง DOM insert
-
-// Recurring suggestions ที่ detect หลัง e-Statement import (module-level, reset เมื่อ dismiss)
-let _recurSuggestions = [];
 
 /** คืน yearMonth ก่อนหน้า เช่น "2026-05" → "2026-04" */
 function prevYearMonth(ym) {
@@ -1735,7 +1733,7 @@ function confirmImport(result) {
   // ตรวจหา recurring patterns อัตโนมัติหลัง import
   const suggestions = Recurring.detectRecurringPatterns(State.getTransactions());
   if (suggestions.length > 0) {
-    _recurSuggestions = suggestions;
+    setRecurSuggestions(suggestions);
     setTimeout(() => showToast(`พบ ${suggestions.length} รายการประจำที่น่าตั้งไว้ → ดูใน ตั้งค่า`), 800);
   }
 
@@ -1868,7 +1866,7 @@ export function setSettingsOpenSection(id) { _settingsOpenSection = id; }
 
 function _recurMeta() {
   const n = Recurring.getActiveTemplates().length;
-  const s = _recurSuggestions.length;
+  const s = getRecurSuggestions().length;
   if (s > 0) return n > 0 ? `${n} รายการ · ใหม่ ${s}` : `ตรวจพบ ${s} ใหม่`;
   return n > 0 ? `${n} รายการ` : '';
 }
@@ -2444,10 +2442,10 @@ export function renderSettings(container) {
   container.querySelectorAll('.recur-suggest-add').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.idx);
-      const s = _recurSuggestions[idx];
+      const s = getRecurSuggestions()[idx];
       if (!s) return;
       // splice ก่อน addTemplate เพราะ addTemplate trigger re-render ซิงโครนัส
-      _recurSuggestions.splice(idx, 1);
+      getRecurSuggestions().splice(idx, 1);
       Recurring.addTemplate({
         type:        s.type,
         amount:      s.amount,
@@ -2457,14 +2455,14 @@ export function renderSettings(container) {
         first_due:   s.next_due
       });
       showToast(`เพิ่ม "${s.description}" เป็นรายการประจำแล้ว ✓`);
-      // addTemplate → save() → listener → renderCurrentView() (re-render อัตโนมัติ พร้อม _recurSuggestions ที่ splice แล้ว)
+      // addTemplate → save() → listener → renderCurrentView() (re-render อัตโนมัติ พร้อม getRecurSuggestions() ที่ splice แล้ว)
     });
   });
 
   container.querySelectorAll('.recur-suggest-skip').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.idx);
-      _recurSuggestions.splice(idx, 1);
+      getRecurSuggestions().splice(idx, 1);
       // re-render settings page โดยตรง (container ยังอยู่ใน scope)
       renderSettings(container);
     });
@@ -3022,13 +3020,13 @@ function showAccountModal(existingAcct, settingsContainer) {
 
 /** Render suggestion cards จาก detectRecurringPatterns */
 function renderRecurringSuggestions() {
-  if (_recurSuggestions.length === 0) return '';
+  if (getRecurSuggestions().length === 0) return '';
   const freqLabel = { monthly: 'ทุกเดือน', weekly: 'ทุกสัปดาห์' };
 
   return `
-    <div class="settings-sub-label">ตรวจพบรายการประจำ · ${_recurSuggestions.length} รายการ</div>
+    <div class="settings-sub-label">ตรวจพบรายการประจำ · ${getRecurSuggestions().length} รายการ</div>
     <div class="card card-padded">
-        ${_recurSuggestions.map((s, i) => {
+        ${getRecurSuggestions().map((s, i) => {
           const def = getCategory(s.group);
           const samples = s.sampleDates.map(d => formatShortDate(d)).join(', ');
           return `
