@@ -1523,6 +1523,15 @@ const _listMod = await import('../js/views-list.js');
 test('views-list.js: โหลดได้ + export renderList', () => {
   eq(typeof _listMod.renderList, 'function', 'views-list ต้อง export renderList');
 });
+const _settingsMod = await import('../js/views-settings.js');
+test('views-settings.js: โหลดได้ + export renderSettings/setSettingsOpenSection', () => {
+  eq(typeof _settingsMod.renderSettings, 'function', 'ต้อง export renderSettings');
+  eq(typeof _settingsMod.setSettingsOpenSection, 'function', 'ต้อง export setSettingsOpenSection');
+});
+test('views-shared.js: export category manager + cash override', () => {
+  eq(typeof _sharedMod.openCategoryManager, 'function', 'ต้อง export openCategoryManager');
+  eq(typeof _sharedMod.showCashOverrideDialog, 'function', 'ต้อง export showCashOverrideDialog');
+});
 
 
 // ─── Summary ─────────────────────────────────────────────────────────

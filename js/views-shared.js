@@ -8,7 +8,7 @@
 
 import * as State from './state.js';
 import { svgIcon, getCategory, CATEGORIES, ICON_PICKER_KEYS, COLOR_PALETTE } from './icons.js';
-import { haptic, formatTime, formatBaht } from './utils.js';
+import { haptic, formatTime, formatBaht, todayISO } from './utils.js';
 import { getLevelInfo } from './gamification.js';
 
 /* === Empty state card (icon + title + subtitle + ปุ่ม CTA) ======== */
@@ -539,5 +539,79 @@ function openCategoryEditModal(existingCat, onSave) {
     modal.remove();
     onSave?.();
     showToast(isEdit ? 'แก้ไขหมวดหมู่แล้ว' : 'เพิ่มหมวดหมู่แล้ว');
+  });
+}
+
+
+/* === Cash override dialog (ใช้ร่วม import flow + settings) ======== */
+/** Dialog ถามยอดเงินสดจริงในมือ — แสดงหลัง e-Statement import มี ATM / หรือกด แก้ไข ใน settings */
+export function showCashOverrideDialog(cashAcct, onClose = null) {
+  const existing = cashAcct.cash_balance_override != null
+    ? (cashAcct.cash_balance_override / 100).toFixed(0)
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="acct-modal">
+      <div class="acct-modal-head">เงินสดในมือตอนนี้</div>
+      <div class="acct-modal-body">
+        <div class="setting-sub" style="margin-bottom:14px;line-height:1.5">
+          พบรายการถอน ATM — ตอนนี้มีเงินสดในมือจริงๆ เท่าไหร่?<br>
+          (ใส่ยอดปัจจุบัน เพื่อให้ยอดคงเหลือถูกต้อง)
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="cash-override-input" type="number" inputmode="decimal"
+            placeholder="0" value="${existing}"
+            style="flex:1;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;font-size:18px;background:var(--surface);color:var(--ink);text-align:right">
+          <span style="font-size:16px;color:var(--ink-faint)">฿</span>
+        </div>
+      </div>
+      <div class="acct-modal-footer" style="display:flex;gap:8px">
+        <button class="cancel" id="cash-override-skip" style="flex:1">ข้ามก่อน</button>
+        <button class="confirm" id="cash-override-save" style="flex:2">บันทึก</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // ปรับตำแหน่ง overlay เมื่อแป้นพิมพ์โผล่
+  if (window.visualViewport) {
+    const adjustForKeyboard = () => {
+      const vv = window.visualViewport;
+      overlay.style.height = vv.height + 'px';
+      overlay.style.top = vv.offsetTop + 'px';
+    };
+    adjustForKeyboard();
+    window.visualViewport.addEventListener('resize', adjustForKeyboard);
+    window.visualViewport.addEventListener('scroll', adjustForKeyboard);
+    const origRemoveOverlay = overlay.remove.bind(overlay);
+    overlay.remove = () => {
+      window.visualViewport.removeEventListener('resize', adjustForKeyboard);
+      window.visualViewport.removeEventListener('scroll', adjustForKeyboard);
+      origRemoveOverlay();
+    };
+  }
+
+  const input = overlay.querySelector('#cash-override-input');
+  input.focus();
+  input.select();
+
+  const closeDialog = () => {
+    overlay.remove();
+    onClose?.();
+  };
+
+  overlay.querySelector('#cash-override-skip').addEventListener('click', closeDialog);
+
+  overlay.querySelector('#cash-override-save').addEventListener('click', () => {
+    const val = parseFloat(input.value);
+    if (isNaN(val) || val < 0) {
+      showToast('ใส่จำนวนเงินให้ถูกต้อง');
+      return;
+    }
+    State.setCashOverride(cashAcct.id, Math.round(val * 100), todayISO());
+    showToast('บันทึกยอดเงินสดแล้ว');
+    closeDialog();
   });
 }
