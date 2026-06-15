@@ -288,10 +288,17 @@ js/
   drive.js            Drive backup: uploadBackup/downloadBackup/requestDriveAccess
   gemini.js           AI fallback (see §8)
   add.js              add/edit modal, openAccountPickerModal(), bankGradient()
-  views.js            all views; review modal + account confirmation; confirmImport;
-                      assignTxAccounts(); _runGeminiFallback
+  views.js            barrel — re-export จาก views-* clusters (16 บรรทัด; app.js/add.js import จากที่นี่)
+  views-shared.js     primitives ใช้ร่วม: escapeHtml, renderEmptyState, showToast/showCoinToast,
+                      applyTheme/TextSize/Dark, renderEntryRow+bindEntryActions, openCategoryManager,
+                      showCashOverrideDialog, _recurSuggestions accessors
+  views-dashboard.js  hero card+charts, spending, forecast 30 วัน, upcoming, donut (chart state)
+  views-list.js       LIST view (เดือน/filter/search/day groups)
+  views-import.js     IMPORT money-path: review modal + account confirm + confirmImport + Gemini fallback
+  views-settings.js   SETTINGS: accordion, แชร์บัญชี (Firebase), recurring, แจ้งเตือน
   app.js              entry, routing, auth lifecycle
-tests/run.mjs         280 tests — all passing; runner exits 1 on failure
+tests/run.mjs         344 tests — all passing; runner exits 1 on failure
+                      (มี module-load + export-shape net สำหรับ views-* clusters)
 tests/loader.mjs      ESM loader mocking Firebase CDN imports for Node
 .github/workflows/test.yml  CI: runs tests on every push/PR to main
 ```
@@ -322,7 +329,7 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 
 | Debt | Pay when |
 |---|---|
-| `views.js` ~3,000 lines — all views + import flow + review modal in one file | split after launch (too risky before) |
+| ~~`views.js` ~3,000 lines — all views in one file~~ | ✅ DONE (มิ.ย. 2026) — split เป็น views-{shared,dashboard,list,import,settings}.js; views.js เหลือ barrel 16 บรรทัด; verbatim move + module-load test net |
 | `prompt()`/`confirm()` still used for PDF password + AI-consent dialogs | replace with styled modals during microinteractions polish |
 | Parser upserts detected account at *parse* time, before review confirm — overridden accounts linger empty | move account creation into confirmImport |
 | Review-modal account-picker card uses inline styles | move to styles.css with next CSS touch |
