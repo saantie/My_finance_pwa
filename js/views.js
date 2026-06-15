@@ -27,14 +27,16 @@ import {
 } from './firebase.js';
 import { checkCatchupOpportunity, dismissCatchup } from './catchup.js';
 import { getDemoTransactions, getDemoRecurringTemplates } from './demo-data.js';
-// Phase B: primitives ย้ายไป views-shared.js — import มาใช้ภายใน + re-export ให้ app.js/add.js
+// Phase B: primitives + entry-row ย้ายไป views-shared.js — import มาใช้ภายใน + re-export ให้ app.js/add.js
 import {
   renderEmptyState, escapeHtml, showToast, showCoinToast,
-  applyTheme, applyTextSize, applyDark
+  applyTheme, applyTextSize, applyDark,
+  renderEntryRow, bindEntryActions
 } from './views-shared.js';
 export {
   renderEmptyState, escapeHtml, showToast, showCoinToast,
-  applyTheme, applyTextSize, applyDark
+  applyTheme, applyTextSize, applyDark,
+  bindEntryActions
 } from './views-shared.js';
 import {
   ensurePermission, getPermissionState, testNotification,
@@ -1216,181 +1218,6 @@ function renderDonutChart(cats) {
 
 
 /* === Helper: entry row (transaction) ============================ */
-function shortName(email) {
-  if (!email) return null;
-  return email.split('@')[0];
-}
-
-
-function renderEntryRow(tx, decimals = 0) {
-  const def = getCategory(tx.group);
-  const time = formatTime(tx.createdAt || tx.date);
-  const isIncome = tx.type === 'income';
-  const isTransfer = tx.type === 'transfer';
-  const sign = isIncome ? '+' : (isTransfer ? '↔' : '−');
-  const amtClass = isIncome ? 'income' : (isTransfer ? 'transfer' : '');
-  const isDeleted = tx.deleted_by != null;
-
-  // ตรวจว่าเป็นรายการในบัญชีแชร์ (cloud account) หรือไม่
-  const acctIdForShared = tx.account_from || tx.account_to;
-  const acctForShared = acctIdForShared ? State.getAccount(acctIdForShared) : null;
-  const isShared = acctForShared?.storage === 'cloud';
-
-  // Account line (แยกบรรทัดใต้หมวด — อ่านง่ายกว่า badge เล็กๆ)
-  let acctLine = '';
-  if (isTransfer && tx.account_from && tx.account_to) {
-    const fromName = State.getAccount(tx.account_from)?.display_name || tx.account_from;
-    const toName   = State.getAccount(tx.account_to)?.display_name   || tx.account_to;
-    acctLine = `<div class="entry-acct-line">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>`;
-  } else {
-    const acctId = isIncome ? tx.account_to : tx.account_from;
-    const acct = acctId ? State.getAccount(acctId) : null;
-    if (acct) {
-      acctLine = `<div class="entry-acct-line">${escapeHtml(acct.display_name)}</div>`;
-    }
-  }
-
-  const authorNote = isDeleted
-    ? `<div class="entry-author">ลบโดย ${escapeHtml(shortName(tx.deleted_by))}</div>`
-    : (tx.created_by
-        ? `<div class="entry-author">เพิ่มโดย ${escapeHtml(shortName(tx.created_by))}</div>`
-        : '');
-
-  // สัญลักษณ์บัญชีแชร์ — ไอคอน users เล็กๆ หน้าหมวดหมู่
-  const sharedBadge = isShared
-    ? `<span class="shared-badge" title="บัญชีแชร์">${svgIcon('users', { size: 11, stroke: 2 })}</span>`
-    : '';
-
-  return `
-    <div class="entry${isDeleted ? ' entry-deleted' : ''}" data-tx-id="${tx.id}">
-      <span class="entry-time">${time}</span>
-      <div class="entry-icon" style="background: ${def.color}">
-        ${svgIcon(def.icon, { size: 16, stroke: 2 })}
-      </div>
-      <div class="entry-body">
-        <div class="entry-name">${escapeHtml(tx.description || def.label)}${tx.source === 'sample' ? ' <span class="demo-tag">Demo</span>' : ''}</div>
-        <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
-          ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
-          : ''}</div>
-        ${acctLine}
-        ${authorNote}
-      </div>
-      <div class="entry-right">
-        <div class="entry-amt ${amtClass}">${sign}${formatBaht(tx.amount, { decimals })} ฿</div>
-        <div class="entry-actions">
-          ${isDeleted ? '' : `<button class="entry-action-btn" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 13, stroke: 2 })}</button>`}
-          <button class="entry-action-btn del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}" title="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 13, stroke: 2 })}</button>
-        </div>
-      </div>
-      <div class="entry-swipe-actions">
-        ${isDeleted ? '' : `<button class="swipe-btn swipe-edit" data-action="edit-tx" data-tx-id="${tx.id}" aria-label="แก้ไข">${svgIcon('edit', { size: 18, stroke: 2 })}</button>`}
-        <button class="swipe-btn swipe-del" data-action="delete-tx" data-tx-id="${tx.id}" aria-label="${isDeleted ? 'ลบถาวร' : 'ลบ'}">${svgIcon('delete', { size: 18, stroke: 2 })}</button>
-      </div>
-    </div>
-  `;
-}
-
-// ป้องกัน bindEntryActions ถูกเรียกซ้ำบน container เดิม (event delegation ผูกครั้งเดียวพอ)
-const _boundEntryContainers = new WeakSet();
-
-/** Bind edit/delete actions บน container ที่มี entry rows */
-export function bindEntryActions(container) {
-  if (_boundEntryContainers.has(container)) return;
-  _boundEntryContainers.add(container);
-
-  // === Click / tap ===
-  container.addEventListener('click', async (e) => {
-    const editBtn = e.target.closest('[data-action="edit-tx"]');
-    const delBtn  = e.target.closest('[data-action="delete-tx"]');
-
-    // Tap on swiped entry body (not a button) → close swipe
-    const tappedEntry = e.target.closest('.entry');
-    if (tappedEntry?.classList.contains('swiped') && !editBtn && !delBtn) {
-      tappedEntry.classList.remove('swiped');
-      return;
-    }
-
-    // Close swipe panel before opening edit/delete
-    if (editBtn || delBtn) {
-      tappedEntry?.classList.remove('swiped');
-    }
-
-    if (editBtn) {
-      const id = editBtn.dataset.txId;
-      const tx = State.getTransactions().find(t => t.id === id);
-      if (!tx) return;
-      history.pushState({ view: 'modal', modal: 'edit' }, '', '#edit');
-      const { openEditModal } = await import('./add.js');
-      openEditModal(tx);
-    }
-
-    if (delBtn) {
-      const id = delBtn.dataset.txId;
-      // ใช้ getState().transactions แทน getTransactions() เพราะ
-      // getTransactions() กรอง soft-deleted (deleted_by != null) ออก
-      // → หา transaction สีเทาไม่เจอ → if (!tx) return ก่อนเลย
-      const tx = State.getState().transactions.find(t => t.id === id);
-      if (!tx) return;
-      const desc = tx.description || getCategory(tx.group).label;
-      // รายการที่ถูก soft-delete แล้ว → ลบถาวร (หายจริงจากทุกฝ่าย)
-      const isPermanent = tx.deleted_by != null;
-      const msg = isPermanent ? `ลบถาวร "${desc}"?\nรายการจะหายจากทุกฝ่าย` : `ลบ "${desc}"?`;
-      if (!confirm(msg)) return;
-      const entryEl = delBtn.closest('.entry');
-      if (entryEl) {
-        entryEl.style.transition = 'transform 0.2s, opacity 0.2s';
-        entryEl.style.transform  = 'translateX(100%)';
-        entryEl.style.opacity    = '0';
-        setTimeout(() => {
-          State.deleteTransaction(id);
-          showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
-        }, 200);
-      } else {
-        State.deleteTransaction(id);
-        showToast(isPermanent ? 'ลบถาวรแล้ว' : 'ลบรายการแล้ว');
-      }
-    }
-  });
-
-  // === Swipe-left gesture (touch devices) ===
-  let _startX = 0, _startY = 0, _dir = null, _swipeEl = null;
-
-  container.addEventListener('touchstart', e => {
-    const touched = e.target.closest('.entry');
-    container.querySelectorAll('.entry.swiped').forEach(el => {
-      if (el !== touched) el.classList.remove('swiped');
-    });
-    if (!touched) { _swipeEl = null; return; }
-    _startX  = e.touches[0].clientX;
-    _startY  = e.touches[0].clientY;
-    _swipeEl = touched;
-    _dir     = null;
-  }, { passive: true });
-
-  container.addEventListener('touchmove', e => {
-    if (!_swipeEl) return;
-    const dx = e.touches[0].clientX - _startX;
-    const dy = e.touches[0].clientY - _startY;
-    if (!_dir) {
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-      _dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
-    }
-    if (_dir === 'v') _swipeEl = null;
-  }, { passive: true });
-
-  container.addEventListener('touchend', e => {
-    if (!_swipeEl) return;
-    const dx = e.changedTouches[0].clientX - _startX;
-    if (_swipeEl.classList.contains('swiped')) {
-      if (dx > 40) _swipeEl.classList.remove('swiped');
-    } else {
-      if (dx < -60) _swipeEl.classList.add('swiped');
-    }
-    _swipeEl = null; _dir = null;
-  }, { passive: true });
-}
-
-
 /* ===================================================================
    LIST VIEW (บันทึก)
    =================================================================== */
