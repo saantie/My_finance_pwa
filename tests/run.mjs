@@ -1513,6 +1513,17 @@ for (const name of VIEWS_PUBLIC_API) {
   });
 }
 
+// Phase B cluster modules — โหลดได้ + export ตามสัญญา (จับ import พังตอนแยกไฟล์)
+const _sharedMod = await import('../js/views-shared.js');
+test('views-shared.js: โหลดได้ + export primitives', () => {
+  for (const n of ['escapeHtml', 'renderEmptyState', 'showToast', 'renderEntryRow', 'bindEntryActions'])
+    eq(typeof _sharedMod[n], 'function', `views-shared ต้อง export ${n}`);
+});
+const _listMod = await import('../js/views-list.js');
+test('views-list.js: โหลดได้ + export renderList', () => {
+  eq(typeof _listMod.renderList, 'function', 'views-list ต้อง export renderList');
+});
+
 
 // ─── Summary ─────────────────────────────────────────────────────────
 const total = passed + failed;
