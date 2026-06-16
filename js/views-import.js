@@ -14,7 +14,7 @@ import {
 } from './utils.js';
 import { findPotentialDuplicates } from './duplicate-detector.js';
 import {
-  escapeHtml, showToast, setRecurSuggestions, showCashOverrideDialog
+  escapeHtml, showToast, setRecurSuggestions, showCashOverrideDialog, categoryLabel
 } from './views-shared.js';
 
 
@@ -453,7 +453,7 @@ function renderReviewRow(tx, idx, matchingTx, isSelected) {
           ${isDuplicate ? `<span class="dup-badge">อาจซ้ำกับ ${formatShortDate(matchingTx.date)}</span>` : ''}
           ${isATM ? '<span class="atm-badge">→ เงินสด</span>' : ''}
         </div>
-        <div class="entry-cat">${def.label}${tx.balance != null
+        <div class="entry-cat">${categoryLabel(tx)}${tx.balance != null
           ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
           : ''}</div>
       </div>

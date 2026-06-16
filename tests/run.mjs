@@ -65,7 +65,7 @@ const {
   detectColumns, isSkipRow, verifyParseResult
 } = await import('../js/parsers.js');
 
-const { classifyCategory, KEYWORD_GROUPS, setClassifierCategories } = await import('../js/categorize.js');
+const { classifyCategory, KEYWORD_GROUPS, setClassifierCategories, deriveLabelFromText } = await import('../js/categorize.js');
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -508,6 +508,14 @@ test('classify custom regex ผิดไม่ throw', () => {
 // empty / unknown
 test('classify ว่าง → other',           () => eq(classifyCategory(''), 'other'));
 test('classify ไม่รู้จัก → other',      () => eq(classifyCategory('xyzabc123'), 'other'));
+
+// deriveLabelFromText — ป้ายจากคำใน description (แทน "อื่นๆ")
+test('derive: ตัดเลข/ref เหลือชื่อร้าน', () => eq(deriveLabelFromText('X2345 SOMCHAI SHOP REF 99887'), 'SOMCHAI SHOP'));
+test('derive: ตัดวันที่/เวลา',          () => eq(deriveLabelFromText('12/05/68 08:30 ร้านป้าแดง'), 'ร้านป้าแดง'));
+test('derive: คำ generic ถูกตัด',       () => eq(deriveLabelFromText('โอนเงิน ค่า ABCMART'), 'ABCMART'));
+test('derive: มีแต่เลข/noise → ว่าง',   () => eq(deriveLabelFromText('123456 REF 7890'), ''));
+test('derive: ว่าง → ว่าง',             () => eq(deriveLabelFromText(''), ''));
+test('derive: จำกัดความยาว ≤24',        () => assert(deriveLabelFromText('ABCDEFGHIJ KLMNOPQRST UVWXYZ12345').length <= 24));
 
 // source-check: parsers/voice ไม่มี keyword map ซ้ำ (delegate แล้ว)
 const { readFileSync: _rf } = await import('node:fs');

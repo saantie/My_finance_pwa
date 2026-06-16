@@ -106,3 +106,39 @@ function safeTest(pattern, text) {
     return text.toLowerCase().includes(pattern.toLowerCase());
   }
 }
+
+/* === Derive label จาก description (สำหรับรายการที่จับหมวดไม่ได้) =====
+   แทนการแสดง "อื่นๆ" ให้ดึงคำที่มีความหมายจาก description มาเป็นป้ายแทน
+   (ตัด เลข/วันที่/เวลา/ref/โค้ดธุรกรรม/คำ generic ของ statement ออก)
+   คืน '' ถ้าไม่เหลือคำที่มีความหมาย → caller fallback เป็น 'อื่นๆ' */
+const _NOISE_TOKEN = new RegExp('^(?:' + [
+  // generic statement / banking noise (ไทย)
+  'รายการ', 'โอน', 'โอนเงิน', 'เงินโอน', 'ชำระ', 'ชำระเงิน', 'ผ่าน', 'บัญชี',
+  'เข้า', 'ออก', 'จาก', 'ไป', 'ยัง', 'ที่', 'ค่า', 'รับ', 'จ่าย', 'เงิน',
+  // generic (อังกฤษ)
+  'ref', 'seq', 'no', 'trn', 'txn', 'tx', 'ft', 'id', 'via', 'to', 'from',
+  'the', 'at', 'of', 'payment', 'transfer', 'debit', 'credit', 'purchase',
+  'pos', 'qr', 'code', 'bill', 'fee',
+].join('|') + ')$', 'i');
+
+export function deriveLabelFromText(text) {
+  if (!text) return '';
+  const cleaned = String(text)
+    // เลข/วันที่/เวลา/จำนวนเงิน (รวมที่มี , . : / -)
+    .replace(/\d[\d.,:/-]*/g, ' ')
+    // สัญลักษณ์คั่น
+    .replace(/[*#@/\\|()[\]{}<>~_=+]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+
+  const tokens = cleaned.split(' ').filter(tok =>
+    tok.length >= 2 &&            // ตัดตัวอักษรเดี่ยว (เช่น X, ก)
+    !_NOISE_TOKEN.test(tok)       // ตัดคำ generic
+  );
+  if (tokens.length === 0) return '';
+
+  // เอาคำที่มีความหมาย 1-3 คำแรก (มักเป็นชื่อร้าน/merchant)
+  const label = tokens.slice(0, 3).join(' ').trim();
+  return label.length > 24 ? label.slice(0, 24).trim() : label;
+}

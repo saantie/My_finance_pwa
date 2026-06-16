@@ -10,6 +10,17 @@ import * as State from './state.js';
 import { svgIcon, getCategory, CATEGORIES, ICON_PICKER_KEYS, COLOR_PALETTE } from './icons.js';
 import { haptic, formatTime, formatBaht, todayISO } from './utils.js';
 import { getLevelInfo } from './gamification.js';
+import { deriveLabelFromText } from './categorize.js';
+
+/* ป้ายหมวดสำหรับแสดงผล — รายการที่จับหมวดไม่ได้ (group='other')
+   ใช้คำที่มีความหมายจาก description แทน "อื่นๆ" (ดู deriveLabelFromText) */
+export function categoryLabel(tx) {
+  if (tx && tx.group === 'other') {
+    const derived = deriveLabelFromText(tx.description);
+    if (derived) return derived;
+  }
+  return getCategory(tx?.group).label;
+}
 
 /* === Empty state card (icon + title + subtitle + ปุ่ม CTA) ======== */
 export function renderEmptyState({ icon, title, subtitle = '', actions = [] }) {
@@ -148,7 +159,7 @@ export function renderEntryRow(tx, decimals = 0) {
       </div>
       <div class="entry-body">
         <div class="entry-name">${escapeHtml(tx.description || def.label)}${tx.source === 'sample' ? ' <span class="demo-tag">Demo</span>' : ''}</div>
-        <div class="entry-cat">${sharedBadge}${def.label}${tx.balance != null
+        <div class="entry-cat">${sharedBadge}${categoryLabel(tx)}${tx.balance != null
           ? ` · <span style="color:${tx.balance < 0 ? 'var(--expense,#d96b5e)' : 'inherit'}">คงเหลือ ${formatBaht(tx.balance)} ฿</span>`
           : ''}</div>
         ${acctLine}
