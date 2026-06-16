@@ -712,6 +712,40 @@ export function getTopCategories(yearMonth = todayISO().slice(0, 7), limit = 5) 
 }
 
 /**
+ * Expense breakdown สำหรับโดนัท — top N หมวด + รวมที่เหลือเป็น "อื่นๆ" ก้อนเดียว
+ * ต่างจาก getTopCategories: คืน total จริงทั้งหมด + รวบหาง (หมวดที่ N+1 ขึ้นไป)
+ * และ group 'other' (จับหมวดไม่ได้) เข้าก้อน "อื่นๆ" → โดนัทรวมเป็น 100% เสมอ
+ * @returns { cats: [{group,total,percent}], otherTotal, grandTotal }
+ *   - cats = หมวดที่มีชื่อ top N (เรียงมาก→น้อย)
+ *   - otherTotal = group 'other' + หางที่ตัดทิ้ง (percent เทียบ grandTotal จริง)
+ */
+export function getExpenseBreakdown(yearMonth = todayISO().slice(0, 7), topN = 6) {
+  const txs = summaryTxs().filter(t =>
+    t.date.startsWith(yearMonth) && t.type === 'expense'
+  );
+  const totals = {};
+  for (const t of txs) {
+    totals[t.group] = (totals[t.group] || 0) + t.amount;
+  }
+  const grandTotal = Object.values(totals).reduce((s, v) => s + v, 0);
+
+  // แยก group 'other' (uncategorized) ออกจากหมวดมีชื่อ — รวมเข้าก้อน "อื่นๆ" ทีหลัง
+  const otherGroupTotal = totals.other || 0;
+  delete totals.other;
+
+  const named = Object.entries(totals)
+    .map(([group, total]) => ({ group, total }))
+    .sort((a, b) => b.total - a.total);
+
+  const pct = (n) => grandTotal > 0 ? Math.round((n / grandTotal) * 100) : 0;
+  const cats = named.slice(0, topN).map(c => ({ ...c, percent: pct(c.total) }));
+  const tailTotal = named.slice(topN).reduce((s, c) => s + c.total, 0);
+  const otherTotal = otherGroupTotal + tailTotal;
+
+  return { cats, otherTotal, grandTotal };
+}
+
+/**
  * รายการของวันนี้ — สำหรับ dashboard
  */
 export function getTodayTransactions() {

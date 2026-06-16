@@ -43,7 +43,7 @@ const {
   deleteTransaction, softDeleteTransaction,
   getTransactions, getAccounts, getAccount,
   addAccount, updateAccount,
-  getMonthSummary, getTopCategories,
+  getMonthSummary, getTopCategories, getExpenseBreakdown,
   getTransactionsByDay, getDailyExpenses,
   setSetting, getSettings, resetAll, exportJSON, importJSON,
   getState,
@@ -252,6 +252,27 @@ test('getMonthSummary transfer skip',   () => eq(summary.count, 4));
 const cats = getTopCategories(YM, 3);
 test('getTopCategories sorted',         () => assert(cats.length <= 3));
 test('getTopCategories has percent',    () => assert(cats.every(c => 'percent' in c)));
+
+resetAll();
+
+// getExpenseBreakdown — top N + รวม "อื่นๆ" + total จริง (สำหรับโดนัท)
+const BM = '2026-07';
+addTransaction({ amount: 100000, type: 'expense', group: 'food',      date: `${BM}-01` });
+addTransaction({ amount:  80000, type: 'expense', group: 'transport', date: `${BM}-02` });
+addTransaction({ amount:  60000, type: 'expense', group: 'shopping',  date: `${BM}-03` });
+addTransaction({ amount:  40000, type: 'expense', group: 'other',     date: `${BM}-04` });
+addTransaction({ amount:  20000, type: 'income',  group: 'salary',    date: `${BM}-05` });
+const bd = getExpenseBreakdown(BM, 2);
+test('breakdown: grandTotal = รายจ่ายจริงทั้งหมด', () => eq(bd.grandTotal, 280000)); // ไม่รวม income
+test('breakdown: top N = 2 หมวดมีชื่อ',  () => eq(bd.cats.length, 2));
+test('breakdown: เรียงมาก→น้อย',         () => { eq(bd.cats[0].group, 'food'); eq(bd.cats[1].group, 'transport'); });
+test('breakdown: อื่นๆ = group other + หางที่ตัด', () => eq(bd.otherTotal, 100000)); // shopping 60k (หาง) + other 40k
+test('breakdown: cats + otherTotal = grandTotal', () => {
+  const sum = bd.cats.reduce((s, c) => s + c.total, 0) + bd.otherTotal;
+  eq(sum, bd.grandTotal);
+});
+test('breakdown: percent เทียบ total จริง', () => eq(bd.cats[0].percent, Math.round(100000 / 280000 * 100)));
+test('breakdown: ไม่มีรายจ่าย → grandTotal 0', () => eq(getExpenseBreakdown('1999-01').grandTotal, 0));
 
 resetAll();
 

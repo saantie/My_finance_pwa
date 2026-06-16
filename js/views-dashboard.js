@@ -1107,7 +1107,7 @@ function donutPrefix(period) {
 }
 
 function renderDonutSection() {
-  const cats = State.getTopCategories(donutPrefix(_donutPeriod));
+  const breakdown = State.getExpenseBreakdown(donutPrefix(_donutPeriod));
   const periodLabel = DONUT_PERIODS.find(p => p[0] === _donutPeriod)?.[1] ?? '';
   return `
     <div class="section-head">
@@ -1121,8 +1121,8 @@ function renderDonutSection() {
       `).join('')}
     </div>
     <div class="card donut-card">
-      ${cats.length > 0
-        ? renderDonutChart(cats)
+      ${breakdown.grandTotal > 0
+        ? renderDonutChart(breakdown)
         : `<div class="empty" style="padding:18px;text-align:center">
              <div class="desc">— ยังไม่มีรายจ่าย${_donutPeriod === 'all' ? '' : periodLabel} —</div>
            </div>`}
@@ -1141,13 +1141,23 @@ function bindDonutChips(container) {
   });
 }
 
-function renderDonutChart(cats) {
+function renderDonutChart(breakdown) {
   const r = 38, cx = 50, cy = 50;
   const totalCirc = 2 * Math.PI * r;
-  const grandTotal = cats.reduce((s, c) => s + c.total, 0);
+  const grandTotal = breakdown.grandTotal || 0;
+
+  // หมวดมีชื่อ + ก้อน "อื่นๆ" (รวม uncategorized + หางที่ตัด) → วงรวมเป็น 100% เสมอ
+  const slices = [...breakdown.cats];
+  if (breakdown.otherTotal > 0) {
+    slices.push({
+      group: 'other',
+      total: breakdown.otherTotal,
+      percent: grandTotal > 0 ? Math.round((breakdown.otherTotal / grandTotal) * 100) : 0,
+    });
+  }
 
   let cumLen = 0;
-  const segs = cats.map(c => {
+  const segs = slices.map(c => {
     const segLen = grandTotal > 0 ? (c.total / grandTotal) * totalCirc : 0;
     const offset = cumLen;
     cumLen += segLen;
