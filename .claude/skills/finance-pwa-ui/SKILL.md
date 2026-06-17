@@ -141,6 +141,38 @@ html[data-dark="1"] .new-element { color: ...; background: ...; }
 /* bugs แก้แล้ว: .chip, .seg-item, .signin-btn */
 ```
 
+## Surface tokens + theme/dark-safe variants (มิ.ย. 2026)
+```css
+/* บทบาท token พื้นผิว (รู้ก่อนตั้งสีพื้น): */
+--paper       /* = พื้นหลังหน้าเพจ (html,body) — อย่าใช้เป็น bg ของ card/surface ใหม่
+                 ไม่งั้น "กลืน" พื้นเพจ มองไม่เห็นการ์ด */
+--card        /* surface สีขาว (#fff) ของการ์ดทั่วไป */
+--paper-deep  /* ไม่ override ทุกธีม — เลี่ยงใน element ข้ามธีม/dark (จะ fallback เพี้ยน) */
+
+/* ⚠️ dark mode สลับด้าน: --card (#162340) "สว่างกว่า" --paper (#0d1829)
+   → อย่า hardcode สีอ่อน/เข้ม. ให้ derive จาก token ของธีมเองด้วย color-mix */
+
+/* ต้องการ variant ของพื้นผิว (เช่น เมนูย่อยให้ต่างจาก header) ที่ปลอดภัยทุกธีม+dark: */
+.sub-surface {
+  background: var(--card);                                   /* fallback เบราว์เซอร์เก่า */
+  background: color-mix(in srgb, var(--paper) 75%, var(--card) 25%);
+}
+/* color-mix derive จากสีจริงของแต่ละธีม → ถูกทิศทั้ง light/dark โดยไม่ต้องเขียน
+   html[data-dark] override; ใส่ fallback บรรทัดแรกเสมอ (Chrome <111 ไม่รองรับ) */
+```
+
+## Mali font — สระล่างโดนตัด (มิ.ย. 2026)
+```css
+/* Mali (--font-accent, decorative) มีสระล่าง ◌ู ◌ุ ที่ยื่นต่ำกว่า baseline
+   ถ้า element มี overflow:hidden (เช่นทำ ellipsis) + line-height แน่น → สระล่างขาด */
+.mali-title {
+  font-family: var(--font-accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.6;        /* ให้สระล่างมีที่ก่อนถูก clip */
+  padding-bottom: 2px;
+}
+```
+
 ## XSS Prevention
 ```js
 // ทุก user input ใน innerHTML → escapeHtml(str) ก่อนเสมอ
