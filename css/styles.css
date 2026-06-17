@@ -2413,11 +2413,13 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
 }
 .settings-acc-inner > :first-child { margin-top: 8px; }
 .settings-acc-inner > .card { margin-bottom: 6px; }
-/* เมนูย่อย (การ์ดใน accordion) เข้มลงเล็กน้อยให้ต่างจากเมนูหลัก (header = --card สีขาวเด่น)
-   color-mix derive จาก card+ink ของแต่ละธีม → ปลอดภัยทั้ง 7 ธีม + dark; fallback = --card */
+/* เมนูย่อย (การ์ดใน accordion): ใกล้สีพื้นธีม (--paper) แต่สว่างกว่านิด (ผสมไป --card)
+   → กลมกลืนกับธีม + ต่างจาก header (--card สีขาวเด่น)
+   ทำงานถูกทั้ง light/dark: โหมดมืด --card สว่างกว่า --paper อยู่แล้ว → ยกขึ้นจากพื้น
+   fallback = --card (ไม่ใช้ --paper เพราะ = สีพื้นหน้าเพจ จะกลืนหาย) */
 .settings-acc-inner .card {
   background: var(--card);
-  background: color-mix(in srgb, var(--card) 92%, var(--ink) 8%);
+  background: color-mix(in srgb, var(--paper) 75%, var(--card) 25%);
 }
 .settings-sub-label {
   padding: 10px 2px 6px;
