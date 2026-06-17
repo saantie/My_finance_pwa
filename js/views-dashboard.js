@@ -854,10 +854,7 @@ function renderForecastCard() {
         </div>
 
         <div class="forecast-legend">
-          <span class="fl-item"><span class="fl-line primary"></span>ยอดคาดการณ์</span>
-          <span class="fl-item"><span class="fl-dash danger"></span>เกณฑ์ที่ตั้งไว้ ${formatBaht(threshold)} ฿</span>
-          <span class="fl-item"><span class="fl-dot primary"></span>วันนี้</span>
-          ${dangerDays.length > 0 ? `<span class="fl-item"><span class="fl-dot danger"></span>วันที่ต่ำกว่าเกณฑ์</span>` : ''}
+          <span class="fl-item"><span class="fl-line primary"></span>เงินที่คาดว่าจะเหลือ</span>
         </div>
 
         <div class="forecast-chart-wrap">
@@ -874,10 +871,8 @@ function renderForecastCard() {
 
         <div class="forecast-note">
           <div class="forecast-note-text">
-            คาดจากการใช้เงินจริงของคุณช่วง <b>${dataSource === 'year' ? daysElapsed : 30} วัน</b>ที่ผ่านมา —
-            ปกติใช้จ่ายทั่วไปราววันละ <b>${formatBaht(avgDailyExpense)} ฿</b>${varDailyIncome > 0
-              ? ` มีเงินเข้าราววันละ <b>${formatBaht(varDailyIncome)} ฿</b>` : ''}
-            บวกรายการประจำของคุณ (เช่น ค่าเช่า ผ่อน) ตามวันครบกำหนด
+            คาดการณ์จากการใช้เงินจริงของคุณช่วง <b>${dataSource === 'year' ? daysElapsed : 30} วัน</b>ที่ผ่านมา —
+            ${varDailyIncome > 0 ? `มีเงินเข้าเฉลี่ยวันละ <b>${formatBaht(varDailyIncome)} ฿</b> ` : ''}ปกติใช้จ่ายทั่วไปเฉลี่ยวันละ <b>${formatBaht(avgDailyExpense)} ฿</b> และรายการจ่ายประจำของคุณ (เช่น ค่าเช่า ผ่อน) ตามวันครบกำหนด
           </div>
         </div>
 
@@ -920,11 +915,9 @@ async function initForecastChart() {
     return `rgba(${r},${g},${b},${a})`;
   }
 
-  const { days, threshold } = _forecastChartPayload;
+  const { days } = _forecastChartPayload;
 
   const balanceData    = days.map(d => Math.round(d.balance / 100));       // → บาท
-  const thresholdData  = Array(30).fill(Math.round(threshold / 100));
-  const recurringData  = days.map(d => d.hasRecurring ? Math.round(d.balance / 100) : null);
 
   const xLabels = days.map((d, i) => {
     if (i === 0) return 'วันนี้';
@@ -938,7 +931,7 @@ async function initForecastChart() {
       labels: xLabels,
       datasets: [
         {
-          label: 'ยอดคาดการณ์',
+          label: 'เงินที่คาดว่าจะเหลือ',
           data: balanceData,
           borderColor: primaryHex,
           borderWidth: 2.5,
@@ -948,25 +941,6 @@ async function initForecastChart() {
           pointHoverRadius: 5,
           pointBackgroundColor: days.map((_, i) => i === 0 ? primaryHex : 'transparent'),
           tension: 0.3,
-        },
-        {
-          label: 'เกณฑ์ต่ำสุด',
-          data: thresholdData,
-          borderColor: '#A32D2D',
-          borderWidth: 1.5,
-          borderDash: [5, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-        },
-        {
-          label: 'รายการประจำ',
-          data: recurringData,
-          borderColor: 'transparent',
-          backgroundColor: inkFaintHex,
-          pointRadius: 5,
-          pointHoverRadius: 6,
-          showLine: false,
         },
       ],
     },
@@ -982,16 +956,7 @@ async function initForecastChart() {
               const d = days[ctx[0].dataIndex];
               return `วันที่ ${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`;
             },
-            label: ctx => {
-              if (ctx.dataset.label === 'รายการประจำ' && ctx.parsed.y == null) return null;
-              if (ctx.dataset.label === 'เกณฑ์ต่ำสุด')
-                return `เกณฑ์ที่ตั้งไว้: ${ctx.parsed.y.toLocaleString()} ฿`;
-              if (ctx.dataset.label === 'ยอดคาดการณ์')
-                return `คาดการณ์: ${ctx.parsed.y.toLocaleString()} ฿`;
-              return ctx.parsed.y != null
-                ? `รายการประจำ: ${ctx.parsed.y.toLocaleString()} ฿`
-                : null;
-            },
+            label: ctx => `เงินที่คาดว่าจะเหลือ: ${ctx.parsed.y.toLocaleString()} ฿`,
             afterBody: ctx => {
               const d = days[ctx[0].dataIndex];
               if (!d.hasRecurring) return [];
