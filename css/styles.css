@@ -2378,6 +2378,9 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Mali มีสระล่าง (◌ู) ที่ยื่นต่ำกว่า baseline — line-height แน่นเกินทำให้ overflow ตัดสระขาด */
+  line-height: 1.6;
+  padding-bottom: 2px;
 }
 .settings-acc-meta {
   font-size: var(--ts-xs);
@@ -2410,6 +2413,12 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
 }
 .settings-acc-inner > :first-child { margin-top: 8px; }
 .settings-acc-inner > .card { margin-bottom: 6px; }
+/* เมนูย่อย (การ์ดใน accordion) เข้มลงเล็กน้อยให้ต่างจากเมนูหลัก (header = --card สีขาวเด่น)
+   color-mix derive จาก card+ink ของแต่ละธีม → ปลอดภัยทั้ง 7 ธีม + dark; fallback = --card */
+.settings-acc-inner .card {
+  background: var(--card);
+  background: color-mix(in srgb, var(--card) 92%, var(--ink) 8%);
+}
 .settings-sub-label {
   padding: 10px 2px 6px;
   font-size: 11px;
