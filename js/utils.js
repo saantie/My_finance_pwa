@@ -70,6 +70,11 @@ export function offsetDateISO(iso, days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** จำนวนวันจาก a → b (binary: b − a) — ผ่าน parseLocalDate จึงไม่โดน UTC shift */
+export function daysBetweenISO(aISO, bISO) {
+  return Math.round((parseLocalDate(bISO) - parseLocalDate(aISO)) / 86400000);
+}
+
 /** ค.ศ. → พ.ศ. */
 export function ceToBe(year) {
   return year + 543;

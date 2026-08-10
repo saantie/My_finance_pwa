@@ -102,7 +102,8 @@ export function awardXP(activity) {
     recurring_template:  30,
     share_account:       20,
     drive_backup:        15,
-    voice_entry:         5
+    voice_entry:         5,
+    goal_completed:      80
   };
   const amount = XP_MAP[activity] || 0;
   if (!amount) return;

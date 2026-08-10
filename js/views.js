@@ -9,6 +9,7 @@ export { renderDashboard, renderDashboardSkeleton } from './views-dashboard.js';
 export { renderList } from './views-list.js';
 export { renderImport } from './views-import.js';
 export { renderSettings, setSettingsOpenSection } from './views-settings.js';
+export { openGoalModal, renderGoalSection, bindGoalSection } from './views-goals.js';
 export {
   showToast, showCoinToast, escapeHtml, renderEmptyState,
   applyTheme, applyTextSize, applyDark,

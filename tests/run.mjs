@@ -35,7 +35,8 @@ function near(a, b, eps = 0.01) { if (Math.abs(a - b) > eps) throw new Error(`ex
 const {
   bahtToSatang, satangToBaht, formatBaht,
   todayISO, parseLocalDate, ceToBe, dayNameTH, monthNameTH,
-  formatShortDate, isSameDay, formatTime, calc, uuid
+  formatShortDate, isSameDay, formatTime, calc, uuid,
+  offsetDateISO, daysBetweenISO
 } = await import('../js/utils.js');
 
 const {
@@ -47,7 +48,8 @@ const {
   getTransactionsByDay, getDailyExpenses,
   setSetting, getSettings, resetAll, exportJSON, importJSON,
   getState,
-  isDemoMode, markAsDemoMode, markDemoComplete, clearSampleData
+  isDemoMode, markAsDemoMode, markDemoComplete, clearSampleData,
+  getGoals, getGoal
 } = await import('../js/state.js');
 
 const { getDemoTransactions } = await import('../js/demo-data.js');
@@ -105,6 +107,12 @@ test('parseLocalDate month',          () => eq(parseLocalDate('2026-01-01').getM
 test('parseLocalDate date',           () => eq(parseLocalDate('2026-12-31').getDate(), 31));
 
 // ceToBe
+// daysBetweenISO
+test('daysBetweenISO วันเดียวกัน = 0',  () => eq(daysBetweenISO('2026-06-10', '2026-06-10'), 0));
+test('daysBetweenISO ข้ามเดือน',        () => eq(daysBetweenISO('2026-06-28', '2026-07-01'), 3));
+test('daysBetweenISO ย้อนหลัง = ติดลบ', () => eq(daysBetweenISO('2026-07-01', '2026-06-28'), -3));
+test('daysBetweenISO ข้ามปี',           () => eq(daysBetweenISO('2026-12-31', '2027-01-01'), 1));
+
 test('ceToBe 2026 = 2569',           () => eq(ceToBe(2026), 2569));
 test('ceToBe 2000 = 2543',           () => eq(ceToBe(2000), 2543));
 
@@ -1579,6 +1587,163 @@ test('views.js: dead code ที่ลบแล้วต้องไม่กล
 
 
 // ═══════════════════════════════════════════════════════════════════════
+// GOALS — เป้าหมายท้าทาย (ประหยัด / หาเงินเพิ่ม + ระยะเวลา)
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\ngoals.js');
+
+const {
+  createGoal, editGoal, removeGoal, archiveGoal,
+  getActiveGoals, getVisibleGoals, getGoalProgress, evaluateGoals,
+  goalTitle, goalScopeLabel
+} = await import('../js/goals.js');
+
+// --- createGoal / validation ---
+resetAll();
+const gNew = createGoal({ type: 'save', target_amount: 500000, days: 30, start_date: '2026-06-10' });
+test('createGoal: days → end_date นับรวมวันแรก', () => eq(gNew.end_date, '2026-07-09'));
+test('createGoal: status = active',              () => eq(gNew.status, 'active'));
+test('createGoal: group default null',           () => eq(gNew.group, null));
+test('createGoal: achieved ยังไม่ตัดสิน',        () => eq(gNew.achieved, null));
+test('createGoal: มี id + createdAt',            () => assert(!!gNew.id && !!gNew.createdAt));
+test('createGoal: จำนวนเงิน 0 → null',           () => eq(createGoal({ type: 'save', target_amount: 0, days: 7 }), null));
+test('createGoal: ไม่มีช่วงเวลา → null',         () => eq(createGoal({ type: 'save', target_amount: 1000 }), null));
+test('createGoal: end ก่อน start → null', () =>
+  eq(createGoal({ type: 'save', target_amount: 1000, start_date: '2026-06-10', end_date: '2026-06-09' }), null));
+test('createGoal: ระยะเวลาเกิน 1 ปี → null', () =>
+  eq(createGoal({ type: 'save', target_amount: 1000, days: 400 }), null));
+test('createGoal: type ที่ไม่รู้จัก → save', () =>
+  eq(createGoal({ type: 'zzz', target_amount: 1000, days: 7 }).type, 'save'));
+test('createGoal: amount ติดลบ → บวก', () =>
+  eq(createGoal({ type: 'save', target_amount: -1000, days: 7 }).target_amount, 1000));
+
+// --- progress: save goal (ทุกหมวด) ---
+resetAll();
+const gSave = createGoal({ type: 'save', target_amount: 500000, start_date: '2026-06-01', end_date: '2026-06-30' });
+addTransactionsBatch([
+  { amount: 100000, date: '2026-06-05', type: 'expense',  group: 'food' },
+  { amount:  50000, date: '2026-06-06', type: 'expense',  group: 'transport' },
+  { amount:  90000, date: '2026-05-31', type: 'expense',  group: 'food' },      // ก่อนช่วงเวลา
+  { amount:  70000, date: '2026-07-01', type: 'expense',  group: 'food' },      // หลังช่วงเวลา
+  { amount: 300000, date: '2026-06-07', type: 'income',   group: 'salary' },    // ไม่ใช่รายจ่าย
+  { amount:  20000, date: '2026-06-08', type: 'transfer', group: 'transfer' },  // โอนไม่นับ
+]);
+const pSave = getGoalProgress(gSave, '2026-06-10');
+test('save progress: นับเฉพาะรายจ่ายในช่วง', () => eq(pSave.actual, 150000));
+test('save progress: pct = 30',              () => eq(pSave.pct, 30));
+test('save progress: remaining = งบที่เหลือ', () => eq(pSave.remaining, 350000));
+test('save progress: totalDays = 30',        () => eq(pSave.totalDays, 30));
+test('save progress: elapsedDays รวมวันนี้',  () => eq(pSave.elapsedDays, 10));
+test('save progress: daysLeft ไม่รวมวันนี้',  () => eq(pSave.daysLeft, 20));
+test('save progress: daysUsable รวมวันนี้',   () => eq(pSave.daysUsable, 21));
+test('save progress: perDay = เหลือ/วันที่ใช้ได้', () => eq(pSave.perDay, Math.floor(350000 / 21)));
+test('save progress: expectedPct = 33',      () => eq(pSave.expectedPct, 33));
+test('save progress: onTrack (30 ≤ 33)',     () => eq(pSave.onTrack, true));
+test('save progress: ยังไม่ over',           () => eq(pSave.over, false));
+test('save progress: ยังไม่ achieved (ไม่หมดเวลา)', () => eq(pSave.achieved, false));
+
+// --- progress: จำกัดหมวด ---
+const gFood = createGoal({ type: 'save', target_amount: 200000, group: 'food', start_date: '2026-06-01', end_date: '2026-06-30' });
+test('save progress: กรองตามหมวดที่เลือก', () => eq(getGoalProgress(gFood, '2026-06-10').actual, 100000));
+test('goalScopeLabel: หมวดที่เลือก',       () => eq(goalScopeLabel(gFood), 'อาหาร'));
+test('goalScopeLabel: ไม่ระบุหมวด',        () => eq(goalScopeLabel(gSave), 'ทุกหมวด'));
+test('goalTitle: save + หมวด',             () => eq(goalTitle(gFood), 'ประหยัดอาหาร'));
+
+// --- progress: earn goal ---
+const gEarn = createGoal({ type: 'earn', target_amount: 250000, start_date: '2026-06-01', end_date: '2026-06-30' });
+const pEarn = getGoalProgress(gEarn, '2026-06-10');
+test('earn progress: นับเฉพาะรายรับ',      () => eq(pEarn.actual, 300000));
+test('earn progress: hit',                 () => eq(pEarn.hit, true));
+test('earn progress: achieved ก่อนหมดเวลาได้', () => eq(pEarn.achieved, true));
+test('goalTitle: earn ไม่ระบุหมวด',        () => eq(goalTitle(gEarn), 'หาเงินเพิ่ม'));
+
+// --- progress: ใช้เกินงบ ---
+const gOver = createGoal({ type: 'save', target_amount: 100000, start_date: '2026-06-01', end_date: '2026-06-30' });
+const pOver = getGoalProgress(gOver, '2026-06-10');
+test('save เกินงบ: over = true',      () => eq(pOver.over, true));
+test('save เกินงบ: remaining ติดลบ',  () => eq(pOver.remaining, -50000));
+test('save เกินงบ: perDay = 0',       () => eq(pOver.perDay, 0));
+test('save เกินงบ: hit = false',      () => eq(pOver.hit, false));
+
+// --- progress: เป้าที่ยังไม่เริ่ม ---
+const gFuture = createGoal({ type: 'save', target_amount: 100000, start_date: '2026-07-01', end_date: '2026-07-31' });
+const pFuture = getGoalProgress(gFuture, '2026-06-10');
+test('เป้าอนาคต: notStarted',        () => eq(pFuture.notStarted, true));
+test('เป้าอนาคต: elapsedDays = 0',   () => eq(pFuture.elapsedDays, 0));
+// ช่วง ก.ค. มีรายจ่าย 70000 อยู่รายการเดียว — รายการ มิ.ย. ต้องไม่ถูกนับ
+test('เป้าอนาคต: นับเฉพาะรายการในช่วงของมัน', () => eq(pFuture.actual, 70000));
+
+// --- evaluateGoals: earn ถึงเป้า → ปิดทันที ---
+resetAll();
+addTransactionsBatch([{ amount: 300000, date: '2026-06-05', type: 'income', group: 'salary' }]);
+const gEv = createGoal({ type: 'earn', target_amount: 250000, start_date: '2026-06-01', end_date: '2026-06-30' });
+const evRes = evaluateGoals('2026-06-10');
+test('evaluateGoals: earn ถึงเป้า → ปิด 1 เป้า', () => eq(evRes.length, 1));
+test('evaluateGoals: achieved = true',           () => eq(evRes[0].achieved, true));
+test('evaluateGoals: status → done',             () => eq(getGoal(gEv.id).status, 'done'));
+test('evaluateGoals: resolved_at ถูกบันทึก',      () => eq(getGoal(gEv.id).resolved_at, '2026-06-10'));
+test('evaluateGoals: ไม่ปิดซ้ำรอบถัดไป',          () => eq(evaluateGoals('2026-06-10').length, 0));
+
+// --- evaluateGoals: save หมดเวลา ---
+resetAll();
+addTransactionsBatch([{ amount: 100000, date: '2026-06-05', type: 'expense', group: 'food' }]);
+createGoal({ type: 'save', target_amount: 200000, start_date: '2026-06-01', end_date: '2026-06-07' });
+test('evaluateGoals: save หมดเวลา + อยู่ในงบ → สำเร็จ', () => eq(evaluateGoals('2026-06-10')[0].achieved, true));
+
+resetAll();
+addTransactionsBatch([{ amount: 300000, date: '2026-06-05', type: 'expense', group: 'food' }]);
+createGoal({ type: 'save', target_amount: 200000, start_date: '2026-06-01', end_date: '2026-06-07' });
+test('evaluateGoals: save หมดเวลา + เกินงบ → ไม่สำเร็จ', () => eq(evaluateGoals('2026-06-10')[0].achieved, false));
+
+resetAll();
+addTransactionsBatch([{ amount: 300000, date: '2026-06-05', type: 'expense', group: 'food' }]);
+createGoal({ type: 'save', target_amount: 200000, start_date: '2026-06-01', end_date: '2026-06-30' });
+test('evaluateGoals: save เกินงบแต่ยังไม่หมดเวลา → ไม่ปิด', () => eq(evaluateGoals('2026-06-10').length, 0));
+
+// --- edit / archive / remove ---
+resetAll();
+const gEdit = createGoal({ type: 'earn', target_amount: 100000, start_date: '2026-06-01', end_date: '2026-06-30' });
+const gEdited = editGoal(gEdit.id, { type: 'save', target_amount: 300000, days: 7, start_date: '2026-06-01' });
+test('editGoal: เปลี่ยนจำนวนเงินได้', () => eq(gEdited.target_amount, 300000));
+test('editGoal: เปลี่ยนประเภทได้',     () => eq(gEdited.type, 'save'));
+test('editGoal: days ชนะ end_date เดิม', () => eq(gEdited.end_date, '2026-06-07'));
+test('editGoal: patch บางส่วนคงค่าเดิม', () => eq(editGoal(gEdit.id, { target_amount: 400000 }).end_date, '2026-06-07'));
+test('editGoal: id ไม่มีจริง → null',   () => eq(editGoal('no-such-id', { target_amount: 1000 }), null));
+
+resetAll();
+const gArch = createGoal({ type: 'save', target_amount: 100000, start_date: '2026-06-01', end_date: '2026-06-30' });
+test('getActiveGoals: นับเป้าที่ยัง active', () => eq(getActiveGoals().length, 1));
+archiveGoal(gArch.id);
+test('archiveGoal: หายจาก visible',      () => eq(getVisibleGoals().length, 0));
+test('archiveGoal: ยังอยู่ใน state',      () => eq(getGoals().length, 1));
+removeGoal(gArch.id);
+test('removeGoal: ลบออกจาก state',       () => eq(getGoals().length, 0));
+
+// --- visible ordering: active มาก่อน done ---
+resetAll();
+const gDone = createGoal({ type: 'save', target_amount: 100000, start_date: '2026-06-01', end_date: '2026-06-07' });
+const gActive = createGoal({ type: 'save', target_amount: 100000, start_date: '2026-06-01', end_date: '2026-06-30' });
+evaluateGoals('2026-06-10');   // ปิดเฉพาะเป้าที่หมดเวลา
+test('getVisibleGoals: active มาก่อน done', () => {
+  const vis = getVisibleGoals();
+  eq(vis.length, 2);
+  eq(vis[0].id, gActive.id);
+  eq(vis[1].id, gDone.id);
+});
+
+// --- persistence: goals อยู่ใน backup ---
+resetAll();
+const gBackup = createGoal({ type: 'save', target_amount: 100000, days: 7, start_date: '2026-06-01' });
+const goalJson = exportJSON();
+test('exportJSON: มี goals', () => eq(JSON.parse(goalJson).goals.length, 1));
+resetAll();
+test('resetAll: ล้าง goals', () => eq(getGoals().length, 0));
+importJSON(goalJson);
+test('importJSON: คืน goals กลับมา', () => eq(getGoals()[0].id, gBackup.id));
+test('importJSON: คืนค่า target_amount', () => eq(getGoals()[0].target_amount, 100000));
+resetAll();
+
+
+// ═══════════════════════════════════════════════════════════════════════
 // VIEWS MODULE LOAD — ตาข่ายจับ import/export พังตอนแยกไฟล์ (Phase B)
 // import จริงใน Node (loader mock Firebase) → จับ syntax/top-level ref/export หาย
 // ที่ node --check มองไม่เห็น. ต้อง export public API ครบสำหรับ app.js + add.js
@@ -1591,6 +1756,7 @@ const VIEWS_PUBLIC_API = [
   'applyTheme', 'applyTextSize', 'applyDark',
   'setSettingsOpenSection', 'bindEntryActions',
   'escapeHtml', 'openCategoryManager',
+  'openGoalModal', 'renderGoalSection', 'bindGoalSection',
 ];
 
 const _viewsMod = await import('../js/views.js');
@@ -1633,6 +1799,27 @@ const _importMod = await import('../js/views-import.js');
 test('views-import.js: โหลดได้ + export renderImport (money-path)', () => {
   eq(typeof _importMod.renderImport, 'function', 'ต้อง export renderImport');
 });
+const _goalsViewMod = await import('../js/views-goals.js');
+test('views-goals.js: โหลดได้ + export section/modal API', () => {
+  for (const n of ['renderGoalSection', 'bindGoalSection', 'openGoalModal'])
+    eq(typeof _goalsViewMod[n], 'function', `views-goals ต้อง export ${n}`);
+});
+test('views-goals.js: renderGoalSection คืน CTA เมื่อยังไม่มีเป้า', () => {
+  resetAll();
+  const html = _goalsViewMod.renderGoalSection();
+  assert(html.includes('data-action="add-goal"'), 'ต้องมีปุ่มตั้งเป้า');
+  assert(html.includes('ตั้งเป้าหมายท้าทาย'), 'ต้องมีข้อความชวนตั้งเป้า');
+});
+test('views-goals.js: renderGoalSection วาดการ์ดเมื่อมีเป้า', () => {
+  resetAll();
+  createGoal({ type: 'save', target_amount: 500000, days: 30, start_date: todayISO() });
+  const html = _goalsViewMod.renderGoalSection();
+  assert(html.includes('goal-card'), 'ต้องมีการ์ดเป้าหมาย');
+  assert(html.includes('goal-bar-fill'), 'ต้องมีแถบความคืบหน้า');
+  assert(html.includes('data-action="edit-goal"'), 'ต้องแก้ไขเป้าได้');
+  resetAll();
+});
+
 test('views.js: เป็น barrel ล้วน (ไม่นิยามฟังก์ชันเอง)', () => {
   const src = readFileSync('./js/views.js', 'utf8');
   assert(!/\bfunction \w/.test(src), 'views.js ต้องเป็น re-export ล้วน ไม่นิยาม function');

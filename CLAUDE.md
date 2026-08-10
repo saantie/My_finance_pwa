@@ -102,6 +102,22 @@ Default accounts (4): `cash:default`, `bank:manual:default`, `invest:default`, `
 ### Recurring template
 `{ id, pattern: { description_match, amount_range, day_of_month, frequency }, type, category, group, account_id, confidence, last_occurrence, next_expected, user_confirmed }` — suggest only at confidence ≥ 0.8, never auto-create.
 
+### Goal (เป้าหมายท้าทาย)
+```typescript
+{
+  id: string,
+  type: "save" | "earn",         // ประหยัดไม่เกินงบ | หารายรับให้ถึงเป้า
+  target_amount: number,         // satang, positive
+  group: string | null,          // จำกัดเฉพาะหมวด; null = ทุกหมวด
+  start_date, end_date: "YYYY-MM-DD",   // inclusive ทั้งคู่
+  status: "active" | "done" | "archived",
+  achieved: boolean | null,      // ตั้งตอน status → done
+  resolved_at: string | null,
+  createdAt, updatedAt: ISO timestamp
+}
+```
+เก็บใน `state.goals` (localStorage + export/import) — กฎอยู่ใน `goals.js`, การคำนวณอ่านจาก `getTransactions()` (โอนไม่นับ). ปิดเป้าเฉพาะตอนเปิดแอปผ่าน `evaluateGoals()`.
+
 ### Settings
 `{ threshold_satang (default 200000), theme, language: "th", text_size: "normal"|"large"|"xlarge", display_name, notification_enabled, affiliate_disabled, last_drive_backup }`
 
@@ -133,6 +149,7 @@ Daily coins: bronze +10 XP (≥1 entry), silver +25 (≥1 entry + balance ok), g
 - **F1.11 UX shell:** bottom nav 4 tabs + center FAB, full-screen add modal, in-app keypad. Settings = accordion menu (June 2026): ทุก section พับเก็บ เปิดได้ทีละส่วน ยกเว้น profile/Level card แสดงตลอด; `_settingsOpenSection` คงไว้ข้าม re-render; deep-links (`setSettingsOpenSection()`) เปิด section ก่อน scroll.
 - **F1.12 Selective account sharing** (realtime Firestore — see §7).
 - **F1.14 List view:** month selector (default current), working filter chips (all/expense/income/transfer), search within month.
+- **F1.15 เป้าหมายท้าทาย (ส.ค. 2026):** ปุ่ม/section บนหน้าแรก (ใต้ hero card) ให้ user ตั้งเป้าเอง — จำนวนเงิน + ประเภท (`save` ประหยัดไม่เกินงบ / `earn` หารายรับให้ถึงเป้า) + หมวด (optional) + ระยะเวลา (7/14/30 วัน / สิ้นเดือน / เลือกวันเอง). การ์ดแสดงความคืบหน้า + หมุดจังหวะที่ควรอยู่ (expectedPct) + ยอดที่ใช้ได้ต่อวัน. `evaluateGoals()` ตอนเปิดแอปปิดเป้าที่ถึงยอด (earn) หรือครบกำหนด แล้วบอกผลด้วย toast + XP 80 (`goal_completed`); เป้าประหยัดที่ใช้เกินงบ **ไม่** ปิดกลางทาง — ให้เห็นตัวเลขจริงจนหมดเวลา. แก้/ลบ/ปิดการ์ดได้ทุกเมื่อ (reversible), ไม่มี streak, ไม่มี popup. เก็บใน `state.goals` → เข้า backup/Drive อัตโนมัติ.
 
 ### Import account confirmation (June 2026)
 Review modal always shows a **"นำเข้าไปยังบัญชี" picker card**:
@@ -298,8 +315,10 @@ js/
   views-list.js       LIST view (เดือน/filter/search/day groups)
   views-import.js     IMPORT money-path: review modal + account confirm + confirmImport + Gemini fallback
   views-settings.js   SETTINGS: accordion, แชร์บัญชี (Firebase), recurring, แจ้งเตือน
+  views-goals.js      เป้าหมายท้าทาย: section หน้าแรก (renderGoalSection/bindGoalSection) + modal ตั้งเป้า
+  goals.js            goal engine: createGoal/editGoal/getGoalProgress/evaluateGoals (กฎ+คำนวณ ไม่มี DOM)
   app.js              entry, routing, auth lifecycle
-tests/run.mjs         344 tests — all passing; runner exits 1 on failure
+tests/run.mjs         455 tests — all passing; runner exits 1 on failure
                       (มี module-load + export-shape net สำหรับ views-* clusters)
 tests/loader.mjs      ESM loader mocking Firebase CDN imports for Node
 .github/workflows/test.yml  CI: runs tests on every push/PR to main
@@ -335,6 +354,7 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 | `prompt()`/`confirm()` still used for PDF password + AI-consent dialogs | replace with styled modals during microinteractions polish |
 | Parser upserts detected account at *parse* time, before review confirm — overridden accounts linger empty | move account creation into confirmImport |
 | Review-modal account-picker card uses inline styles | move to styles.css with next CSS touch |
+| `var(--surface, #fff)` ใน `.picker-sheet` / `.acct-type-btn` / `.dup-dialog` — `--surface` ไม่มีนิยาม จึงเป็นขาวเสมอใน dark mode (`.acct-field-input` แก้เป็น `--card` แล้ว ส.ค. 2026) | ครั้งต่อไปที่แตะ CSS ของ modal เหล่านี้ |
 | Unused legacy `FIREBASE_CONFIG` block in js/config.js | delete on next config.js change |
 | Firebase CDN pinned 10.12.0; tests/loader.mjs mocks may drift from real SDK | review at v2.0 cloud-sync work |
 | No Sentry/PostHog yet | pre-launch ops (already in roadmap) |
@@ -359,6 +379,8 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 | **`gemini-3.5-flash`** | 2.0 shut down Jun 1 2026; 2.5 dies Oct 16 2026 |
 | **AI fallback sends real PDF file; text only when encrypted** | extracted text from broken layers gave 0 results |
 | **Review modal confirms destination account on every import** | prevent wrong-account imports; detected = default, override skips creating detected |
+| **เป้าหมายท้าทาย = user ตั้งเอง ไม่ auto-suggest** | เป้าที่ระบบยัดให้ = guilt; เป้าที่ user เลือกเอง = แรงจูงใจ (ยังไม่มี streak/badge ตามหลัก §2) |
+| **เป้าประหยัดที่ใช้เกินงบไม่ปิดกลางทาง** | ปิดทันที = ตัดสิน/ทำโทษ; ปล่อยให้เห็นตัวเลขจริงจนหมดเวลาแล้วค่อยสรุป = ข้อเท็จจริง |
 | Edit → `user_classified=true` | parser never overrides user choices |
 | created_by_name snapshot at save | recipients can't resolve owner settings |
 | Two-stage delete in shared accounts | everyone sees deletion before it's permanent |

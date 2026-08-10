@@ -21,6 +21,7 @@ import {
   renderEmptyState, escapeHtml, renderEntryRow, bindEntryActions
 } from './views-shared.js';
 import { setSettingsOpenSection } from './views-settings.js';
+import { renderGoalSection, bindGoalSection } from './views-goals.js';
 
 
 /* === Skeleton loading =========================================== */
@@ -427,6 +428,9 @@ export function renderDashboard(container) {
     <!-- Hero: spending pace card (B+A style) -->
     ${renderHeroCard()}
 
+    <!-- เป้าหมายท้าทาย — ปุ่มตั้งเป้า / การ์ดความคืบหน้า -->
+    ${renderGoalSection()}
+
     <!-- Today entries — ต่อจาก hero card -->
     <div class="section">
       <div class="section-head">
@@ -475,6 +479,7 @@ export function renderDashboard(container) {
   `;
 
   bindEntryActions(container);
+  bindGoalSection(container);
 
   // Hero amount counter animation
   const heroVal = container.querySelector('#hero-val');
