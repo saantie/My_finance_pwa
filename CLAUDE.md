@@ -248,7 +248,9 @@ localStorage v2 (`diary_finance_v2`): `compactTx()`/`expandTx()` (~55% smaller �
 `FIREBASE_CONFIG` is hardcoded in firebase.js (Firebase web config is not secret; security = Firestore rules). The empty `FIREBASE_CONFIG` in js/config.js is unused legacy.
 
 ### Service worker
-Cache-first for all same-origin requests. **Every deploy that changes JS must bump `VERSION` in sw.js** (currently `diary-v6.25.x`) or browsers keep stale files — this has bitten config.js and gemini.js before. Users reload twice: 1st activates new SW, 2nd fetches fresh files.
+Cache-first for all same-origin requests. **Every deploy that changes JS must bump `VERSION` in sw.js** (currently `diary-v6.26.x`) or browsers keep stale files — this has bitten config.js and gemini.js before. **New JS module ต้องเพิ่มเข้า `SHELL_FILES` ด้วย** (ไม่งั้นได้แค่ runtime cache ไม่ pre-cache = ครั้งแรกออฟไลน์แล้วพัง).
+
+Auto-update (ไม่ต้องให้ user reload เอง — app.js `registerServiceWorker()`): `register('sw.js', { updateViaCache: 'none' })` + `reg.update()` ทุกครั้งที่เปิดแอป → เจอ VERSION ใหม่ → install/precache → `skipWaiting()` → activate ลบ cache เก่า → `clients.claim()` → `controllerchange` → `location.reload()` **อัตโนมัติรอบเดียว** (guard `reloaded` กัน reload ซ้ำ; ผูก listener เฉพาะเมื่อมี `controller` อยู่แล้ว = เป็น update ไม่ใช่ติดตั้งครั้งแรก). ต้องเปิดแอปตอนออนไลน์อย่างน้อยครั้งหนึ่ง — ออฟไลน์ = ใช้ cache เดิมต่อ (ตั้งใจ ตามหลัก local-first).
 
 ---
 
