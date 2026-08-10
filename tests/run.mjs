@@ -1574,6 +1574,53 @@ test('sw.js: SHELL_FILES มี notify.js (module ใหม่ต้องเข
   assert(shell[0].includes('./js/notify.js'), 'notify.js must be in SHELL_FILES');
 });
 
+/* --- หน้าแรกพับส่วนรายละเอียด (progressive disclosure) --- */
+const dashSrc = readFileSync('./js/views-dashboard.js', 'utf8');
+
+test('views-dashboard: section รายละเอียดทุกส่วนใช้ dashSection() (พับได้)', () => {
+  for (const id of ['spending', 'forecast', 'upcoming', 'donut', 'export']) {
+    assert(new RegExp(`id:\\s*'${id}'`).test(dashSrc), `section ${id} ต้องผูกกับ dashSection()`);
+  }
+});
+
+test('views-dashboard: หัวข้อที่พับต้องมี summary ติดไปด้วย (ไม่ให้ข้อมูลหาย)', () => {
+  // นับจุดเรียกทั้งหมด เทียบกับจุดที่มี summary: ตามมาภายในบล็อกเดียวกัน
+  // `id:` (มี colon) = จุดเรียกจริง — กันไปนับ signature ของฟังก์ชันที่ประกาศ `{ id, title, ... }`
+  const calls    = (dashSrc.match(/dashSection\(\{\s*\n?\s*id:/g) || []).length;
+  const withSumm = (dashSrc.match(/dashSection\(\{\s*\n?\s*id:[\s\S]{0,400}?summary:/g) || []).length;
+  assert(calls >= 5, `ต้องมี dashSection อย่างน้อย 5 จุด (พบ ${calls})`);
+  eq(withSumm, calls, 'dashSection ทุกจุดต้องส่ง summary');
+});
+
+test('views-dashboard: Chart.js init เฉพาะ section ที่คลี่อยู่ (canvas ที่ซ่อนมีขนาด 0)', () => {
+  assert(/if \(isSectionOpen\('herochart'\)\) initHeroChart\(\)/.test(dashSrc),
+    'hero chart ต้อง init เมื่อ section เปิดเท่านั้น');
+  assert(/if \(isSectionOpen\('forecast'\)\)\s+initForecastChart\(\)/.test(dashSrc),
+    'forecast chart ต้อง init เมื่อ section เปิดเท่านั้น');
+  assert(/LAZY_CHART_INIT\[id\]\?\.\(\)/.test(dashSrc),
+    'ต้อง init กราฟตอนกดคลี่');
+});
+
+test('views-dashboard: สถานะพับ/คลี่เก็บใน localStorage ไม่ใช่ state (ไม่เข้า backup)', () => {
+  assert(/DASH_OPEN_KEY = 'diary_dash_open'/.test(dashSrc), 'ต้องมี localStorage key');
+  assert(!/setSetting\(\s*'dash_open'/.test(dashSrc), 'ต้องไม่เขียนลง state.settings');
+});
+
+test('styles.css: .dash-sec-body ซ่อนตอนพับ + แสดงตอน .open', () => {
+  const hidden = cssSrc.match(/(?:^|\n)\.dash-sec-body\s*\{[^}]*\}/);
+  assert(hidden, 'must have .dash-sec-body block');
+  assert(/display:\s*none/.test(hidden[0]), '.dash-sec-body ต้องซ่อนโดย default');
+  assert(/\.dash-sec\.open > \.dash-sec-body\s*\{[^}]*display:\s*block/.test(cssSrc),
+    '.dash-sec.open ต้องแสดง body');
+});
+
+test('styles.css: .pace-prev-label ต้องไม่ translateX ซ้ำ (ฉลากล้นการ์ด)', () => {
+  const block = cssSrc.match(/(?:^|\n)\.pace-prev-label\s*\{[^}]*\}/);
+  assert(block, 'must have .pace-prev-label block');
+  assert(!/transform:\s*translateX/.test(block[0]),
+    '.pace-prev-mark จัดกึ่งกลางให้แล้ว — เลื่อนซ้ำทำให้ฉลากล้นออกนอกการ์ด');
+});
+
 test('sw.js: VERSION format ถูกต้อง (diary-vX.Y.Z)', () => {
   assert(/const VERSION = 'diary-v\d+\.\d+\.\d+'/.test(swSrc), 'VERSION must match diary-vX.Y.Z');
 });
