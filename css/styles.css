@@ -629,7 +629,8 @@ html, body {
   white-space: nowrap;
   text-align: center;
   margin-top: 3px;
-  transform: translateX(-50%);
+  /* ไม่ต้อง translateX ซ้ำ — .pace-prev-mark จัดกึ่งกลางบนหมุดให้แล้ว
+     (ของเดิมเลื่อนซ้ำ ฉลากจึงเยื้องซ้ายจนล้นออกนอกการ์ด) */
 }
 
 .pace-ends {
@@ -1330,6 +1331,389 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
 }
 
 
+/* === 6a. Collapsible sections (หน้าแรกพับส่วนรายละเอียด) ========= */
+
+.dash-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-card);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease;
+}
+.dash-sec-head:active { transform: scale(0.99); }
+/* เปิดอยู่ → หัวข้อยังเป็นแถวกลมของตัวเอง แล้วเว้นช่องให้เนื้อหาข้างล่าง
+   (ไม่เชื่อมขอบกับการ์ด เพราะแต่ละ section มีโครงเนื้อหาต่างกัน — chips/การ์ด/empty state) */
+.dash-sec.open > .dash-sec-head {
+  border-color: var(--rule);
+  margin-bottom: 10px;
+}
+.dash-sec-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* หัวข้อในโหมดพับใช้ขนาดเล็กกว่า .section-title เดิม — ไม่ให้แย่งสายตากับ hero */
+.dash-sec-head .section-title { font-size: 17px; line-height: 1.35; }
+.dash-sec-summary {
+  font-size: var(--ts-xs);
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.dash-sec-chev {
+  flex-shrink: 0;
+  display: flex;
+  color: var(--ink-faint);
+  transition: transform 0.2s ease;
+}
+.dash-sec-chev svg { stroke: var(--ink-faint); }
+.dash-sec.open > .dash-sec-head .dash-sec-chev,
+.dash-sec.open > .hero-chart-toggle .dash-sec-chev { transform: rotate(90deg); }
+
+.dash-sec-body { display: none; }
+.dash-sec.open > .dash-sec-body {
+  display: block;
+  animation: dash-sec-in 0.22s ease;
+}
+@keyframes dash-sec-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.dash-sec-foot { padding: 8px 4px 0; text-align: right; }
+
+/* กราฟในการ์ด hero — ปุ่มคลี่แบบบางๆ ไม่ใช่การ์ดซ้อนการ์ด */
+.hero-chart-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px;
+  margin: 2px 0 4px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: var(--ts-xs);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.hero-chart-toggle:active { background: var(--rule-soft); }
+
+html[data-dark="1"] .dash-sec-head { background: var(--card); border-color: var(--rule); }
+
+
+/* === 6b. เป้าหมายท้าทาย (goal cards + ปุ่มตั้งเป้า) ============== */
+
+/* ปุ่มชวนตั้งเป้า — แสดงเมื่อยังไม่มีเป้าเลย */
+.goal-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px dashed var(--rule);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ink);
+  transition: transform 0.12s ease;
+}
+.goal-cta:active { transform: scale(0.985); }
+.goal-cta-ic {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--terracotta);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.goal-cta-ic svg { stroke: #fff; }
+.goal-cta-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.goal-cta-title { font-size: var(--ts-md); font-weight: 600; color: var(--ink); }
+.goal-cta-sub    { font-size: var(--ts-sm); color: var(--ink-soft); line-height: 1.45; }
+.goal-cta-chev   { flex-shrink: 0; color: var(--ink-faint); display: flex; }
+.goal-cta-chev svg { stroke: var(--ink-faint); }
+
+/* การ์ดเป้าหมาย */
+.goal-card { padding: 14px 16px 15px; margin-bottom: 10px; }
+.goal-card:last-child { margin-bottom: 0; }
+.goal-card-done { opacity: 0.92; }
+
+.goal-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.goal-ic {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.goal-ic svg { stroke: #fff; }
+.goal-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.goal-title {
+  font-size: var(--ts-base);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.goal-meta { font-size: var(--ts-xs); color: var(--ink-faint); }
+.goal-edit {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--rule-soft);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.goal-edit svg { stroke: var(--ink-soft); }
+
+/* แถบความคืบหน้า + หมุดจังหวะที่ควรอยู่ */
+.goal-bar {
+  position: relative;
+  height: 10px;
+  background: var(--rule-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.goal-bar-fill {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--terracotta);
+  transition: width 0.5s ease;
+}
+.goal-bar-fill.good  { background: var(--sage); }
+.goal-bar-fill.warn  { background: var(--honey); }
+.goal-bar-fill.over  { background: var(--clay); }
+.goal-bar-fill.earn  { background: var(--sage); }
+.goal-bar-fill.ended { background: var(--mocha); }
+.goal-bar-pace {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 14px;
+  background: var(--ink-faint);
+  opacity: 0.55;
+  border-radius: 2px;
+}
+
+.goal-nums {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.goal-num-main {
+  font-size: var(--ts-base);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.goal-num-side { flex-shrink: 0; font-size: var(--ts-xs); color: var(--ink-faint); }
+
+.goal-verdict {
+  margin-top: 8px;
+  font-size: var(--ts-sm);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.goal-verdict.good { color: var(--sage); }
+.goal-verdict.warn { color: var(--clay); }
+
+.goal-done-actions { display: flex; gap: 8px; margin-top: 12px; }
+.goal-ghost-btn {
+  flex: 1;
+  padding: 9px;
+  border-radius: 11px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--ts-sm);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.goal-ghost-btn.primary {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  background: var(--terracotta-soft);
+}
+
+/* Modal ตั้งเป้า — ใช้โครง .overlay + .acct-modal ร่วมกับ modal บัญชี */
+.goal-modal-body { gap: 0; }
+.goal-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.goal-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--rule);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.goal-type-btn svg { stroke: var(--ink-faint); }
+.goal-type-btn.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta-soft);
+}
+.goal-type-btn.active svg { stroke: var(--terracotta); }
+.goal-type-btn.active .goal-type-name { color: var(--terracotta); }
+.goal-type-name { font-size: var(--ts-base); font-weight: 600; color: var(--ink); }
+.goal-type-desc { font-size: var(--ts-xs); color: var(--ink-faint); line-height: 1.35; }
+
+.goal-chip-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.goal-chip-row::-webkit-scrollbar { display: none; }
+.goal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--rule);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--ts-sm);
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.goal-chip.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta-soft);
+  color: var(--terracotta);
+  font-weight: 600;
+}
+.goal-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* flex-wrap ไม่ใช่ grid 4 คอลัมน์ตายตัว — ที่ text_size=xlarge + 360px
+   ปุ่มจะตกลงแถวใหม่แทนที่จะบีบจนตัวหนังสือล้น */
+.goal-dur-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.goal-dur-btn {
+  flex: 1 1 68px;
+  padding: 9px 4px;
+  border-radius: 10px;
+  border: 1.5px solid var(--rule);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--ts-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.goal-dur-btn.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta-soft);
+  color: var(--terracotta);
+  font-weight: 600;
+}
+
+.goal-date-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.goal-date-label > span {
+  flex-shrink: 0;
+  font-size: var(--ts-sm);
+  color: var(--ink-soft);
+}
+.goal-date-label .goal-date-input { flex: 1; min-width: 0; margin-top: 0; }
+
+.goal-preview {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  /* derive จาก token ของธีมเอง → ถูกทิศทั้ง light/dark ทุกธีม (fallback ก่อน) */
+  background: var(--card);
+  background: color-mix(in srgb, var(--paper) 75%, var(--card) 25%);
+  font-size: var(--ts-sm);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.goal-delete-btn {
+  margin-top: 12px;
+  padding: 9px;
+  width: 100%;
+  border-radius: 11px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--clay);
+  font-size: var(--ts-sm);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Dark mode — chip/type/date ต้อง override เอง (ดู CLAUDE.md §6 dark-mode gotcha) */
+html[data-dark="1"] .goal-cta,
+html[data-dark="1"] .goal-chip,
+html[data-dark="1"] .goal-dur-btn,
+html[data-dark="1"] .goal-type-btn {
+  background: var(--card);
+  border-color: var(--rule);
+  color: var(--ink-soft);
+}
+html[data-dark="1"] .goal-chip.active,
+html[data-dark="1"] .goal-dur-btn.active,
+html[data-dark="1"] .goal-type-btn.active {
+  background: var(--terracotta-soft);
+  border-color: var(--terracotta);
+  color: var(--ink);
+}
+html[data-dark="1"] .goal-type-btn.active .goal-type-name { color: var(--ink); }
+html[data-dark="1"] .goal-type-btn.active svg { stroke: var(--ink); }
+html[data-dark="1"] .goal-date-input { color-scheme: dark; }
+
+
 /* === 7. Add modal + keypad ====================================== */
 
 .modal {
@@ -1813,7 +2197,9 @@ html[data-dark="1"] .export-info-box { background: rgba(255,255,255,0.06); }
   border: 1.5px solid var(--rule);
   border-radius: 10px;
   font-size: 15px;
-  background: var(--surface, #fff);
+  /* --card ไม่ใช่ #fff ตายตัว → dark mode ไม่กลายเป็นข้อความขาวบนพื้นขาว
+     (--surface ไม่มีนิยามในระบบ token นี้ fallback จึงเป็นขาวเสมอ) */
+  background: var(--card);
   color: var(--ink);
   box-sizing: border-box;
   margin-top: 6px;

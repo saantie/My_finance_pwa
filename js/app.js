@@ -12,6 +12,7 @@
 
 import * as State from './state.js';
 import * as Recurring from './recurring.js';
+import { evaluateGoals, goalTitle } from './goals.js';
 import { renderDashboard, renderList, renderImport, renderSettings, renderDashboardSkeleton, showToast, applyTheme, applyTextSize, applyDark, setSettingsOpenSection } from './views.js';
 import { openAddModal, openAddModalWithVoice, closeAddModal } from './add.js';
 import { initFirebase, onAuthStateChanged, fetchAccountsSharedWithMe, fetchAccountsOwnedByMe, subscribeAccountsSharedWithMe, getAccessToken } from './firebase.js';
@@ -341,6 +342,16 @@ function init() {
       ? `สร้างรายการประจำ ${sched.executed} งวด (จาก ${sched.templateCount} รายการ)`
       : `สร้างรายการประจำ ${sched.templateCount} รายการ`;
     setTimeout(() => showToast(msg), 800);
+  }
+
+  // 3b. ปิดเป้าหมายท้าทายที่ครบกำหนด/ถึงเป้าแล้ว — บอกผลด้วย toast (ไม่มี popup)
+  const resolvedGoals = evaluateGoals();
+  if (resolvedGoals.length > 0) {
+    const first = resolvedGoals[0];
+    const msg = first.achieved
+      ? `🎯 เป้า "${goalTitle(first.goal)}" สำเร็จแล้ว`
+      : `เป้า "${goalTitle(first.goal)}" ครบกำหนดแล้ว — ดูผลได้ที่หน้าแรก`;
+    setTimeout(() => showToast(msg), 1200);
   }
 
   // 4. Setup navigation handlers + auth badge

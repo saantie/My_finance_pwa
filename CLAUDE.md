@@ -102,6 +102,22 @@ Default accounts (4): `cash:default`, `bank:manual:default`, `invest:default`, `
 ### Recurring template
 `{ id, pattern: { description_match, amount_range, day_of_month, frequency }, type, category, group, account_id, confidence, last_occurrence, next_expected, user_confirmed }` — suggest only at confidence ≥ 0.8, never auto-create.
 
+### Goal (เป้าหมายท้าทาย)
+```typescript
+{
+  id: string,
+  type: "save" | "earn",         // ประหยัดไม่เกินงบ | หารายรับให้ถึงเป้า
+  target_amount: number,         // satang, positive
+  group: string | null,          // จำกัดเฉพาะหมวด; null = ทุกหมวด
+  start_date, end_date: "YYYY-MM-DD",   // inclusive ทั้งคู่
+  status: "active" | "done" | "archived",
+  achieved: boolean | null,      // ตั้งตอน status → done
+  resolved_at: string | null,
+  createdAt, updatedAt: ISO timestamp
+}
+```
+เก็บใน `state.goals` (localStorage + export/import) — กฎอยู่ใน `goals.js`, การคำนวณอ่านจาก `getTransactions()` (โอนไม่นับ). ปิดเป้าเฉพาะตอนเปิดแอปผ่าน `evaluateGoals()`.
+
 ### Settings
 `{ threshold_satang (default 200000), theme, language: "th", text_size: "normal"|"large"|"xlarge", display_name, notification_enabled, affiliate_disabled, last_drive_backup }`
 
@@ -128,11 +144,13 @@ Daily coins: bronze +10 XP (≥1 entry), silver +25 (≥1 entry + balance ok), g
 - **F1.4 Manual entry:** modal "บันทึกรายการ"; account picker (bottom-sheet) above category; amount row centered with mic; built-in calculator; 6 frequency options in 3×2 grid (วันนี้ | ย้อนหลัง backdate max=yesterday | ล่วงหน้า | ทุกเดือน | ทุกสัปดาห์ | ผ่อน); edit via pencil/swipe-left → pre-filled modal → sets `user_classified=true`.
 - **F1.5 Voice input:** Web Speech API + custom Thai NLP, handles Thai number words.
 - **F1.6 Dashboard:** hero insight card → today's entries → active accounts → top categories → 14-day SVG expense chart (today=terracotta, weekend=mocha, dashed avg line; data from `activeTxs()`) → recent txs → 30-day cashflow forecast (computed from real balances).
+- **F1.16 หน้าแรกพับส่วนรายละเอียด (ส.ค. 2026):** progressive disclosure — เห็นทันทีเฉพาะ hero (ตัวเลข+จังหวะ), เป้าหมาย, บันทึกวันนี้; ส่วนที่เหลือ (กราฟ 14 วัน / คาดการณ์ 30 วัน / รายการล่วงหน้า / ใช้ไปกับอะไร / ส่งออก + กราฟเทียบเดือนที่แล้วใน hero) พับไว้ผ่าน `dashSection({id,title,summary,body})`. **หัวข้อที่พับต้องพกตัวเลขสรุปเสมอ** (เช่น "เฉลี่ยวันละ 287 ฿ · วันนี้ 120 ฿") — พับเพื่อลดความรก ไม่ใช่ซ่อนข้อมูล. สถานะเปิด/ปิดเก็บใน localStorage `diary_dash_open` (UI preference — ไม่เข้า state/backup, ไม่ trigger re-render). Chart.js init เฉพาะ section ที่คลี่ (canvas ที่ `display:none` มีขนาด 0 → กราฟว่าง) และช่วยให้เปิดแอปครั้งแรกไม่ต้องโหลด Chart.js เลย.
 - **F1.9 Backup:** manual JSON export/import + **Google Drive backup** (`drive.file` scope — non-sensitive, no Google verification needed). Single file `diary-finance-backup.json` (create or PATCH). Auto-backup every 7 days in sessions with a token. Token expires on reload → `requestDriveAccess()` popups on demand. Email backup was removed entirely.
 - **F1.10 Themes:** 7 color themes (Diary default warm-orange, Ocean, Forest, Rose, Citrus, Violet, Carbon navy) + separate dark-mode toggle (`data-dark="1"` on `<html>`) + text size 3 levels via `:root` font-size (16/18/20px rem cascade). Pinch-zoom never blocked.
 - **F1.11 UX shell:** bottom nav 4 tabs + center FAB, full-screen add modal, in-app keypad. Settings = accordion menu (June 2026): ทุก section พับเก็บ เปิดได้ทีละส่วน ยกเว้น profile/Level card แสดงตลอด; `_settingsOpenSection` คงไว้ข้าม re-render; deep-links (`setSettingsOpenSection()`) เปิด section ก่อน scroll.
 - **F1.12 Selective account sharing** (realtime Firestore — see §7).
 - **F1.14 List view:** month selector (default current), working filter chips (all/expense/income/transfer), search within month.
+- **F1.15 เป้าหมายท้าทาย (ส.ค. 2026):** ปุ่ม/section บนหน้าแรก (ใต้ hero card) ให้ user ตั้งเป้าเอง — จำนวนเงิน + ประเภท (`save` ประหยัดไม่เกินงบ / `earn` หารายรับให้ถึงเป้า) + หมวด (optional) + ระยะเวลา (7/14/30 วัน / สิ้นเดือน / เลือกวันเอง). การ์ดแสดงความคืบหน้า + หมุดจังหวะที่ควรอยู่ (expectedPct) + ยอดที่ใช้ได้ต่อวัน. `evaluateGoals()` ตอนเปิดแอปปิดเป้าที่ถึงยอด (earn) หรือครบกำหนด แล้วบอกผลด้วย toast + XP 80 (`goal_completed`); เป้าประหยัดที่ใช้เกินงบ **ไม่** ปิดกลางทาง — ให้เห็นตัวเลขจริงจนหมดเวลา. แก้/ลบ/ปิดการ์ดได้ทุกเมื่อ (reversible), ไม่มี streak, ไม่มี popup. เก็บใน `state.goals` → เข้า backup/Drive อัตโนมัติ.
 
 ### Import account confirmation (June 2026)
 Review modal always shows a **"นำเข้าไปยังบัญชี" picker card**:
@@ -231,7 +249,9 @@ localStorage v2 (`diary_finance_v2`): `compactTx()`/`expandTx()` (~55% smaller �
 `FIREBASE_CONFIG` is hardcoded in firebase.js (Firebase web config is not secret; security = Firestore rules). The empty `FIREBASE_CONFIG` in js/config.js is unused legacy.
 
 ### Service worker
-Cache-first for all same-origin requests. **Every deploy that changes JS must bump `VERSION` in sw.js** (currently `diary-v6.25.x`) or browsers keep stale files — this has bitten config.js and gemini.js before. Users reload twice: 1st activates new SW, 2nd fetches fresh files.
+Cache-first for all same-origin requests. **Every deploy that changes JS must bump `VERSION` in sw.js** (currently `diary-v6.26.x`) or browsers keep stale files — this has bitten config.js and gemini.js before. **New JS module ต้องเพิ่มเข้า `SHELL_FILES` ด้วย** (ไม่งั้นได้แค่ runtime cache ไม่ pre-cache = ครั้งแรกออฟไลน์แล้วพัง).
+
+Auto-update (ไม่ต้องให้ user reload เอง — app.js `registerServiceWorker()`): `register('sw.js', { updateViaCache: 'none' })` + `reg.update()` ทุกครั้งที่เปิดแอป → เจอ VERSION ใหม่ → install/precache → `skipWaiting()` → activate ลบ cache เก่า → `clients.claim()` → `controllerchange` → `location.reload()` **อัตโนมัติรอบเดียว** (guard `reloaded` กัน reload ซ้ำ; ผูก listener เฉพาะเมื่อมี `controller` อยู่แล้ว = เป็น update ไม่ใช่ติดตั้งครั้งแรก). ต้องเปิดแอปตอนออนไลน์อย่างน้อยครั้งหนึ่ง — ออฟไลน์ = ใช้ cache เดิมต่อ (ตั้งใจ ตามหลัก local-first).
 
 ---
 
@@ -298,8 +318,10 @@ js/
   views-list.js       LIST view (เดือน/filter/search/day groups)
   views-import.js     IMPORT money-path: review modal + account confirm + confirmImport + Gemini fallback
   views-settings.js   SETTINGS: accordion, แชร์บัญชี (Firebase), recurring, แจ้งเตือน
+  views-goals.js      เป้าหมายท้าทาย: section หน้าแรก (renderGoalSection/bindGoalSection) + modal ตั้งเป้า
+  goals.js            goal engine: createGoal/editGoal/getGoalProgress/evaluateGoals (กฎ+คำนวณ ไม่มี DOM)
   app.js              entry, routing, auth lifecycle
-tests/run.mjs         344 tests — all passing; runner exits 1 on failure
+tests/run.mjs         455 tests — all passing; runner exits 1 on failure
                       (มี module-load + export-shape net สำหรับ views-* clusters)
 tests/loader.mjs      ESM loader mocking Firebase CDN imports for Node
 .github/workflows/test.yml  CI: runs tests on every push/PR to main
@@ -335,6 +357,7 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 | `prompt()`/`confirm()` still used for PDF password + AI-consent dialogs | replace with styled modals during microinteractions polish |
 | Parser upserts detected account at *parse* time, before review confirm — overridden accounts linger empty | move account creation into confirmImport |
 | Review-modal account-picker card uses inline styles | move to styles.css with next CSS touch |
+| `var(--surface, #fff)` ใน `.picker-sheet` / `.acct-type-btn` / `.dup-dialog` — `--surface` ไม่มีนิยาม จึงเป็นขาวเสมอใน dark mode (`.acct-field-input` แก้เป็น `--card` แล้ว ส.ค. 2026) | ครั้งต่อไปที่แตะ CSS ของ modal เหล่านี้ |
 | Unused legacy `FIREBASE_CONFIG` block in js/config.js | delete on next config.js change |
 | Firebase CDN pinned 10.12.0; tests/loader.mjs mocks may drift from real SDK | review at v2.0 cloud-sync work |
 | No Sentry/PostHog yet | pre-launch ops (already in roadmap) |
@@ -359,6 +382,10 @@ Free forever for all core features (PDF import, voice, manual, dashboard, alerts
 | **`gemini-3.5-flash`** | 2.0 shut down Jun 1 2026; 2.5 dies Oct 16 2026 |
 | **AI fallback sends real PDF file; text only when encrypted** | extracted text from broken layers gave 0 results |
 | **Review modal confirms destination account on every import** | prevent wrong-account imports; detected = default, override skips creating detected |
+| **หน้าแรกพับรายละเอียด แต่หัวข้อที่พับพกตัวเลขสรุปไว้** | ผู้ใช้บอกว่าหน้าแรกรก; พับเปล่าๆ = ต้องกดถึงจะรู้ = friction ใหม่ ตัวเลขสรุปทำให้ยังอ่านได้ในแตะเดียว |
+| **สถานะพับ/คลี่เก็บใน localStorage ไม่ใช่ state.settings** | UI preference ล้วน — ไม่ควรกินพื้นที่ backup และไม่ต้อง re-render ทั้งหน้าเวลาแตะ |
+| **เป้าหมายท้าทาย = user ตั้งเอง ไม่ auto-suggest** | เป้าที่ระบบยัดให้ = guilt; เป้าที่ user เลือกเอง = แรงจูงใจ (ยังไม่มี streak/badge ตามหลัก §2) |
+| **เป้าประหยัดที่ใช้เกินงบไม่ปิดกลางทาง** | ปิดทันที = ตัดสิน/ทำโทษ; ปล่อยให้เห็นตัวเลขจริงจนหมดเวลาแล้วค่อยสรุป = ข้อเท็จจริง |
 | Edit → `user_classified=true` | parser never overrides user choices |
 | created_by_name snapshot at save | recipients can't resolve owner settings |
 | Two-stage delete in shared accounts | everyone sees deletion before it's permanent |

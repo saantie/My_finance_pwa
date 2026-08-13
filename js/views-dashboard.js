@@ -11,7 +11,7 @@ import * as Recurring from './recurring.js';
 import { svgIcon, getCategory } from './icons.js';
 import {
   formatBaht, formatLongDate, formatShortDate, todayISO, parseLocalDate,
-  dayNameTH, monthNameTH, ceToBe, offsetDateISO
+  dayNameTH, monthNameTH, ceToBe, offsetDateISO, haptic
 } from './utils.js';
 import { dailyExpenseBars } from './chart.js';
 import { track } from './analytics.js';
@@ -21,6 +21,84 @@ import {
   renderEmptyState, escapeHtml, renderEntryRow, bindEntryActions
 } from './views-shared.js';
 import { setSettingsOpenSection } from './views-settings.js';
+import { renderGoalSection, bindGoalSection } from './views-goals.js';
+
+
+/* ===================================================================
+   Collapsible sections — หน้าแรกโชว์เฉพาะสิ่งที่ต้องเห็นทันที
+   ===================================================================
+   หลักการ (progressive disclosure): ส่วนที่เป็น "รายละเอียด" พับเก็บไว้
+   แต่หัวข้อที่พับต้องพก "ตัวเลขสรุป" ติดไปด้วยเสมอ — ผู้ใช้จึงยังได้ข้อมูล
+   โดยไม่ต้องกด และกดคลี่เมื่ออยากเห็นเบื้องหลัง
+
+   สถานะเปิด/ปิดเก็บใน localStorage (ไม่ใช่ state.settings) เพราะเป็น
+   UI preference ล้วน — ไม่ต้องเข้า backup และไม่ต้อง trigger re-render ทั้งหน้า
+   =================================================================== */
+const DASH_OPEN_KEY = 'diary_dash_open';
+
+let _openSections = null;
+
+function openSections() {
+  if (_openSections) return _openSections;
+  try {
+    const raw = localStorage.getItem(DASH_OPEN_KEY);
+    _openSections = new Set(raw ? JSON.parse(raw) : []);   // ค่าเริ่มต้น = พับทุกส่วน
+  } catch {
+    _openSections = new Set();
+  }
+  return _openSections;
+}
+
+function isSectionOpen(id) {
+  return openSections().has(id);
+}
+
+function setSectionOpen(id, open) {
+  const set = openSections();
+  if (open) set.add(id); else set.delete(id);
+  try { localStorage.setItem(DASH_OPEN_KEY, JSON.stringify([...set])); } catch { /* private mode */ }
+}
+
+/**
+ * Section แบบพับได้ — หัวข้อ + ตัวเลขสรุป + ลูกศร, กดที่หัวเพื่อคลี่
+ * @param {object} o { id, title, summary, body }
+ */
+function dashSection({ id, title, summary = '', body }) {
+  const open = isSectionOpen(id);
+  return `
+    <div class="section dash-sec${open ? ' open' : ''}" data-dash-sec="${id}">
+      <button class="dash-sec-head" data-dash-toggle="${id}" aria-expanded="${open}">
+        <span class="dash-sec-titles">
+          <span class="section-title">${title}</span>
+          ${summary ? `<span class="dash-sec-summary">${summary}</span>` : ''}
+        </span>
+        <span class="dash-sec-chev">${svgIcon('chevron', { size: 16, stroke: 2.5 })}</span>
+      </button>
+      <div class="dash-sec-body">${body}</div>
+    </div>`;
+}
+
+/** Chart.js สร้างบน canvas ที่ถูกซ่อนอยู่ไม่ได้ (ขนาด 0) — init ตอนคลี่เท่านั้น */
+const LAZY_CHART_INIT = {
+  herochart: initHeroChart,
+  forecast:  initForecastChart,
+};
+
+function bindDashSections(container) {
+  container.querySelectorAll('[data-dash-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id  = btn.dataset.dashToggle;
+      const sec = container.querySelector(`[data-dash-sec="${id}"]`);
+      if (!sec) return;
+      const open = !sec.classList.contains('open');
+      sec.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      setSectionOpen(id, open);
+      haptic(8);
+      if (open) LAZY_CHART_INIT[id]?.();
+    });
+  });
+}
 
 
 /* === Skeleton loading =========================================== */
@@ -162,21 +240,28 @@ function renderHeroCard() {
         <div class="hero-card-amount" style="color:${amountColor}"><span id="hero-val" data-target="${Math.abs(remaining)}">${formatBaht(Math.abs(remaining))}</span> <span class="hero-card-unit">฿</span></div>
       </div>
 
-      <!-- 2. Legend -->
-      <div class="hero-card-legend">
-        <span class="hero-legend-item"><span class="hero-legend-line curr"></span>เดือนนี้</span>
-        <span class="hero-legend-item"><span class="hero-legend-line prev"></span>เดือนที่แล้ว</span>
-      </div>
+      <!-- 2–4. กราฟเทียบเดือนที่แล้ว — พับไว้ (ไม่โหลด Chart.js จนกว่าจะคลี่) -->
+      <div class="dash-sec hero-chart-sec${isSectionOpen('herochart') ? ' open' : ''}" data-dash-sec="herochart">
+        <button class="hero-chart-toggle" data-dash-toggle="herochart" aria-expanded="${isSectionOpen('herochart')}">
+          <span>กราฟเทียบกับเดือนที่แล้ว</span>
+          <span class="dash-sec-chev">${svgIcon('chevron', { size: 15, stroke: 2.5 })}</span>
+        </button>
+        <div class="dash-sec-body">
+          <div class="hero-card-legend">
+            <span class="hero-legend-item"><span class="hero-legend-line curr"></span>เดือนนี้</span>
+            <span class="hero-legend-item"><span class="hero-legend-line prev"></span>เดือนที่แล้ว</span>
+          </div>
 
-      <!-- 3. Area chart -->
-      <div class="hero-chart-wrap">
-        <canvas id="heroAreaChart"></canvas>
-      </div>
+          <div class="hero-chart-wrap">
+            <canvas id="heroAreaChart"></canvas>
+          </div>
 
-      <!-- 4. Date labels — มีคำว่า "วันที่" + "สิ้นเดือน" กำกับหัวท้าย
-           ให้อ่านรู้ทันทีว่าเป็นวันของเดือน ไม่ใช่เลขลอยๆ -->
-      <div class="hero-date-labels">
-        <span>วันที่ 1</span><span>7</span><span>14</span><span>21</span><span>สิ้นเดือน</span>
+          <!-- Date labels — มีคำว่า "วันที่" + "สิ้นเดือน" กำกับหัวท้าย
+               ให้อ่านรู้ทันทีว่าเป็นวันของเดือน ไม่ใช่เลขลอยๆ -->
+          <div class="hero-date-labels">
+            <span>วันที่ 1</span><span>7</span><span>14</span><span>21</span><span>สิ้นเดือน</span>
+          </div>
+        </div>
       </div>
 
       <!-- 5. Divider -->
@@ -196,7 +281,10 @@ function renderHeroCard() {
           ${clampedPrev > 0 ? `
           <div class="pace-prev-mark" style="left:${clampedPrev}%">
             <div class="pace-prev-tick"></div>
-            <span class="pace-prev-label">เดือนที่แล้ว ${prevSpentAtSameDay}%</span>
+            ${clampedPrev >= 12 && clampedPrev <= 88
+              // ชิดขอบเกินไป ฉลากจะล้นการ์ด — เหลือแค่หมุด
+              // (ตัวเลขเทียบเดือนที่แล้วมีอยู่ในบรรทัด verdict ใต้แถบอยู่แล้ว)
+              ? `<span class="pace-prev-label">เดือนที่แล้ว ${prevSpentAtSameDay}%</span>` : ''}
           </div>` : ''}
         </div>
         <div class="pace-ends">
@@ -427,6 +515,9 @@ export function renderDashboard(container) {
     <!-- Hero: spending pace card (B+A style) -->
     ${renderHeroCard()}
 
+    <!-- เป้าหมายท้าทาย — ปุ่มตั้งเป้า / การ์ดความคืบหน้า -->
+    ${renderGoalSection()}
+
     <!-- Today entries — ต่อจาก hero card -->
     <div class="section">
       <div class="section-head">
@@ -452,29 +543,33 @@ export function renderDashboard(container) {
     ${renderUpcomingSection()}
 
     <!-- Top categories (donut + เลือกช่วงเวลา) -->
-    ${topCats.length > 0 ? `
-    <div class="section" id="donut-section">
-      ${renderDonutSection()}
-    </div>
-    ` : ''}
+    ${topCats.length > 0 ? renderDonutSection() : ''}
 
-    <!-- Export card -->
-    <div class="card export-card">
-      <div class="export-card-top">
-        <div class="export-card-icon">${svgIcon('download', { size: 20, stroke: 2 })}</div>
-        <div class="export-card-text">
-          <div class="export-card-title">ส่งออกรายงานเป็นไฟล์ Excel</div>
-        </div>
-      </div>
-      <button class="btn-primary export-card-btn" data-action="open-export">
-        ${svgIcon('download', { size: 15, stroke: 2 })}ดาวน์โหลด .xlsx
-      </button>
-    </div>
+    <!-- Export -->
+    ${dashSection({
+      id: 'export',
+      title: 'ส่งออกรายงาน',
+      summary: 'ดาวน์โหลดเป็นไฟล์ Excel (.xlsx)',
+      body: `
+        <div class="card export-card">
+          <div class="export-card-top">
+            <div class="export-card-icon">${svgIcon('download', { size: 20, stroke: 2 })}</div>
+            <div class="export-card-text">
+              <div class="export-card-title">ส่งออกรายงานเป็นไฟล์ Excel</div>
+            </div>
+          </div>
+          <button class="btn-primary export-card-btn" data-action="open-export">
+            ${svgIcon('download', { size: 15, stroke: 2 })}ดาวน์โหลด .xlsx
+          </button>
+        </div>`
+    })}
 
     <div class="signoff">— จบหน้าวันนี้ —</div>
   `;
 
   bindEntryActions(container);
+  bindGoalSection(container);
+  bindDashSections(container);
 
   // Hero amount counter animation
   const heroVal = container.querySelector('#hero-val');
@@ -515,11 +610,12 @@ export function renderDashboard(container) {
   // Donut "ใช้ไปกับอะไร" — chips เลือกช่วงเวลา
   bindDonutChips(container);
 
-  // init charts หลัง DOM พร้อม
+  // init charts หลัง DOM พร้อม — Chart.js เฉพาะ section ที่คลี่อยู่
+  // (canvas ที่ display:none มีขนาด 0 → กราฟจะว่าง; ที่พับไว้ init ตอนกดคลี่แทน)
   requestAnimationFrame(() => {
-    initHeroChart();
-    initForecastChart();
-    initSpendingChart(container);
+    if (isSectionOpen('herochart')) initHeroChart();
+    if (isSectionOpen('forecast'))  initForecastChart();
+    initSpendingChart(container);   // SVG — ผูก event ได้แม้ถูกซ่อนอยู่
   });
 }
 
@@ -575,17 +671,18 @@ function renderSpendingChart() {
     `;
   }
 
-  return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">รายจ่าย ${days} วันล่าสุด</h2>
-      </div>
+  return dashSection({
+    id: 'spending',
+    title: `รายจ่าย ${days} วันล่าสุด`,
+    summary: avg > 0
+      ? `เฉลี่ยวันละ ${formatBaht(avg)} ฿ · วันนี้ ${formatBaht(todayTotal)} ฿`
+      : 'ยังไม่มีรายจ่ายในช่วงนี้',
+    body: `
       <div class="card chart-card">
         ${svg}
         ${insightHtml}
-      </div>
-    </div>
-  `;
+      </div>`
+  });
 }
 
 
@@ -806,20 +903,19 @@ function renderForecastCard() {
 
   // ข้อมูลน้อยเกินไป → แสดง empty state แทนกราฟ
   if (daysElapsed < 7) {
-    return `
-      <div class="section">
-        <div class="section-head">
-          <h2 class="section-title">เงินใน 30 วันข้างหน้า</h2>
-        </div>
+    return dashSection({
+      id: 'forecast',
+      title: 'เงินใน 30 วันข้างหน้า',
+      summary: 'ยังไม่พอสร้างกราฟ — ต้องการข้อมูล 7 วัน',
+      body: `
         <div class="card card-padded">
           ${renderEmptyState({
             icon:     'trending',
             title:    'ยังไม่พอสร้างกราฟ',
             subtitle: 'ต้องการข้อมูลอย่างน้อย 7 วัน — กลับมาดูสัปดาห์หน้า',
           })}
-        </div>
-      </div>
-    `;
+        </div>`
+    });
   }
   const threshold   = State.getSettings().threshold_satang;
   const minBalance  = Math.min(...days.map(d => d.balance));
@@ -833,11 +929,13 @@ function renderForecastCard() {
     return day % 7 === 0 ? String(day) : '';
   });
 
-  return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">เงินใน 30 วันข้างหน้า</h2>
-      </div>
+  return dashSection({
+    id: 'forecast',
+    title: 'เงินใน 30 วันข้างหน้า',
+    summary: dangerDays.length > 0
+      ? `คาดว่าจะต่ำกว่าเกณฑ์ ${dangerDays.length} วัน · ต่ำสุด ${formatBaht(minBalance)} ฿`
+      : `คาดต่ำสุด ${formatBaht(minBalance)} ฿ — ไม่ต่ำกว่าเกณฑ์`,
+    body: `
       <div class="card forecast-card">
 
         <div class="forecast-stats">
@@ -876,9 +974,8 @@ function renderForecastCard() {
           </div>
         </div>
 
-      </div>
-    </div>
-  `;
+      </div>`
+  });
 }
 
 /** Init / re-init Chart.js บน #forecastChart30 หลัง DOM insert */
@@ -997,17 +1094,22 @@ function renderUpcomingSection() {
   const upcoming = Recurring.getForecast(14).slice(0, 5);
   if (upcoming.length === 0) return '';
 
-  return `
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">รายการล่วงหน้า</h2>
-        <a class="section-action" data-action="view-recurring">จัดการ</a>
-      </div>
+  const total   = upcoming.reduce((s, u) => s + (u.type === 'income' ? 0 : u.amount), 0);
+  const nextDue = upcoming[0];
+
+  return dashSection({
+    id: 'upcoming',
+    title: 'รายการล่วงหน้า',
+    summary: `${upcoming.length} รายการใน 14 วัน${total > 0 ? ` · ต้องจ่าย ${formatBaht(total)} ฿` : ''}` +
+             (nextDue ? ` · ถัดไป ${formatShortDate(nextDue.date)}` : ''),
+    body: `
       <div class="card card-padded">
         ${upcoming.map(u => renderUpcomingRow(u)).join('')}
       </div>
-    </div>
-  `;
+      <div class="dash-sec-foot">
+        <a class="section-action" data-action="view-recurring">จัดการรายการประจำ</a>
+      </div>`
+  });
 }
 
 function renderUpcomingRow(u) {
@@ -1071,13 +1173,32 @@ function donutPrefix(period) {
   return '';                                    // all — ทุกรายการ
 }
 
+/** สรุปสั้นสำหรับหัวข้อที่พับอยู่ — 2 หมวดที่ใช้เยอะสุด */
+function donutSummary() {
+  const breakdown = State.getExpenseBreakdown(donutPrefix(_donutPeriod));
+  const periodLabel = DONUT_PERIODS.find(p => p[0] === _donutPeriod)?.[1] ?? '';
+  if (breakdown.grandTotal <= 0) {
+    return `ยังไม่มีรายจ่าย${_donutPeriod === 'all' ? '' : periodLabel}`;
+  }
+  const top = breakdown.cats.slice(0, 2)
+    .map(c => `${getCategory(c.group).label} ${c.percent}%`)
+    .join(' · ');
+  return `${periodLabel} · ${top || 'อื่นๆ 100%'}`;
+}
+
 function renderDonutSection() {
+  return dashSection({
+    id: 'donut',
+    title: 'ใช้ไปกับอะไร',
+    summary: donutSummary(),
+    body: `<div id="donut-body">${renderDonutBody()}</div>`
+  });
+}
+
+function renderDonutBody() {
   const breakdown = State.getExpenseBreakdown(donutPrefix(_donutPeriod));
   const periodLabel = DONUT_PERIODS.find(p => p[0] === _donutPeriod)?.[1] ?? '';
   return `
-    <div class="section-head">
-      <h2 class="section-title">ใช้ไปกับอะไร</h2>
-    </div>
     <div class="donut-chips">
       ${DONUT_PERIODS.map(([val, label]) => `
         <button class="chip ${_donutPeriod === val ? 'active' : ''}" data-donut-period="${val}">
@@ -1098,9 +1219,12 @@ function bindDonutChips(container) {
   container.querySelectorAll('[data-donut-period]').forEach(chip => {
     chip.addEventListener('click', () => {
       _donutPeriod = chip.dataset.donutPeriod;
-      const mount = container.querySelector('#donut-section');
+      const mount = container.querySelector('#donut-body');
       if (!mount) return;
-      mount.innerHTML = renderDonutSection();   // อัปเดตเฉพาะ section นี้ ไม่ re-render ทั้งหน้า
+      mount.innerHTML = renderDonutBody();      // อัปเดตเฉพาะ body ไม่ re-render ทั้งหน้า
+      // หัวข้อที่พับอยู่พก "ตัวเลขสรุป" ไว้ → ต้องอัปเดตตามช่วงเวลาที่เลือกด้วย
+      const summaryEl = container.querySelector('[data-dash-sec="donut"] .dash-sec-summary');
+      if (summaryEl) summaryEl.textContent = donutSummary();
       bindDonutChips(container);
     });
   });

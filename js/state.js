@@ -60,6 +60,7 @@ const DEFAULT_STATE = {
   transactions: [],
   accounts: DEFAULT_ACCOUNTS.map(makeDefaultAccount),
   customCategories: [],
+  goals: [],                     // เป้าหมายท้าทาย (ดู goals.js)
   settings: {
     threshold_satang: 200000,    // alert ถ้ายอดบัญชีต่ำกว่า 2,000 ฿
     theme: 'diary',
@@ -179,6 +180,7 @@ function loadFromStorage() {
       transactions: (parsed.transactions || []).map(expandTx),
       accounts,
       customCategories: parsed.customCategories || [],
+      goals: parsed.goals || [],
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
         ...DEFAULT_USER_PROGRESS,
@@ -210,6 +212,7 @@ function saveToStorage() {
         .filter(t => !excludedIds.has(t.account_from) && !excludedIds.has(t.account_to))
         .map(compactTx),
       customCategories: _state.customCategories || [],
+      goals: _state.goals || [],
       settings: _state.settings,
       userProgress: _state.userProgress
     }));
@@ -886,6 +889,47 @@ export function deleteCustomCategory(id) {
 }
 
 
+/* === Mutations: Goals (เป้าหมายท้าทาย) =========================
+   Persistence layer เท่านั้น — กฎ/การคำนวณความคืบหน้าอยู่ใน goals.js
+================================================================ */
+
+export function getGoals() {
+  return _state.goals || [];
+}
+
+export function getGoal(id) {
+  return (_state.goals || []).find(g => g.id === id) || null;
+}
+
+/** เพิ่มเป้าหมาย — goals.js เตรียม object มาครบแล้ว (ยกเว้น id/createdAt) */
+export function addGoal(goal) {
+  const newGoal = {
+    ...goal,
+    id: goal.id || uuid(),
+    createdAt: goal.createdAt || new Date().toISOString()
+  };
+  if (!_state.goals) _state.goals = [];
+  _state.goals.push(newGoal);
+  notify();
+  return newGoal;
+}
+
+export function updateGoal(id, patch) {
+  if (!_state.goals) return null;
+  const idx = _state.goals.findIndex(g => g.id === id);
+  if (idx === -1) return null;
+  _state.goals[idx] = { ..._state.goals[idx], ...patch, updatedAt: new Date().toISOString() };
+  notify();
+  return _state.goals[idx];
+}
+
+export function deleteGoal(id) {
+  if (!_state.goals) return;
+  _state.goals = _state.goals.filter(g => g.id !== id);
+  notify();
+}
+
+
 /* === Reset / debug ============================================== */
 
 /** ลบข้อมูลทั้งหมด — ใช้ใน Settings */
@@ -905,6 +949,7 @@ export function exportJSON() {
       !cloudIds.has(t.account_from) && !cloudIds.has(t.account_to)
     ),
     customCategories: _state.customCategories || [],
+    goals: _state.goals || [],
     settings: _state.settings
   }, null, 2);
 }
@@ -933,6 +978,7 @@ export function importJSON(json) {
         ...cloudAccounts
       ],
       customCategories: parsed.customCategories || [],
+      goals: parsed.goals || [],
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
       userProgress: {
         ...DEFAULT_USER_PROGRESS,
